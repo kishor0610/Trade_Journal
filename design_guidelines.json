@@ -1,0 +1,175 @@
+{
+  "identity": {
+    "name": "E1",
+    "persona": "The Anti-AI Designer",
+    "philosophy": [
+      "Fusion over Imitation",
+      "Emotion First",
+      "Content is king",
+      "Zoom in",
+      "Negative Space",
+      "Contrast"
+    ]
+  },
+  "theme_strategy": {
+    "mode": "dark",
+    "emotional_archetype": "ARCHETYPE 2: THE PERFORMANCE PRO",
+    "description": "Elite Athleticism & Precision. A command-center focus for high-stakes trading.",
+    "base_color": "#0A0A0A",
+    "surface_color": "#121212",
+    "accent_color": "#10B981"
+  },
+  "typography": {
+    "headings": {
+      "font_family": "Chivo, sans-serif",
+      "weights": ["900", "700"],
+      "usage": "Use for all page titles and section headers. Tight tracking is mandatory."
+    },
+    "body": {
+      "font_family": "Manrope, sans-serif",
+      "weights": ["400", "500"],
+      "usage": "Use for UI labels, descriptions, and general text."
+    },
+    "numbers": {
+      "font_family": "JetBrains Mono, monospace",
+      "weights": ["400", "700"],
+      "usage": "MANDATORY for all financial data, prices, P&L, and dates."
+    },
+    "installation": "Import these fonts via Google Fonts in index.css: @import url('https://fonts.googleapis.com/css2?family=Chivo:wght@700;900&family=JetBrains+Mono:wght@400;700&family=Manrope:wght@400;500;700&display=swap');"
+  },
+  "colors": {
+    "palette": {
+      "background": "#0A0A0A",
+      "foreground": "#FFFFFF",
+      "card": "#121212",
+      "card_foreground": "#FFFFFF",
+      "popover": "#0A0A0A",
+      "popover_foreground": "#FFFFFF",
+      "primary": "#FFFFFF",
+      "primary_foreground": "#000000",
+      "secondary": "#27272A",
+      "secondary_foreground": "#FFFFFF",
+      "muted": "#27272A",
+      "muted_foreground": "#A1A1AA",
+      "accent": "#10B981",
+      "accent_foreground": "#000000",
+      "destructive": "#EF4444",
+      "destructive_foreground": "#FFFFFF",
+      "border": "#27272A",
+      "input": "#27272A",
+      "ring": "#10B981"
+    },
+    "custom_tokens": {
+      "profit": "#10B981",
+      "loss": "#EF4444",
+      "gold": "#F59E0B",
+      "bitcoin": "#F7931A",
+      "ethereum": "#627EEA",
+      "glass_bg": "rgba(18, 18, 18, 0.6)",
+      "glass_border": "rgba(255, 255, 255, 0.1)"
+    }
+  },
+  "layout_system": {
+    "dashboard_grid": {
+      "type": "Bento Grid (Mode B)",
+      "specs": "grid-cols-1 md:grid-cols-4 gap-4",
+      "rules": [
+        "Summary Metrics: col-span-1",
+        "Main Chart: col-span-2 row-span-2 or col-span-3",
+        "Recent Trades List: col-span-1 row-span-2",
+        "Use h-full on children to ensure stretch."
+      ]
+    },
+    "mobile_view": {
+      "type": "Stack",
+      "specs": "flex flex-col gap-6",
+      "rules": [
+        "Swipeable Calendar at top",
+        "Floating Action Button (+) for new trade",
+        "Bottom Navigation Bar for sections (Dashboard, Journal, Analytics, AI)"
+      ]
+    },
+    "spacing": {
+      "container_padding": "p-4 md:p-8 lg:p-12",
+      "card_padding": "p-6"
+    }
+  },
+  "components": {
+    "cards": {
+      "style": "Glassmorphism (Crystal)",
+      "classes": "bg-card/60 backdrop-blur-xl border border-white/10 shadow-sm rounded-xl",
+      "hover": "hover:bg-card/80 hover:border-white/20 transition-all duration-300"
+    },
+    "buttons": {
+      "primary": {
+        "classes": "bg-white text-black font-bold hover:bg-gray-200 rounded-lg h-12 px-6 shadow-[0_0_15px_rgba(255,255,255,0.3)] transition-all"
+      },
+      "secondary": {
+        "classes": "bg-secondary text-white hover:bg-secondary/80 rounded-lg h-12 px-6 border border-white/5"
+      },
+      "accent": {
+        "classes": "bg-accent/10 text-accent border border-accent/20 hover:bg-accent/20 transition-all"
+      }
+    },
+    "inputs": {
+      "classes": "bg-black/50 border-white/10 focus:border-accent focus:ring-1 focus:ring-accent rounded-lg h-12 text-lg font-mono"
+    },
+    "charts": {
+      "library": "Recharts",
+      "style": "Minimalist, no grid lines (or very subtle), clear tooltips.",
+      "colors": ["#10B981", "#EF4444", "#F59E0B", "#3B82F6"]
+    }
+  },
+  "visual_enhancers": {
+    "gradients": "None over 20% opacity. Use subtle radial gradients for glows behind charts.",
+    "shadows": "Ambient: shadow-[0_8px_32px_rgba(0,0,0,0.5)].",
+    "borders": "1px solid rgba(255,255,255,0.08). Active borders: rgba(16, 185, 129, 0.5).",
+    "textures": "Add a subtle noise overlay to the body background if possible."
+  },
+  "image_urls": {
+    "login_background": "https://images.unsplash.com/photo-1651467987631-1bcd570b9f7f?crop=entropy&cs=srgb&fm=jpg&q=85",
+    "empty_state_abstract": "https://images.unsplash.com/photo-1652120268427-9ba66e870467?crop=entropy&cs=srgb&fm=jpg&q=85",
+    "landing_hero": "https://images.unsplash.com/photo-1575388902449-6bca946ad549?crop=entropy&cs=srgb&fm=jpg&q=85",
+    "logo_placeholder": "https://via.placeholder.com/40?text=TJ"
+  },
+  "motion_guidelines": {
+    "library": "framer-motion (Recommended) or tailwindcss-animate",
+    "defaults": {
+      "duration": "0.3s",
+      "ease": "ease-out"
+    },
+    "interactions": [
+      "Hover: Scale 1.02 + Brightness 1.1",
+      "Tap: Scale 0.98",
+      "Page Load: Staggered fade-in for grid items"
+    ],
+    "accessibility": "Respect prefers-reduced-motion"
+  },
+  "instructions_to_main_agent": [
+    "INSTALL framer-motion: `yarn add framer-motion` (It is missing in package.json)",
+    "Configure tailwind.config.js to use the 'class' strategy for dark mode and add the custom colors.",
+    "Add the font imports to src/index.css immediately.",
+    "Implement the 'Glass Card' style as a reusable component or utility class.",
+    "Use Recharts for all data visualization.",
+    "Ensure all numbers (prices, P&L) use the JetBrains Mono font.",
+    "For the Mobile View, ensure the bottom navigation bar is sticky and has a blur effect.",
+    "Do not ask the user for clarification. Use your best judgment based on this persona."
+  ],
+  "universal_guidelines": {
+    "anti_ai_slop": [
+      "No generic centered layouts.",
+      "No 'Inter' for headings.",
+      "No purple/teal gradients.",
+      "Use depth (z-index) and layered shadows."
+    ],
+    "accessibility_critical": [
+      "Contrast ratio > 4.5:1 for normal text.",
+      "Interactive elements must have aria-labels.",
+      "Focus states must be visible (ring-2 ring-accent).",
+      "Charts must use patterns or distinct shapes, not just color, for colorblind users."
+    ],
+    "testing": [
+      "All interactive elements must have data-testid attributes (kebab-case)."
+    ]
+  }
+}
