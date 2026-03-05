@@ -605,6 +605,74 @@ async def get_recent_activity(
         "recent_password_resets": recent_resets
     }
 
+@admin_router.delete("/users/{user_id}")
+async def delete_user(user_id: str, admin: dict = Depends(get_admin_user)):
+    """Delete a user and all their data"""
+    # Check if user exists
+    user = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Delete user's trades
+    await db.trades.delete_many({"user_id": user_id})
+    
+    # Delete user's MT5 accounts
+    await db.mt5_accounts.delete_many({"user_id": user_id})
+    
+    # Delete user's password resets
+    await db.password_resets.delete_many({"user_id": user_id})
+    
+    # Delete the user
+    await db.users.delete_one({"id": user_id})
+    
+    return {"message": f"User {user['email']} and all associated data deleted successfully"}
+
+@admin_router.get("/export/trades")
+async def export_all_trades_csv(admin: dict = Depends(get_admin_user)):
+    """Export all trades from all users as CSV"""
+    trades = await db.trades.find({}, {"_id": 0}).sort("created_at", -1).to_list(100000)
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Header row
+    writer.writerow([
+        'User ID', 'Instrument', 'Position', 'Status', 'Entry Price', 'Exit Price', 
+        'Quantity', 'Entry Date', 'Exit Date', 'P&L', 'P&L %',
+        'Stop Loss', 'Take Profit', 'Commission', 'Swap', 'Notes', 'Created At'
+    ])
+    
+    # Data rows
+    for trade in trades:
+        trade = calculate_pnl(trade)
+        writer.writerow([
+            trade.get('user_id', ''),
+            trade.get('instrument', ''),
+            trade.get('position', ''),
+            trade.get('status', ''),
+            trade.get('entry_price', ''),
+            trade.get('exit_price', ''),
+            trade.get('quantity', ''),
+            trade.get('entry_date', ''),
+            trade.get('exit_date', ''),
+            trade.get('pnl', ''),
+            trade.get('pnl_percentage', ''),
+            trade.get('stop_loss', ''),
+            trade.get('take_profit', ''),
+            trade.get('commission', ''),
+            trade.get('swap', ''),
+            trade.get('notes', ''),
+            trade.get('created_at', '')
+        ])
+    
+    output.seek(0)
+    
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode('utf-8')),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=all_trades_export_{datetime.now().strftime('%Y%m%d')}.csv"}
+    )
+
 # ============ MT5 ACCOUNT ROUTES ============
 
 @api_router.post("/mt5/accounts", response_model=MT5AccountResponse)

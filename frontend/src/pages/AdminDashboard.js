@@ -4,12 +4,13 @@ import { motion } from 'framer-motion';
 import axios from 'axios';
 import { 
   Shield, Users, Activity, DollarSign, TrendingUp, TrendingDown,
-  RefreshCw, LogOut, ChevronRight, Search, Calendar, Wallet
+  RefreshCw, LogOut, ChevronRight, Search, Calendar, Wallet, Download, Trash2
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { formatCurrency, formatDate } from '../lib/utils';
 import { toast } from 'sonner';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
 
 const API_URL = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -41,6 +42,9 @@ export default function AdminDashboard() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [userDetails, setUserDetails] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -93,6 +97,29 @@ export default function AdminDashboard() {
     navigate('/admin');
   };
 
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return;
+    setDeleting(true);
+    try {
+      await axios.delete(`${API_URL}/admin/users/${userToDelete.id}`);
+      toast.success(`User ${userToDelete.name} deleted successfully`);
+      setDeleteDialogOpen(false);
+      setUserToDelete(null);
+      setUserDetails(null);
+      setSelectedUser(null);
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to delete user');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleExportAllTrades = () => {
+    const url = `${API_URL}/admin/export/trades`;
+    window.open(url, '_blank');
+  };
+
   const filteredUsers = users.filter(user => 
     user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.email.toLowerCase().includes(searchTerm.toLowerCase())
@@ -122,6 +149,10 @@ export default function AdminDashboard() {
           </div>
           
           <div className="flex items-center gap-3">
+            <Button variant="outline" onClick={handleExportAllTrades} className="gap-2">
+              <Download className="w-4 h-4" />
+              Export All Trades
+            </Button>
             <Button variant="outline" onClick={fetchData} className="gap-2">
               <RefreshCw className="w-4 h-4" />
               Refresh
@@ -284,6 +315,18 @@ export default function AdminDashboard() {
                       ))}
                     </div>
                   )}
+
+                  {/* Delete User Button */}
+                  <div className="pt-4 border-t border-white/10">
+                    <Button 
+                      variant="outline" 
+                      className="w-full text-red-500 hover:text-red-400 hover:bg-red-500/10 border-red-500/30"
+                      onClick={() => { setUserToDelete(userDetails.user); setDeleteDialogOpen(true); }}
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete User
+                    </Button>
+                  </div>
                 </div>
               </motion.div>
             ) : (
@@ -338,6 +381,48 @@ export default function AdminDashboard() {
             )}
           </div>
         </div>
+
+        {/* Delete User Dialog */}
+        <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <DialogContent className="bg-card border-white/10 max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-red-500">
+                <Trash2 className="w-5 h-5" />
+                Delete User
+              </DialogTitle>
+              <DialogDescription>
+                This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30">
+                <p className="text-sm">
+                  Are you sure you want to delete <strong className="text-red-500">{userToDelete?.name}</strong>?
+                </p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  This will permanently remove the user and all their trades from the platform.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setDeleteDialogOpen(false)} 
+                  className="flex-1"
+                  disabled={deleting}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleDeleteUser}
+                  disabled={deleting}
+                  className="flex-1 bg-red-500 hover:bg-red-600 text-white"
+                >
+                  {deleting ? 'Deleting...' : 'Delete User'}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );

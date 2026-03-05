@@ -258,7 +258,7 @@ export default function Journal() {
   const [editingTrade, setEditingTrade] = useState(null);
   const [filters, setFilters] = useState({ status: '', instrument: '', search: '' });
   const [sortBy, setSortBy] = useState('created_at');
-  const [sortOrder, setSortOrder] = useState('desc');
+  const [sortOrder, setSortOrder] = useState('desc'); // Always desc - newest first
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
@@ -436,12 +436,12 @@ export default function Journal() {
               <div className="space-y-3">
                 <div className="space-y-1">
                   <Label className="text-xs">Status</Label>
-                  <Select value={filters.status} onValueChange={(v) => setFilters({ ...filters, status: v })}>
+                  <Select value={filters.status || "all"} onValueChange={(v) => setFilters({ ...filters, status: v === "all" ? "" : v })}>
                     <SelectTrigger className="bg-secondary border-white/10 h-9">
                       <SelectValue placeholder="All" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All</SelectItem>
+                      <SelectItem value="all">All</SelectItem>
                       {STATUSES.map((s) => (
                         <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
                       ))}
@@ -450,12 +450,12 @@ export default function Journal() {
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Instrument</Label>
-                  <Select value={filters.instrument} onValueChange={(v) => setFilters({ ...filters, instrument: v })}>
+                  <Select value={filters.instrument || "all"} onValueChange={(v) => setFilters({ ...filters, instrument: v === "all" ? "" : v })}>
                     <SelectTrigger className="bg-secondary border-white/10 h-9">
                       <SelectValue placeholder="All" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All</SelectItem>
+                      <SelectItem value="all">All</SelectItem>
                       {INSTRUMENTS.map((i) => (
                         <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>
                       ))}
