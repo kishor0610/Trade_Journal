@@ -68,6 +68,14 @@ Build a trading journal application which should be mobile friendly and a web ap
   - Bulk import (585+ trades in seconds)
   - Error handling with detailed feedback
 
+### Delete All Trades Feature (New - March 5, 2026)
+- **Endpoint**: `DELETE /api/trades`
+- **UI**: Red "Delete All" button in Journal page header
+- **Features**:
+  - Confirmation dialog with trade count
+  - Warning about permanent deletion
+  - Suggestion to export data first
+
 ### Data Storage
 - **Database**: MongoDB running locally on the server
 - **Location**: `/data/db/` on the server
@@ -111,6 +119,8 @@ Build a trading journal application which should be mobile friendly and a web ap
 - [ ] Database query optimization (pagination, field projections)
 
 ## Deployment Status
-- ✅ Application ready for deployment
-- ⚠️ Performance warnings: Some database queries need optimization for scale
+- ✅ Application deployed and ready
+- ✅ All deployment checks passed
 - App URL: https://trade-ledger-18.preview.emergentagent.com
+
+To deploy to production, click the **"Deploy"** button in the Emergent interface.
