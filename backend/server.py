@@ -43,6 +43,9 @@ SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev')
 ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'admin@tradeledger.com')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'TradeLedger@Admin2024')
 
+# Frontend URL for password reset links
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
+
 # Initialize Resend
 if RESEND_API_KEY:
     resend.api_key = RESEND_API_KEY
@@ -376,7 +379,7 @@ async def forgot_password(request: ForgotPasswordRequest):
     
     # Send email if Resend is configured
     if RESEND_API_KEY:
-        reset_link = f"https://trading-log-pro-1.preview.emergentagent.com/reset-password?token={reset_token}"
+        reset_link = f"{FRONTEND_URL}/reset-password?token={reset_token}"
         
         html_content = f"""
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
