@@ -5,11 +5,15 @@ import { Toaster } from './components/ui/sonner';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import Journal from './pages/Journal';
 import Analytics from './pages/Analytics';
 import AIInsights from './pages/AIInsights';
 import Accounts from './pages/Accounts';
+import AdminLogin from './pages/AdminLogin';
+import AdminDashboard from './pages/AdminDashboard';
 import './App.css';
 
 // Protected Route wrapper
@@ -64,6 +68,12 @@ function AppRoutes() {
           <Register />
         </PublicRoute>
       } />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+      
+      {/* Admin Routes (separate from user auth) */}
+      <Route path="/admin" element={<AdminLogin />} />
+      <Route path="/admin/dashboard" element={<AdminDashboard />} />
       
       {/* Protected Routes */}
       <Route path="/dashboard" element={

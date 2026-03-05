@@ -6,10 +6,12 @@ class TradingJournalAPITester:
     def __init__(self):
         self.base_url = "https://trading-log-pro-1.preview.emergentagent.com/api"
         self.token = None
+        self.admin_token = None
         self.user_id = None
         self.tests_run = 0
         self.tests_passed = 0
         self.test_trade_id = None
+        self.reset_token = None
 
     def run_test(self, name, method, endpoint, expected_status, data=None, auth_required=True):
         """Run a single API test"""
@@ -217,6 +219,198 @@ class TradingJournalAPITester:
         self.token = original_token
         return success
 
+    def test_forgot_password(self):
+        """Test forgot password functionality"""
+        # First register a user for this test
+        timestamp = datetime.now().strftime("%H%M%S") + "forgot"
+        reg_data = {
+            "email": f"forgot_test_{timestamp}@example.com",
+            "password": "TestPass123!",
+            "name": f"Forgot Test {timestamp}"
+        }
+        
+        # Register user first
+        reg_success, _ = self.run_test(
+            "Registration for Forgot Password Test", "POST", "auth/register", 200,
+            data=reg_data, auth_required=False
+        )
+        
+        if not reg_success:
+            return False
+        
+        # Test forgot password
+        forgot_data = {"email": reg_data["email"]}
+        success, response = self.run_test(
+            "Forgot Password", "POST", "auth/forgot-password", 200,
+            data=forgot_data, auth_required=False
+        )
+        
+        if success and response.get('token'):
+            self.reset_token = response['token']
+            print(f"   Reset token obtained: {self.reset_token[:20]}...")
+            return True
+        return success
+
+    def test_verify_reset_token(self):
+        """Test verify reset token"""
+        if not self.reset_token:
+            print("❌ No reset token available")
+            return False
+        
+        return self.run_test(
+            "Verify Reset Token", "GET", f"auth/verify-reset-token?token={self.reset_token}", 200,
+            auth_required=False
+        )[0]
+
+    def test_reset_password(self):
+        """Test reset password functionality"""
+        if not self.reset_token:
+            print("❌ No reset token available")
+            return False
+        
+        reset_data = {
+            "token": self.reset_token,
+            "new_password": "NewTestPass123!"
+        }
+        
+        return self.run_test(
+            "Reset Password", "POST", "auth/reset-password", 200,
+            data=reset_data, auth_required=False
+        )[0]
+
+    def test_admin_login(self):
+        """Test admin login"""
+        admin_data = {
+            "email": "admin@tradeledger.com",
+            "password": "TradeLedger@Admin2024"
+        }
+        
+        success, response = self.run_test(
+            "Admin Login", "POST", "admin/login", 200,
+            data=admin_data, auth_required=False
+        )
+        
+        if success and 'access_token' in response:
+            self.admin_token = response['access_token']
+            print(f"   Admin token obtained: {self.admin_token[:20]}...")
+            return True
+        return False
+
+    def test_admin_stats(self):
+        """Test admin stats endpoint"""
+        if not self.admin_token:
+            print("❌ No admin token available")
+            return False
+        
+        # Save current token and use admin token
+        original_token = self.token
+        self.token = self.admin_token
+        
+        success, response = self.run_test("Admin Stats", "GET", "admin/stats", 200)
+        
+        if success:
+            print(f"   Total users: {response.get('total_users', 0)}")
+            print(f"   Total trades: {response.get('total_trades', 0)}")
+            print(f"   Total P&L: ${response.get('total_pnl', 0)}")
+        
+        # Restore token
+        self.token = original_token
+        return success
+
+    def test_admin_users_list(self):
+        """Test admin users list endpoint"""
+        if not self.admin_token:
+            print("❌ No admin token available")
+            return False
+        
+        # Save current token and use admin token
+        original_token = self.token
+        self.token = self.admin_token
+        
+        success, response = self.run_test("Admin Users List", "GET", "admin/users", 200)
+        
+        if success:
+            users_count = len(response.get('users', []))
+            print(f"   Found {users_count} users")
+        
+        # Restore token
+        self.token = original_token
+        return success
+
+    def test_admin_user_details(self):
+        """Test admin user details endpoint"""
+        if not self.admin_token or not self.user_id:
+            print("❌ No admin token or user ID available")
+            return False
+        
+        # Save current token and use admin token
+        original_token = self.token
+        self.token = self.admin_token
+        
+        success, response = self.run_test(
+            "Admin User Details", "GET", f"admin/users/{self.user_id}", 200
+        )
+        
+        if success:
+            user_name = response.get('user', {}).get('name', 'Unknown')
+            trade_count = response.get('stats', {}).get('total_trades', 0)
+            print(f"   User: {user_name}, Trades: {trade_count}")
+        
+        # Restore token
+        self.token = original_token
+        return success
+
+    def test_admin_all_trades(self):
+        """Test admin all trades endpoint"""
+        if not self.admin_token:
+            print("❌ No admin token available")
+            return False
+        
+        # Save current token and use admin token
+        original_token = self.token
+        self.token = self.admin_token
+        
+        success, response = self.run_test("Admin All Trades", "GET", "admin/trades", 200)
+        
+        if success:
+            trades_count = len(response.get('trades', []))
+            print(f"   Found {trades_count} trades across all users")
+        
+        # Restore token
+        self.token = original_token
+        return success
+
+    def test_admin_activity(self):
+        """Test admin recent activity endpoint"""
+        if not self.admin_token:
+            print("❌ No admin token available")
+            return False
+        
+        # Save current token and use admin token
+        original_token = self.token
+        self.token = self.admin_token
+        
+        success, response = self.run_test("Admin Recent Activity", "GET", "admin/activity", 200)
+        
+        if success:
+            recent_users = len(response.get('recent_users', []))
+            recent_trades = len(response.get('recent_trades', []))
+            print(f"   Recent users: {recent_users}, Recent trades: {recent_trades}")
+        
+        # Restore token
+        self.token = original_token
+        return success
+
+    def test_admin_unauthorized_access(self):
+        """Test unauthorized admin access with regular user token"""
+        if not self.token:
+            print("❌ No user token available")
+            return False
+        
+        # Try to access admin endpoint with regular user token (should fail)
+        success, _ = self.run_test("Admin Unauthorized Access", "GET", "admin/stats", 403)
+        return success
+
 def main():
     print("🚀 Starting Trading Journal API Tests...")
     print("=" * 50)
@@ -239,6 +433,18 @@ def main():
         ("AI Insights", tester.test_ai_insights),
         ("Delete Trade", tester.test_delete_trade),
         ("Invalid Auth Test", tester.test_invalid_auth),
+        # Forgot Password Flow
+        ("Forgot Password", tester.test_forgot_password),
+        ("Verify Reset Token", tester.test_verify_reset_token),
+        ("Reset Password", tester.test_reset_password),
+        # Admin Dashboard Tests
+        ("Admin Login", tester.test_admin_login),
+        ("Admin Stats", tester.test_admin_stats),
+        ("Admin Users List", tester.test_admin_users_list),
+        ("Admin User Details", tester.test_admin_user_details),
+        ("Admin All Trades", tester.test_admin_all_trades),
+        ("Admin Recent Activity", tester.test_admin_activity),
+        ("Admin Unauthorized Access", tester.test_admin_unauthorized_access),
     ]
     
     failed_tests = []

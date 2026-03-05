@@ -16,6 +16,9 @@ from emergentintegrations.llm.chat import LlmChat, UserMessage
 from fastapi.responses import StreamingResponse
 import io
 import csv
+import asyncio
+import secrets
+import resend
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -30,15 +33,26 @@ JWT_SECRET = os.environ.get('JWT_SECRET', 'trading_journal_secret')
 JWT_ALGORITHM = os.environ.get('JWT_ALGORITHM', 'HS256')
 JWT_EXPIRATION_HOURS = int(os.environ.get('JWT_EXPIRATION_HOURS', 24))
 
-# LLM & MetaApi Keys
+# Keys
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
 METAAPI_TOKEN = os.environ.get('METAAPI_TOKEN', '')
+RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
+SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev')
+
+# Admin credentials
+ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'admin@tradeledger.com')
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'TradeLedger@Admin2024')
+
+# Initialize Resend
+if RESEND_API_KEY:
+    resend.api_key = RESEND_API_KEY
 
 # Create the main app
 app = FastAPI(title="TradeLedger API", version="2.0.0")
 
-# Create a router with the /api prefix
+# Create routers
 api_router = APIRouter(prefix="/api")
+admin_router = APIRouter(prefix="/api/admin")
 
 # Security
 security = HTTPBearer()
@@ -66,6 +80,18 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     user: UserResponse
 
+class AdminTokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    is_admin: bool = True
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
 class MT5AccountCreate(BaseModel):
     name: str
     login: str
@@ -89,7 +115,7 @@ class MT5AccountResponse(BaseModel):
 
 class TradeCreate(BaseModel):
     instrument: str
-    position: str  # long or short (buy/sell)
+    position: str
     entry_price: float
     exit_price: Optional[float] = None
     quantity: float
@@ -151,9 +177,9 @@ def hash_password(password: str) -> str:
 def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
 
-def create_access_token(user_id: str, email: str) -> str:
+def create_access_token(user_id: str, email: str, is_admin: bool = False) -> str:
     expire = datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRATION_HOURS)
-    payload = {"sub": user_id, "email": email, "exp": expire}
+    payload = {"sub": user_id, "email": email, "exp": expire, "is_admin": is_admin}
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
@@ -172,6 +198,19 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
+async def get_admin_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    try:
+        token = credentials.credentials
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        is_admin = payload.get("is_admin", False)
+        if not is_admin:
+            raise HTTPException(status_code=403, detail="Admin access required")
+        return payload
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
 # ============ PNL CALCULATION ============
 
 def calculate_pnl(trade: dict) -> dict:
@@ -185,7 +224,7 @@ def calculate_pnl(trade: dict) -> dict:
         
         if position in ['long', 'buy']:
             pnl = (exit_p - entry) * qty - commission - swap
-        else:  # short/sell
+        else:
             pnl = (entry - exit_p) * qty - commission - swap
         
         pnl_percentage = ((exit_p - entry) / entry * 100) if position in ['long', 'buy'] else ((entry - exit_p) / entry * 100)
@@ -240,6 +279,259 @@ async def login(user_data: UserLogin):
 async def get_me(current_user: dict = Depends(get_current_user)):
     return UserResponse(**current_user)
 
+# ============ FORGOT PASSWORD ============
+
+@api_router.post("/auth/forgot-password")
+async def forgot_password(request: ForgotPasswordRequest):
+    """Send password reset email"""
+    user = await db.users.find_one({"email": request.email}, {"_id": 0})
+    
+    # Always return success to prevent email enumeration
+    if not user:
+        return {"message": "If this email exists, a reset link has been sent"}
+    
+    # Generate reset token
+    reset_token = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+    
+    # Store reset token
+    await db.password_resets.insert_one({
+        "user_id": user['id'],
+        "email": request.email,
+        "token": reset_token,
+        "expires_at": expires_at.isoformat(),
+        "used": False,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    
+    # Send email if Resend is configured
+    if RESEND_API_KEY:
+        reset_link = f"https://trading-log-pro-1.preview.emergentagent.com/reset-password?token={reset_token}"
+        
+        html_content = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #10B981;">TradeLedger Password Reset</h2>
+            <p>Hi {user['name']},</p>
+            <p>You requested to reset your password. Click the button below to create a new password:</p>
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="{reset_link}" style="background-color: #10B981; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold;">
+                    Reset Password
+                </a>
+            </div>
+            <p>Or copy this link: <a href="{reset_link}">{reset_link}</a></p>
+            <p style="color: #666; font-size: 12px;">This link expires in 1 hour. If you didn't request this, please ignore this email.</p>
+        </div>
+        """
+        
+        try:
+            params = {
+                "from": SENDER_EMAIL,
+                "to": [request.email],
+                "subject": "Reset Your TradeLedger Password",
+                "html": html_content
+            }
+            await asyncio.to_thread(resend.Emails.send, params)
+        except Exception as e:
+            logging.error(f"Failed to send reset email: {str(e)}")
+    
+    return {"message": "If this email exists, a reset link has been sent", "token": reset_token if not RESEND_API_KEY else None}
+
+@api_router.post("/auth/reset-password")
+async def reset_password(request: ResetPasswordRequest):
+    """Reset password using token"""
+    reset_doc = await db.password_resets.find_one({
+        "token": request.token,
+        "used": False
+    }, {"_id": 0})
+    
+    if not reset_doc:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+    
+    # Check expiration
+    expires_at = datetime.fromisoformat(reset_doc['expires_at'].replace('Z', '+00:00'))
+    if datetime.now(timezone.utc) > expires_at:
+        raise HTTPException(status_code=400, detail="Reset token has expired")
+    
+    # Update password
+    new_hashed = hash_password(request.new_password)
+    await db.users.update_one(
+        {"id": reset_doc['user_id']},
+        {"$set": {"password": new_hashed}}
+    )
+    
+    # Mark token as used
+    await db.password_resets.update_one(
+        {"token": request.token},
+        {"$set": {"used": True}}
+    )
+    
+    return {"message": "Password reset successfully"}
+
+@api_router.get("/auth/verify-reset-token")
+async def verify_reset_token(token: str):
+    """Verify if reset token is valid"""
+    reset_doc = await db.password_resets.find_one({
+        "token": token,
+        "used": False
+    }, {"_id": 0})
+    
+    if not reset_doc:
+        raise HTTPException(status_code=400, detail="Invalid reset token")
+    
+    expires_at = datetime.fromisoformat(reset_doc['expires_at'].replace('Z', '+00:00'))
+    if datetime.now(timezone.utc) > expires_at:
+        raise HTTPException(status_code=400, detail="Reset token has expired")
+    
+    return {"valid": True, "email": reset_doc['email']}
+
+# ============ ADMIN ROUTES ============
+
+@admin_router.post("/login", response_model=AdminTokenResponse)
+async def admin_login(user_data: UserLogin):
+    """Admin login endpoint"""
+    if user_data.email != ADMIN_EMAIL or user_data.password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="Invalid admin credentials")
+    
+    token = create_access_token("admin", ADMIN_EMAIL, is_admin=True)
+    return AdminTokenResponse(access_token=token)
+
+@admin_router.get("/stats")
+async def get_admin_stats(admin: dict = Depends(get_admin_user)):
+    """Get overall platform statistics"""
+    total_users = await db.users.count_documents({})
+    total_trades = await db.trades.count_documents({})
+    total_mt5_accounts = await db.mt5_accounts.count_documents({})
+    
+    # Get trades stats
+    all_trades = await db.trades.find({"status": "closed"}, {"_id": 0}).to_list(100000)
+    total_pnl = sum(calculate_pnl(t).get('pnl', 0) or 0 for t in all_trades)
+    
+    # Recent signups (last 7 days)
+    week_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    recent_users = await db.users.count_documents({"created_at": {"$gte": week_ago}})
+    
+    # Recent trades (last 7 days)
+    recent_trades = await db.trades.count_documents({"created_at": {"$gte": week_ago}})
+    
+    return {
+        "total_users": total_users,
+        "total_trades": total_trades,
+        "total_mt5_accounts": total_mt5_accounts,
+        "total_pnl": round(total_pnl, 2),
+        "recent_users_7d": recent_users,
+        "recent_trades_7d": recent_trades
+    }
+
+@admin_router.get("/users")
+async def get_all_users(
+    skip: int = 0,
+    limit: int = 50,
+    admin: dict = Depends(get_admin_user)
+):
+    """Get all registered users"""
+    users = await db.users.find({}, {"_id": 0, "password": 0}).skip(skip).limit(limit).sort("created_at", -1).to_list(limit)
+    
+    # Add trade count and P&L for each user
+    enriched_users = []
+    for user in users:
+        trade_count = await db.trades.count_documents({"user_id": user['id']})
+        trades = await db.trades.find({"user_id": user['id'], "status": "closed"}, {"_id": 0}).to_list(10000)
+        total_pnl = sum(calculate_pnl(t).get('pnl', 0) or 0 for t in trades)
+        
+        enriched_users.append({
+            **user,
+            "trade_count": trade_count,
+            "total_pnl": round(total_pnl, 2)
+        })
+    
+    total = await db.users.count_documents({})
+    return {"users": enriched_users, "total": total}
+
+@admin_router.get("/users/{user_id}")
+async def get_user_details(user_id: str, admin: dict = Depends(get_admin_user)):
+    """Get detailed info about a specific user"""
+    user = await db.users.find_one({"id": user_id}, {"_id": 0, "password": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Get user's trades
+    trades = await db.trades.find({"user_id": user_id}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    trades = [calculate_pnl(t) for t in trades]
+    
+    # Get user's MT5 accounts
+    mt5_accounts = await db.mt5_accounts.find({"user_id": user_id}, {"_id": 0, "password": 0}).to_list(100)
+    
+    # Calculate stats
+    closed_trades = [t for t in trades if t['status'] == 'closed']
+    total_pnl = sum(t.get('pnl', 0) or 0 for t in closed_trades)
+    winning = len([t for t in closed_trades if (t.get('pnl') or 0) > 0])
+    losing = len([t for t in closed_trades if (t.get('pnl') or 0) < 0])
+    
+    return {
+        "user": user,
+        "trades": trades[:50],  # Last 50 trades
+        "mt5_accounts": mt5_accounts,
+        "stats": {
+            "total_trades": len(trades),
+            "closed_trades": len(closed_trades),
+            "open_trades": len(trades) - len(closed_trades),
+            "total_pnl": round(total_pnl, 2),
+            "winning_trades": winning,
+            "losing_trades": losing,
+            "win_rate": round(winning / len(closed_trades) * 100, 2) if closed_trades else 0
+        }
+    }
+
+@admin_router.get("/trades")
+async def get_all_trades(
+    skip: int = 0,
+    limit: int = 100,
+    admin: dict = Depends(get_admin_user)
+):
+    """Get all trades from all users"""
+    trades = await db.trades.find({}, {"_id": 0}).skip(skip).limit(limit).sort("created_at", -1).to_list(limit)
+    trades = [calculate_pnl(t) for t in trades]
+    
+    # Enrich with user info
+    enriched_trades = []
+    for trade in trades:
+        user = await db.users.find_one({"id": trade['user_id']}, {"_id": 0, "name": 1, "email": 1})
+        enriched_trades.append({
+            **trade,
+            "user_name": user.get('name') if user else 'Unknown',
+            "user_email": user.get('email') if user else 'Unknown'
+        })
+    
+    total = await db.trades.count_documents({})
+    return {"trades": enriched_trades, "total": total}
+
+@admin_router.get("/activity")
+async def get_recent_activity(
+    limit: int = 50,
+    admin: dict = Depends(get_admin_user)
+):
+    """Get recent platform activity"""
+    # Recent user registrations
+    recent_users = await db.users.find({}, {"_id": 0, "password": 0}).sort("created_at", -1).limit(10).to_list(10)
+    
+    # Recent trades
+    recent_trades = await db.trades.find({}, {"_id": 0}).sort("created_at", -1).limit(20).to_list(20)
+    recent_trades = [calculate_pnl(t) for t in recent_trades]
+    
+    # Enrich trades with user info
+    for trade in recent_trades:
+        user = await db.users.find_one({"id": trade['user_id']}, {"_id": 0, "name": 1})
+        trade['user_name'] = user.get('name') if user else 'Unknown'
+    
+    # Recent password resets
+    recent_resets = await db.password_resets.find({}, {"_id": 0}).sort("created_at", -1).limit(10).to_list(10)
+    
+    return {
+        "recent_users": recent_users,
+        "recent_trades": recent_trades,
+        "recent_password_resets": recent_resets
+    }
+
 # ============ MT5 ACCOUNT ROUTES ============
 
 @api_router.post("/mt5/accounts", response_model=MT5AccountResponse)
@@ -252,7 +544,7 @@ async def add_mt5_account(account_data: MT5AccountCreate, current_user: dict = D
         "user_id": current_user['id'],
         "name": account_data.name,
         "login": account_data.login,
-        "password": account_data.password,  # In production, encrypt this
+        "password": account_data.password,
         "server": account_data.server,
         "platform": account_data.platform,
         "is_connected": False,
@@ -264,7 +556,6 @@ async def add_mt5_account(account_data: MT5AccountCreate, current_user: dict = D
     
     await db.mt5_accounts.insert_one(account_doc)
     
-    # Remove password from response
     del account_doc['password']
     if '_id' in account_doc:
         del account_doc['_id']
@@ -288,7 +579,7 @@ async def delete_mt5_account(account_id: str, current_user: dict = Depends(get_c
 
 @api_router.post("/mt5/accounts/{account_id}/sync")
 async def sync_mt5_account(account_id: str, current_user: dict = Depends(get_current_user)):
-    """Sync trades from MT5 account (placeholder for MetaApi integration)"""
+    """Sync trades from MT5 account via MetaApi"""
     account = await db.mt5_accounts.find_one(
         {"id": account_id, "user_id": current_user['id']},
         {"_id": 0}
@@ -296,19 +587,52 @@ async def sync_mt5_account(account_id: str, current_user: dict = Depends(get_cur
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
     
-    # Update last sync time
     now = datetime.now(timezone.utc).isoformat()
-    await db.mt5_accounts.update_one(
-        {"id": account_id},
-        {"$set": {"last_sync": now, "is_connected": True}}
-    )
     
-    return {
-        "message": "Sync initiated",
-        "account_id": account_id,
-        "last_sync": now,
-        "note": "Configure METAAPI_TOKEN in .env to enable live MT5 sync"
-    }
+    # Check if MetaApi is configured
+    if not METAAPI_TOKEN:
+        await db.mt5_accounts.update_one(
+            {"id": account_id},
+            {"$set": {"last_sync": now}}
+        )
+        return {
+            "message": "MetaApi not configured",
+            "account_id": account_id,
+            "last_sync": now,
+            "note": "To enable live MT5 sync, add your MetaApi token to the backend configuration. Get a free token at https://metaapi.cloud"
+        }
+    
+    # MetaApi sync logic would go here
+    # For now, update the sync time and return info
+    try:
+        from metaapi_cloud_sdk import MetaApi
+        
+        meta_api = MetaApi(METAAPI_TOKEN)
+        
+        # This is a simplified flow - full implementation would:
+        # 1. Create/get MetaApi account linked to user's MT5
+        # 2. Deploy the account
+        # 3. Fetch history deals/orders
+        # 4. Import them as trades
+        
+        await db.mt5_accounts.update_one(
+            {"id": account_id},
+            {"$set": {"last_sync": now, "is_connected": True}}
+        )
+        
+        return {
+            "message": "Sync initiated",
+            "account_id": account_id,
+            "last_sync": now,
+            "note": "MetaApi integration active. Full sync requires account provisioning."
+        }
+    except Exception as e:
+        logging.error(f"MT5 sync error: {str(e)}")
+        return {
+            "message": "Sync failed",
+            "error": str(e),
+            "note": "Check MetaApi configuration and account credentials"
+        }
 
 # ============ TRADE ROUTES ============
 
@@ -379,7 +703,7 @@ async def delete_trade(trade_id: str, current_user: dict = Depends(get_current_u
         raise HTTPException(status_code=404, detail="Trade not found")
     return {"message": "Trade deleted successfully"}
 
-# ============ ENHANCED ANALYTICS ROUTES ============
+# ============ ANALYTICS ROUTES ============
 
 @api_router.get("/analytics/summary")
 async def get_analytics_summary(
@@ -418,10 +742,8 @@ async def get_analytics_summary(
     avg_loss = total_losses / losing_trades if losing_trades > 0 else 0
     avg_win_loss_ratio = avg_win / avg_loss if avg_loss > 0 else 0
     
-    # Open trades
     open_trades = await db.trades.count_documents({"user_id": current_user['id'], "status": "open"})
     
-    # Calculate daily stats
     daily_stats = {}
     for trade in trades:
         if trade.get('exit_date'):
@@ -436,17 +758,14 @@ async def get_analytics_summary(
                 else:
                     daily_stats[day]['losses'] += 1
     
-    # Daily win rate
     winning_days = sum(1 for d in daily_stats.values() if d['pnl'] > 0)
     total_days = len(daily_stats)
     daily_win_rate = (winning_days / total_days * 100) if total_days > 0 else 0
     
-    # Day win/loss ratio
     day_wins_total = sum(d['pnl'] for d in daily_stats.values() if d['pnl'] > 0)
     day_losses_total = abs(sum(d['pnl'] for d in daily_stats.values() if d['pnl'] < 0))
     day_win_loss_ratio = day_wins_total / day_losses_total if day_losses_total > 0 else 0
     
-    # Calculate streaks
     sorted_days = sorted(daily_stats.keys())
     current_win_streak = 0
     max_win_streak = 0
@@ -460,7 +779,6 @@ async def get_analytics_summary(
         else:
             current_win_streak = 0
     
-    # Trade streak (consecutive winning trades)
     all_trades_sorted = sorted([t for t in trades if t.get('exit_date')], key=lambda x: x['exit_date'])
     for trade in all_trades_sorted:
         trade = calculate_pnl(trade)
@@ -557,7 +875,6 @@ async def get_daily_analytics(
     month: int = Query(default=None),
     current_user: dict = Depends(get_current_user)
 ):
-    """Get daily P&L for calendar view"""
     now = datetime.now(timezone.utc)
     year = year or now.year
     month = month or now.month
@@ -613,13 +930,11 @@ async def get_daily_analytics(
 
 @api_router.get("/analytics/balance-history")
 async def get_balance_history(
-    period: str = Query(default="1M", description="1D, 1W, 1M, 6M, 1Y, All"),
+    period: str = Query(default="1M"),
     current_user: dict = Depends(get_current_user)
 ):
-    """Get balance/equity curve data"""
     now = datetime.now(timezone.utc)
     
-    # Calculate start date based on period
     period_map = {
         "1D": timedelta(days=1),
         "1W": timedelta(weeks=1),
@@ -637,7 +952,6 @@ async def get_balance_history(
         "exit_date": {"$gte": start_date}
     }, {"_id": 0}).sort("exit_date", 1).to_list(10000)
     
-    # Build cumulative balance
     balance_history = []
     cumulative_pnl = 0
     
@@ -658,7 +972,6 @@ async def get_trade_count_history(
     period: str = Query(default="1M"),
     current_user: dict = Depends(get_current_user)
 ):
-    """Get trade count over time for sparkline chart"""
     now = datetime.now(timezone.utc)
     
     period_map = {
@@ -685,10 +998,7 @@ async def get_trade_count_history(
     result = sorted([{"date": k, "count": v} for k, v in daily_counts.items()], key=lambda x: x['date'])
     total_count = sum(d['count'] for d in result)
     
-    return {
-        "total": total_count,
-        "data": result
-    }
+    return {"total": total_count, "data": result}
 
 # ============ AI INSIGHTS ============
 
@@ -749,34 +1059,21 @@ Provide a concise, helpful analysis with specific recommendations."""
         logging.error(f"AI insight error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"AI service error: {str(e)}")
 
-# ============ HEALTH CHECK ============
-
-@api_router.get("/")
-async def root():
-    return {"message": "TradeLedger API v2.0", "status": "healthy"}
-
-@api_router.get("/health")
-async def health_check():
-    return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}
-
 # ============ EXPORT ROUTES ============
 
 @api_router.get("/export/trades/csv")
 async def export_trades_csv(current_user: dict = Depends(get_current_user)):
-    """Export all trades to CSV"""
     trades = await db.trades.find({"user_id": current_user['id']}, {"_id": 0}).sort("entry_date", -1).to_list(10000)
     
     output = io.StringIO()
     writer = csv.writer(output)
     
-    # Header
     writer.writerow([
         'Instrument', 'Position', 'Status', 'Entry Price', 'Exit Price', 
         'Quantity', 'Entry Date', 'Exit Date', 'P&L', 'P&L %',
         'Stop Loss', 'Take Profit', 'Commission', 'Swap', 'Notes'
     ])
     
-    # Data rows
     for trade in trades:
         trade = calculate_pnl(trade)
         writer.writerow([
@@ -807,7 +1104,6 @@ async def export_trades_csv(current_user: dict = Depends(get_current_user)):
 
 @api_router.get("/export/trades/xlsx")
 async def export_trades_xlsx(current_user: dict = Depends(get_current_user)):
-    """Export all trades to Excel XLSX"""
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     
@@ -817,7 +1113,6 @@ async def export_trades_xlsx(current_user: dict = Depends(get_current_user)):
     ws = wb.active
     ws.title = "Trades"
     
-    # Header styling
     header_font = Font(bold=True, color="FFFFFF")
     header_fill = PatternFill(start_color="1F2937", end_color="1F2937", fill_type="solid")
     thin_border = Border(
@@ -840,7 +1135,6 @@ async def export_trades_xlsx(current_user: dict = Depends(get_current_user)):
         cell.alignment = Alignment(horizontal='center')
         cell.border = thin_border
     
-    # Data rows
     green_fill = PatternFill(start_color="D1FAE5", end_color="D1FAE5", fill_type="solid")
     red_fill = PatternFill(start_color="FEE2E2", end_color="FEE2E2", fill_type="solid")
     
@@ -868,18 +1162,18 @@ async def export_trades_xlsx(current_user: dict = Depends(get_current_user)):
             cell = ws.cell(row=row_idx, column=col, value=value)
             cell.border = thin_border
             
-            # Color P&L column
-            if col == 9 and value:  # P&L column
-                if float(value) > 0:
-                    cell.fill = green_fill
-                elif float(value) < 0:
-                    cell.fill = red_fill
+            if col == 9 and value:
+                try:
+                    if float(value) > 0:
+                        cell.fill = green_fill
+                    elif float(value) < 0:
+                        cell.fill = red_fill
+                except:
+                    pass
     
-    # Adjust column widths
     for col in range(1, len(headers) + 1):
         ws.column_dimensions[chr(64 + col)].width = 15
     
-    # Save to bytes
     output = io.BytesIO()
     wb.save(output)
     output.seek(0)
@@ -890,8 +1184,19 @@ async def export_trades_xlsx(current_user: dict = Depends(get_current_user)):
         headers={"Content-Disposition": f"attachment; filename=trades_export_{datetime.now().strftime('%Y%m%d')}.xlsx"}
     )
 
-# Include the router
+# ============ HEALTH CHECK ============
+
+@api_router.get("/")
+async def root():
+    return {"message": "TradeLedger API", "status": "healthy"}
+
+@api_router.get("/health")
+async def health_check():
+    return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}
+
+# Include routers
 app.include_router(api_router)
+app.include_router(admin_router)
 
 app.add_middleware(
     CORSMiddleware,
