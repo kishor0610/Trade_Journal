@@ -4,7 +4,7 @@ from datetime import datetime
 
 class TradingJournalAPITester:
     def __init__(self):
-        self.base_url = "https://trading-log-pro-1.preview.emergentagent.com/api"
+        self.base_url = "https://trade-ledger-18.preview.emergentagent.com/api"
         self.token = None
         self.admin_token = None
         self.user_id = None

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, Query
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, Query, UploadFile, File
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -1131,6 +1131,227 @@ Provide a concise, helpful analysis with specific recommendations."""
     except Exception as e:
         logging.error(f"AI insight error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"AI service error: {str(e)}")
+
+# ============ IMPORT ROUTES ============
+
+# Symbol mapping for CSV import (broker symbols to app instruments)
+SYMBOL_MAPPING = {
+    'XAUUSDm': 'XAU/USD',
+    'XAUUSD': 'XAU/USD',
+    'XAGUSDm': 'XAG/USD',
+    'XAGUSD': 'XAG/USD',
+    'BTCUSDm': 'BTC/USD',
+    'BTCUSD': 'BTC/USD',
+    'ETHUSDm': 'ETH/USD',
+    'ETHUSD': 'ETH/USD',
+    'EURUSDm': 'EUR/USD',
+    'EURUSD': 'EUR/USD',
+    'GBPUSDm': 'GBP/USD',
+    'GBPUSD': 'GBP/USD',
+    'USDJPYm': 'USD/JPY',
+    'USDJPY': 'USD/JPY',
+    'NAS100m': 'NAS100',
+    'US30m': 'US30',
+}
+
+def normalize_symbol(symbol: str) -> str:
+    """Convert broker symbol format to app instrument format"""
+    symbol = symbol.strip()
+    if symbol in SYMBOL_MAPPING:
+        return SYMBOL_MAPPING[symbol]
+    # Remove trailing 'm' if present and check again
+    if symbol.endswith('m'):
+        base = symbol[:-1]
+        if base in SYMBOL_MAPPING:
+            return SYMBOL_MAPPING[base]
+    # Return original if no mapping found
+    return symbol
+
+class CSVImportResponse(BaseModel):
+    success: bool
+    imported_count: int
+    skipped_count: int
+    errors: List[str] = []
+    message: str
+
+@api_router.post("/trades/import-csv", response_model=CSVImportResponse)
+async def import_trades_csv(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Import trades from a CSV file (Exness/MT5 format)"""
+    
+    if not file.filename.endswith('.csv'):
+        raise HTTPException(status_code=400, detail="Only CSV files are accepted")
+    
+    try:
+        # Read and decode the CSV content
+        content = await file.read()
+        decoded = content.decode('utf-8')
+        
+        # Parse CSV
+        reader = csv.DictReader(io.StringIO(decoded))
+        
+        imported_count = 0
+        skipped_count = 0
+        errors = []
+        
+        # Get existing tickets to avoid duplicates
+        existing_tickets = set()
+        existing_trades = await db.trades.find(
+            {"user_id": current_user['id'], "mt5_ticket": {"$ne": None}},
+            {"mt5_ticket": 1, "_id": 0}
+        ).to_list(100000)
+        for t in existing_trades:
+            if t.get('mt5_ticket'):
+                existing_tickets.add(str(t['mt5_ticket']))
+        
+        now = datetime.now(timezone.utc).isoformat()
+        trades_to_insert = []
+        
+        for row_num, row in enumerate(reader, start=2):
+            try:
+                # Get ticket number
+                ticket = row.get('ticket', '').strip()
+                if not ticket:
+                    skipped_count += 1
+                    continue
+                
+                # Skip if already imported
+                if ticket in existing_tickets:
+                    skipped_count += 1
+                    continue
+                
+                # Parse required fields
+                symbol = row.get('symbol', '').strip()
+                if not symbol:
+                    errors.append(f"Row {row_num}: Missing symbol")
+                    skipped_count += 1
+                    continue
+                
+                trade_type = row.get('type', '').strip().lower()
+                if trade_type not in ['buy', 'sell']:
+                    errors.append(f"Row {row_num}: Invalid trade type '{trade_type}'")
+                    skipped_count += 1
+                    continue
+                
+                # Parse prices
+                try:
+                    opening_price = float(row.get('opening_price', 0))
+                    closing_price = float(row.get('closing_price', 0)) if row.get('closing_price', '').strip() else None
+                except ValueError:
+                    errors.append(f"Row {row_num}: Invalid price values")
+                    skipped_count += 1
+                    continue
+                
+                # Parse lots
+                try:
+                    lots = float(row.get('lots', 0))
+                    if lots <= 0:
+                        errors.append(f"Row {row_num}: Invalid lot size")
+                        skipped_count += 1
+                        continue
+                except ValueError:
+                    errors.append(f"Row {row_num}: Invalid lot size")
+                    skipped_count += 1
+                    continue
+                
+                # Parse dates
+                opening_time = row.get('opening_time_utc', '').strip()
+                closing_time = row.get('closing_time_utc', '').strip()
+                
+                # Convert datetime format (2026-03-02T01:33:34.811 -> 2026-03-02T01:33:34)
+                entry_date = opening_time[:19] if opening_time else now[:19]
+                exit_date = closing_time[:19] if closing_time else None
+                
+                # Parse optional fields
+                stop_loss = None
+                take_profit = None
+                commission = 0
+                swap = 0
+                profit = None
+                
+                try:
+                    if row.get('stop_loss', '').strip():
+                        stop_loss = float(row['stop_loss'])
+                    if row.get('take_profit', '').strip():
+                        take_profit = float(row['take_profit'])
+                    if row.get('commission_usd', '').strip():
+                        commission = float(row['commission_usd'])
+                    if row.get('swap_usd', '').strip():
+                        swap = float(row['swap_usd'])
+                    if row.get('profit_usd', '').strip():
+                        profit = float(row['profit_usd'])
+                except ValueError:
+                    pass  # Use defaults for optional fields
+                
+                # Normalize symbol to app format
+                instrument = normalize_symbol(symbol)
+                
+                # Determine status
+                status = 'closed' if closing_price and exit_date else 'open'
+                
+                # Create trade document
+                trade_id = str(uuid.uuid4())
+                trade_doc = {
+                    "id": trade_id,
+                    "user_id": current_user['id'],
+                    "instrument": instrument,
+                    "position": trade_type,
+                    "entry_price": opening_price,
+                    "exit_price": closing_price,
+                    "quantity": lots,
+                    "entry_date": entry_date,
+                    "exit_date": exit_date,
+                    "notes": f"Imported from CSV - Ticket #{ticket}",
+                    "status": status,
+                    "stop_loss": stop_loss,
+                    "take_profit": take_profit,
+                    "commission": commission,
+                    "swap": swap,
+                    "mt5_ticket": ticket,
+                    "created_at": now
+                }
+                
+                # Use the profit from CSV directly if available, otherwise calculate
+                if profit is not None and status == 'closed':
+                    trade_doc['pnl'] = round(profit, 2)
+                    # Calculate pnl_percentage based on entry price
+                    if opening_price > 0 and closing_price:
+                        if trade_type == 'buy':
+                            trade_doc['pnl_percentage'] = round((closing_price - opening_price) / opening_price * 100, 2)
+                        else:
+                            trade_doc['pnl_percentage'] = round((opening_price - closing_price) / opening_price * 100, 2)
+                else:
+                    trade_doc = calculate_pnl(trade_doc)
+                
+                trades_to_insert.append(trade_doc)
+                existing_tickets.add(ticket)
+                imported_count += 1
+                
+            except Exception as e:
+                errors.append(f"Row {row_num}: {str(e)}")
+                skipped_count += 1
+        
+        # Bulk insert trades
+        if trades_to_insert:
+            await db.trades.insert_many(trades_to_insert)
+        
+        # Limit errors list for response
+        if len(errors) > 10:
+            errors = errors[:10] + [f"... and {len(errors) - 10} more errors"]
+        
+        return CSVImportResponse(
+            success=True,
+            imported_count=imported_count,
+            skipped_count=skipped_count,
+            errors=errors,
+            message=f"Successfully imported {imported_count} trades. {skipped_count} skipped (duplicates or errors)."
+        )
+        
+    except Exception as e:
+        logging.error(f"CSV import error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to import CSV: {str(e)}")
 
 # ============ EXPORT ROUTES ============
 

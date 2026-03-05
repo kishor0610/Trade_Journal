@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
-import { Plus, Edit2, Trash2, TrendingUp, TrendingDown, Filter, X, Search, SlidersHorizontal, Download } from 'lucide-react';
+import { Plus, Edit2, Trash2, TrendingUp, TrendingDown, Filter, X, Search, SlidersHorizontal, Download, Upload, FileSpreadsheet, AlertCircle, CheckCircle } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -259,6 +259,9 @@ export default function Journal() {
   const [filters, setFilters] = useState({ status: '', instrument: '', search: '' });
   const [sortBy, setSortBy] = useState('created_at');
   const [sortOrder, setSortOrder] = useState('desc');
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null);
 
   useEffect(() => {
     fetchTrades();
@@ -311,6 +314,45 @@ export default function Journal() {
   const closeDialog = () => {
     setDialogOpen(false);
     setEditingTrade(null);
+  };
+
+  const handleCSVImport = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.csv')) {
+      toast.error('Please select a CSV file');
+      return;
+    }
+
+    setImporting(true);
+    setImportResult(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await axios.post(`${API_URL}/trades/import-csv`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      setImportResult(response.data);
+      
+      if (response.data.imported_count > 0) {
+        toast.success(`Successfully imported ${response.data.imported_count} trades!`);
+        fetchTrades();
+      } else if (response.data.skipped_count > 0) {
+        toast.warning('No new trades imported. All entries were duplicates or had errors.');
+      }
+    } catch (error) {
+      const errorMsg = error.response?.data?.detail || 'Failed to import CSV';
+      setImportResult({ success: false, message: errorMsg, errors: [errorMsg] });
+      toast.error(errorMsg);
+    } finally {
+      setImporting(false);
+      // Reset file input
+      event.target.value = '';
+    }
   };
 
   // Filter trades by search
@@ -439,6 +481,120 @@ export default function Journal() {
                 onSubmit={editingTrade ? handleUpdateTrade : handleAddTrade}
                 onClose={closeDialog}
               />
+            </DialogContent>
+          </Dialog>
+
+          {/* Import Button */}
+          <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+            <DialogTrigger asChild>
+              <Button 
+                variant="outline" 
+                className="gap-2"
+                data-testid="import-btn"
+                onClick={() => setImportResult(null)}
+              >
+                <Upload className="w-4 h-4" />
+                <span className="hidden md:inline">Import</span>
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="bg-card border-white/10 max-w-md">
+              <DialogHeader>
+                <DialogTitle className="font-heading flex items-center gap-2">
+                  <FileSpreadsheet className="w-5 h-5 text-accent" />
+                  Import Trades from CSV
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Upload a CSV file from your broker (Exness, MT5, etc.) to bulk import your trading history.
+                </p>
+                
+                <div className="p-4 rounded-lg bg-secondary/50 border border-white/10">
+                  <h4 className="text-sm font-medium mb-2">Supported columns:</h4>
+                  <ul className="text-xs text-muted-foreground space-y-1">
+                    <li>• <code>symbol</code> - Trading instrument (e.g., XAUUSDm)</li>
+                    <li>• <code>type</code> - buy/sell</li>
+                    <li>• <code>lots</code> - Position size</li>
+                    <li>• <code>opening_price</code>, <code>closing_price</code></li>
+                    <li>• <code>opening_time_utc</code>, <code>closing_time_utc</code></li>
+                    <li>• <code>profit_usd</code> - P&L (optional)</li>
+                    <li>• <code>ticket</code> - Trade ID (prevents duplicates)</li>
+                  </ul>
+                </div>
+
+                {/* File upload area */}
+                <label 
+                  htmlFor="csv-upload"
+                  className={`flex flex-col items-center justify-center p-6 rounded-lg border-2 border-dashed transition-colors cursor-pointer
+                    ${importing 
+                      ? 'border-accent/50 bg-accent/10' 
+                      : 'border-white/10 hover:border-accent/50 hover:bg-secondary/30'}`}
+                >
+                  {importing ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="w-8 h-8 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
+                      <span className="text-sm">Importing...</span>
+                    </div>
+                  ) : (
+                    <>
+                      <Upload className="w-8 h-8 text-muted-foreground mb-2" />
+                      <span className="text-sm font-medium">Click to select CSV file</span>
+                      <span className="text-xs text-muted-foreground">or drag and drop</span>
+                    </>
+                  )}
+                  <input
+                    id="csv-upload"
+                    type="file"
+                    accept=".csv"
+                    className="hidden"
+                    onChange={handleCSVImport}
+                    disabled={importing}
+                    data-testid="csv-file-input"
+                  />
+                </label>
+
+                {/* Import result */}
+                {importResult && (
+                  <div className={`p-4 rounded-lg ${importResult.success ? 'bg-emerald-500/10 border border-emerald-500/30' : 'bg-red-500/10 border border-red-500/30'}`}>
+                    <div className="flex items-start gap-2">
+                      {importResult.success ? (
+                        <CheckCircle className="w-5 h-5 text-emerald-500 flex-shrink-0 mt-0.5" />
+                      ) : (
+                        <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                      )}
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">{importResult.message}</p>
+                        {importResult.imported_count > 0 && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {importResult.imported_count} imported, {importResult.skipped_count} skipped
+                          </p>
+                        )}
+                        {importResult.errors?.length > 0 && (
+                          <div className="mt-2 text-xs text-red-400 max-h-24 overflow-y-auto">
+                            {importResult.errors.slice(0, 5).map((err, i) => (
+                              <div key={i}>{err}</div>
+                            ))}
+                            {importResult.errors.length > 5 && (
+                              <div>...and {importResult.errors.length - 5} more</div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-2">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setImportDialogOpen(false)} 
+                    className="flex-1"
+                    data-testid="import-dialog-close"
+                  >
+                    Close
+                  </Button>
+                </div>
+              </div>
             </DialogContent>
           </Dialog>
 

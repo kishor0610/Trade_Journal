@@ -12,7 +12,7 @@ def create_test_user():
     
     try:
         response = requests.post(
-            "https://trading-log-pro-1.preview.emergentagent.com/api/auth/register",
+            "https://trade-ledger-18.preview.emergentagent.com/api/auth/register",
             json=user_data,
             headers={'Content-Type': 'application/json'},
             timeout=30
