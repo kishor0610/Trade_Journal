@@ -167,7 +167,8 @@ export default function Analytics() {
                     fontFamily: 'JetBrains Mono',
                     color: '#fff'
                   }}
-                  labelStyle={{ color: '#A1A1AA' }}
+                  labelStyle={{ color: '#fff' }}
+                  itemStyle={{ color: '#10B981' }}
                   formatter={(value) => [formatCurrency(value), 'Cumulative P&L']}
                 />
                 <Area 
@@ -216,7 +217,8 @@ export default function Analytics() {
                     fontFamily: 'JetBrains Mono',
                     color: '#fff'
                   }}
-                  labelStyle={{ color: '#A1A1AA' }}
+                  labelStyle={{ color: '#fff' }}
+                  itemStyle={{ color: '#10B981' }}
                   formatter={(value) => [formatCurrency(value), 'P&L']}
                 />
                 <Bar 
@@ -271,7 +273,8 @@ export default function Analytics() {
                     fontFamily: 'JetBrains Mono',
                     color: '#fff'
                   }}
-                  labelStyle={{ color: '#A1A1AA' }}
+                  labelStyle={{ color: '#fff' }}
+                  itemStyle={{ color: '#10B981' }}
                   formatter={(value) => [formatCurrency(value), 'P&L']}
                 />
                 <Bar 
