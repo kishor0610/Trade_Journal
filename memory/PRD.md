@@ -7,6 +7,7 @@ Build a trading journal application which should be mobile friendly and a web ap
 1. **Active Day Trader** - Needs quick trade entry, real-time P&L tracking, daily analytics
 2. **Swing Trader** - Focuses on longer-term trades, wants calendar view, monthly analytics
 3. **Algorithmic Trader** - Needs MT5 integration for auto-importing trades
+4. **Admin** - Monitors all users, platform stats, and user activity
 
 ## Core Requirements (Static)
 - JWT-based authentication (email/password)
@@ -21,15 +22,26 @@ Build a trading journal application which should be mobile friendly and a web ap
 
 ### Backend (FastAPI)
 - ✅ User authentication (register, login, JWT tokens)
+- ✅ **Forgot Password** - Send reset link to email
+- ✅ **Reset Password** - Token-based password reset
+- ✅ **Admin Dashboard API** - Stats, users list, user details, activity
 - ✅ Trade CRUD with full fields (SL/TP, commission, swap)
 - ✅ Enhanced analytics endpoints
-- ✅ MT5 account management
+- ✅ MT5 account management (MetaApi ready)
 - ✅ AI insights using OpenAI GPT-5.2
 - ✅ Export to CSV/XLSX functionality
 
 ### Frontend (React)
 - ✅ Custom app icon
-- ✅ Clean TradeLedger branding (no v2.0)
+- ✅ Clean TradeLedger branding
+- ✅ **Forgot Password page** with email input
+- ✅ **Reset Password page** with token validation
+- ✅ **Admin Login** at `/admin`
+- ✅ **Admin Dashboard** at `/admin/dashboard` with:
+  - Total users, trades, P&L, MT5 accounts stats
+  - All users list with search
+  - User details with trading stats
+  - Recent activity panel
 - ✅ TraderWaves-style Dashboard with gauge charts, ratio bars, winstreaks
 - ✅ Calendar view with weekly summary sidebar
 - ✅ Export buttons for CSV/XLSX downloads
@@ -40,21 +52,23 @@ Build a trading journal application which should be mobile friendly and a web ap
 ### Data Storage
 - **Database**: MongoDB running locally on the server
 - **Location**: `/data/db/` on the server
-- **Collections**: `users`, `trades`, `mt5_accounts`
+- **Collections**: `users`, `trades`, `mt5_accounts`, `password_resets`
 - All user data is isolated by `user_id`
 
-### MT5 Integration Ready
-- MetaApi SDK installed
-- Server: Exness-MT5Real24
-- Login: 170709804
-- Configure METAAPI_TOKEN to enable live sync
+### Admin Access
+- **Email**: admin@tradeledger.com
+- **Password**: TradeLedger@Admin2024
+- **URL**: /admin
 
-## Admin Access Notes
-Currently, the app uses individual user authentication. Each user only sees their own data.
-For admin monitoring, you can:
-1. Access MongoDB directly via command line: `mongosh test_database`
-2. View all users: `db.users.find()`
-3. View all trades: `db.trades.find()`
+### MT5 Integration
+- MetaApi SDK installed and configured
+- To enable live sync: Add METAAPI_TOKEN to backend .env
+- Get free token at: https://metaapi.cloud
+
+### Email Service (for password reset)
+- Resend SDK installed
+- To enable email sending: Add RESEND_API_KEY to backend .env
+- Currently works in dev mode (shows reset link directly)
 
 ## Prioritized Backlog
 
@@ -67,15 +81,16 @@ For admin monitoring, you can:
 ### P1 - DONE
 - ✅ TraderWaves-style dashboard
 - ✅ Calendar with weekly summary
-- ✅ Custom branding
+- ✅ Admin Dashboard
+- ✅ Forgot Password
 
 ### P2 (Future)
-- [ ] Admin dashboard panel
 - [ ] Live MT5 sync via MetaApi
+- [ ] Email notifications
 - [ ] Algos section
 - [ ] Trade Copier
 
 ## Next Tasks
 1. Deploy the application
 2. Configure METAAPI_TOKEN for MT5 sync
-3. Consider adding admin dashboard for monitoring
+3. Configure RESEND_API_KEY for password reset emails
