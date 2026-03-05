@@ -6,7 +6,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '../components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import { formatCurrency, formatDate, INSTRUMENTS, POSITIONS, STATUSES, getInstrumentColor } from '../lib/utils';
@@ -503,12 +503,11 @@ export default function Journal() {
                   <FileSpreadsheet className="w-5 h-5 text-accent" />
                   Import Trades from CSV
                 </DialogTitle>
+                <DialogDescription className="text-sm text-muted-foreground">
+                  Upload a CSV file from your broker to bulk import your trading history.
+                </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Upload a CSV file from your broker (Exness, MT5, etc.) to bulk import your trading history.
-                </p>
-                
                 <div className="p-4 rounded-lg bg-secondary/50 border border-white/10">
                   <h4 className="text-sm font-medium mb-2">Supported columns:</h4>
                   <ul className="text-xs text-muted-foreground space-y-1">
