@@ -776,6 +776,15 @@ async def delete_trade(trade_id: str, current_user: dict = Depends(get_current_u
         raise HTTPException(status_code=404, detail="Trade not found")
     return {"message": "Trade deleted successfully"}
 
+@api_router.delete("/trades")
+async def delete_all_trades(current_user: dict = Depends(get_current_user)):
+    """Delete all trades for the current user"""
+    result = await db.trades.delete_many({"user_id": current_user['id']})
+    return {
+        "message": f"Successfully deleted {result.deleted_count} trades",
+        "deleted_count": result.deleted_count
+    }
+
 # ============ ANALYTICS ROUTES ============
 
 @api_router.get("/analytics/summary")

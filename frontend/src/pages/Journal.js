@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
-import { Plus, Edit2, Trash2, TrendingUp, TrendingDown, Filter, X, Search, SlidersHorizontal, Download, Upload, FileSpreadsheet, AlertCircle, CheckCircle } from 'lucide-react';
+import { Plus, Edit2, Trash2, TrendingUp, TrendingDown, Filter, X, Search, SlidersHorizontal, Download, Upload, FileSpreadsheet, AlertCircle, CheckCircle, AlertTriangle } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -262,6 +262,8 @@ export default function Journal() {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
+  const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetchTrades();
@@ -352,6 +354,20 @@ export default function Journal() {
       setImporting(false);
       // Reset file input
       event.target.value = '';
+    }
+  };
+
+  const handleDeleteAllTrades = async () => {
+    setDeleting(true);
+    try {
+      const response = await axios.delete(`${API_URL}/trades`);
+      toast.success(response.data.message);
+      setDeleteAllDialogOpen(false);
+      fetchTrades();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to delete trades');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -620,6 +636,63 @@ export default function Journal() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* Delete All Button */}
+          {trades.length > 0 && (
+            <Dialog open={deleteAllDialogOpen} onOpenChange={setDeleteAllDialogOpen}>
+              <DialogTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  className="gap-2 text-red-500 hover:text-red-400 hover:bg-red-500/10 border-red-500/30"
+                  data-testid="delete-all-btn"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span className="hidden md:inline">Delete All</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="bg-card border-white/10 max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="font-heading flex items-center gap-2 text-red-500">
+                    <AlertTriangle className="w-5 h-5" />
+                    Delete All Trades
+                  </DialogTitle>
+                  <DialogDescription className="text-sm text-muted-foreground">
+                    This action cannot be undone.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30">
+                    <p className="text-sm">
+                      You are about to delete <strong className="text-red-500">{trades.length} trades</strong> from your journal.
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      This will permanently remove all your trading history. Make sure to export your data first if you need a backup.
+                    </p>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setDeleteAllDialogOpen(false)} 
+                      className="flex-1"
+                      disabled={deleting}
+                      data-testid="delete-all-cancel"
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      onClick={handleDeleteAllTrades}
+                      disabled={deleting}
+                      className="flex-1 bg-red-500 hover:bg-red-600 text-white"
+                      data-testid="delete-all-confirm"
+                    >
+                      {deleting ? 'Deleting...' : 'Delete All Trades'}
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
       </div>
 
