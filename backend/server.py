@@ -213,21 +213,91 @@ async def get_admin_user(credentials: HTTPAuthorizationCredentials = Depends(sec
 
 # ============ PNL CALCULATION ============
 
+# Contract size multipliers for different instruments
+# This converts price difference to actual P&L in USD
+INSTRUMENT_MULTIPLIERS = {
+    # Commodities - Gold/Silver (price per oz, 100 oz per lot)
+    'XAU/USD': 100,     # 1 lot = 100 oz, $1 move = $100/lot
+    'XAUUSD': 100,
+    'Gold': 100,
+    'XAG/USD': 5000,    # 1 lot = 5000 oz, $1 move = $5000/lot
+    'XAGUSD': 5000,
+    'Silver': 5000,
+    
+    # Forex pairs - Standard lot = 100,000 units
+    # For pairs with USD as quote: pip value = $10 per lot per pip (0.0001)
+    # We use 10000 because price diff of 0.0001 * 10000 = $1 profit per lot
+    'EUR/USD': 100000,
+    'EURUSD': 100000,
+    'GBP/USD': 100000,
+    'GBPUSD': 100000,
+    'AUD/USD': 100000,
+    'AUDUSD': 100000,
+    'NZD/USD': 100000,
+    'NZDUSD': 100000,
+    'USD/CAD': 100000,
+    'USDCAD': 100000,
+    'USD/CHF': 100000,
+    'USDCHF': 100000,
+    'USD/JPY': 1000,    # JPY pairs have different pip value
+    'USDJPY': 1000,
+    
+    # Crypto - Usually 1:1 or varies
+    'BTC/USD': 1,       # 1 contract = 1 BTC
+    'BTCUSD': 1,
+    'BTC': 1,
+    'ETH/USD': 1,       # 1 contract = 1 ETH
+    'ETHUSD': 1,
+    'ETH': 1,
+    
+    # Indices - Point value per lot
+    'NAS100': 1,        # $1 per point per lot
+    'US30': 1,
+    'SPX500': 1,
+    'US500': 1,
+    'Stocks': 1,
+}
+
+def get_instrument_multiplier(instrument: str) -> float:
+    """Get the contract multiplier for an instrument"""
+    # Check exact match first
+    if instrument in INSTRUMENT_MULTIPLIERS:
+        return INSTRUMENT_MULTIPLIERS[instrument]
+    
+    # Check partial matches (for variations like "GOLD", "gold", etc.)
+    instrument_upper = instrument.upper()
+    for key, value in INSTRUMENT_MULTIPLIERS.items():
+        if key.upper() in instrument_upper or instrument_upper in key.upper():
+            return value
+    
+    # Default to 1 for unknown instruments
+    return 1
+
 def calculate_pnl(trade: dict) -> dict:
     if trade.get('exit_price') and trade.get('status') == 'closed':
         entry = trade['entry_price']
         exit_p = trade['exit_price']
-        qty = trade['quantity']
+        qty = trade['quantity']  # This is lot size
         position = trade['position']
         commission = trade.get('commission', 0) or 0
         swap = trade.get('swap', 0) or 0
+        instrument = trade.get('instrument', '')
         
+        # Get the multiplier for this instrument
+        multiplier = get_instrument_multiplier(instrument)
+        
+        # Calculate raw P&L based on position
         if position in ['long', 'buy']:
-            pnl = (exit_p - entry) * qty - commission - swap
-        else:
-            pnl = (entry - exit_p) * qty - commission - swap
+            raw_pnl = (exit_p - entry) * qty * multiplier
+        else:  # short/sell
+            raw_pnl = (entry - exit_p) * qty * multiplier
         
+        # Subtract trading costs
+        pnl = raw_pnl - commission - swap
+        
+        # Calculate percentage based on entry price
         pnl_percentage = ((exit_p - entry) / entry * 100) if position in ['long', 'buy'] else ((entry - exit_p) / entry * 100)
+        
         trade['pnl'] = round(pnl, 2)
         trade['pnl_percentage'] = round(pnl_percentage, 2)
     else:

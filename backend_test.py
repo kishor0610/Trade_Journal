@@ -411,6 +411,212 @@ class TradingJournalAPITester:
         success, _ = self.run_test("Admin Unauthorized Access", "GET", "admin/stats", 403)
         return success
 
+    def test_xau_usd_pnl_calculation(self):
+        """Test specific XAU/USD P&L calculation: Entry 5152, Exit 5163, 0.5 lots should = $550"""
+        trade_data = {
+            "instrument": "XAU/USD",
+            "position": "long",
+            "entry_price": 5152.0,
+            "exit_price": 5163.0,
+            "quantity": 0.5,
+            "entry_date": "2024-01-15",
+            "exit_date": "2024-01-16",
+            "notes": "XAU/USD P&L calculation test",
+            "status": "closed"
+        }
+        
+        success, response = self.run_test(
+            "XAU/USD P&L Test", "POST", "trades", 200, data=trade_data
+        )
+        
+        if success and 'pnl' in response:
+            actual_pnl = response['pnl']
+            expected_pnl = 550.0  # (5163 - 5152) * 0.5 * 100 = 11 * 0.5 * 100 = 550
+            
+            if abs(actual_pnl - expected_pnl) < 0.01:  # Allow small floating point differences
+                print(f"   ✅ P&L calculation correct: ${actual_pnl} (expected ${expected_pnl})")
+                return True
+            else:
+                print(f"   ❌ P&L calculation incorrect: ${actual_pnl} (expected ${expected_pnl})")
+                return False
+        else:
+            print("   ❌ No P&L value in response")
+            return False
+
+    def test_eur_usd_pnl_calculation(self):
+        """Test EUR/USD P&L calculation with forex multiplier"""
+        trade_data = {
+            "instrument": "EUR/USD",
+            "position": "long",
+            "entry_price": 1.0500,
+            "exit_price": 1.0550,
+            "quantity": 1.0,  # 1 standard lot
+            "entry_date": "2024-01-15",
+            "exit_date": "2024-01-16",
+            "notes": "EUR/USD P&L calculation test",
+            "status": "closed"
+        }
+        
+        success, response = self.run_test(
+            "EUR/USD P&L Test", "POST", "trades", 200, data=trade_data
+        )
+        
+        if success and 'pnl' in response:
+            actual_pnl = response['pnl']
+            # Price difference: 1.0550 - 1.0500 = 0.005
+            # Multiplier for EUR/USD: 100000
+            # P&L = 0.005 * 1.0 * 100000 = 500
+            expected_pnl = 500.0
+            
+            if abs(actual_pnl - expected_pnl) < 0.01:
+                print(f"   ✅ EUR/USD P&L calculation correct: ${actual_pnl} (expected ${expected_pnl})")
+                return True
+            else:
+                print(f"   ❌ EUR/USD P&L calculation incorrect: ${actual_pnl} (expected ${expected_pnl})")
+                return False
+        else:
+            print("   ❌ No P&L value in response")
+            return False
+
+    def test_btc_pnl_calculation(self):
+        """Test BTC P&L calculation with 1x multiplier"""
+        trade_data = {
+            "instrument": "BTC/USD",
+            "position": "long",
+            "entry_price": 50000.0,
+            "exit_price": 51000.0,
+            "quantity": 2.0,  # 2 BTC
+            "entry_date": "2024-01-15",
+            "exit_date": "2024-01-16",
+            "notes": "BTC P&L calculation test",
+            "status": "closed"
+        }
+        
+        success, response = self.run_test(
+            "BTC P&L Test", "POST", "trades", 200, data=trade_data
+        )
+        
+        if success and 'pnl' in response:
+            actual_pnl = response['pnl']
+            # Price difference: 51000 - 50000 = 1000
+            # Multiplier for BTC: 1
+            # P&L = 1000 * 2.0 * 1 = 2000
+            expected_pnl = 2000.0
+            
+            if abs(actual_pnl - expected_pnl) < 0.01:
+                print(f"   ✅ BTC P&L calculation correct: ${actual_pnl} (expected ${expected_pnl})")
+                return True
+            else:
+                print(f"   ❌ BTC P&L calculation incorrect: ${actual_pnl} (expected ${expected_pnl})")
+                return False
+        else:
+            print("   ❌ No P&L value in response")
+            return False
+
+    def test_short_position_pnl(self):
+        """Test short position P&L calculation"""
+        trade_data = {
+            "instrument": "XAU/USD",
+            "position": "short",
+            "entry_price": 5200.0,
+            "exit_price": 5180.0,
+            "quantity": 0.25,  # 0.25 lots
+            "entry_date": "2024-01-15",
+            "exit_date": "2024-01-16",
+            "notes": "Short position P&L test",
+            "status": "closed"
+        }
+        
+        success, response = self.run_test(
+            "Short Position P&L Test", "POST", "trades", 200, data=trade_data
+        )
+        
+        if success and 'pnl' in response:
+            actual_pnl = response['pnl']
+            # For short: P&L = (entry - exit) * quantity * multiplier
+            # P&L = (5200 - 5180) * 0.25 * 100 = 20 * 0.25 * 100 = 500
+            expected_pnl = 500.0
+            
+            if abs(actual_pnl - expected_pnl) < 0.01:
+                print(f"   ✅ Short position P&L correct: ${actual_pnl} (expected ${expected_pnl})")
+                return True
+            else:
+                print(f"   ❌ Short position P&L incorrect: ${actual_pnl} (expected ${expected_pnl})")
+                return False
+        else:
+            print("   ❌ No P&L value in response")
+            return False
+
+    def test_silver_pnl_calculation(self):
+        """Test Silver (XAG/USD) P&L calculation with 5000x multiplier"""
+        trade_data = {
+            "instrument": "XAG/USD",
+            "position": "long",
+            "entry_price": 25.50,
+            "exit_price": 26.00,
+            "quantity": 0.1,  # 0.1 lots
+            "entry_date": "2024-01-15",
+            "exit_date": "2024-01-16",
+            "notes": "Silver P&L calculation test",
+            "status": "closed"
+        }
+        
+        success, response = self.run_test(
+            "Silver P&L Test", "POST", "trades", 200, data=trade_data
+        )
+        
+        if success and 'pnl' in response:
+            actual_pnl = response['pnl']
+            # Price difference: 26.00 - 25.50 = 0.50
+            # Multiplier for XAG/USD: 5000
+            # P&L = 0.50 * 0.1 * 5000 = 250
+            expected_pnl = 250.0
+            
+            if abs(actual_pnl - expected_pnl) < 0.01:
+                print(f"   ✅ Silver P&L calculation correct: ${actual_pnl} (expected ${expected_pnl})")
+                return True
+            else:
+                print(f"   ❌ Silver P&L calculation incorrect: ${actual_pnl} (expected ${expected_pnl})")
+                return False
+        else:
+            print("   ❌ No P&L value in response")
+            return False
+
+    def test_unknown_instrument_default_multiplier(self):
+        """Test unknown instrument defaults to 1x multiplier"""
+        trade_data = {
+            "instrument": "UNKNOWN_PAIR",
+            "position": "long",
+            "entry_price": 100.0,
+            "exit_price": 110.0,
+            "quantity": 5.0,
+            "entry_date": "2024-01-15",
+            "exit_date": "2024-01-16",
+            "notes": "Unknown instrument test",
+            "status": "closed"
+        }
+        
+        success, response = self.run_test(
+            "Unknown Instrument Test", "POST", "trades", 200, data=trade_data
+        )
+        
+        if success and 'pnl' in response:
+            actual_pnl = response['pnl']
+            # Price difference: 110 - 100 = 10
+            # Default multiplier: 1
+            # P&L = 10 * 5.0 * 1 = 50
+            expected_pnl = 50.0
+            
+            if abs(actual_pnl - expected_pnl) < 0.01:
+                print(f"   ✅ Unknown instrument P&L correct: ${actual_pnl} (expected ${expected_pnl})")
+                return True
+            else:
+                print(f"   ❌ Unknown instrument P&L incorrect: ${actual_pnl} (expected ${expected_pnl})")
+                return False
+        else:
+            print("   ❌ No P&L value in response")
+            return False
+
 def main():
     print("🚀 Starting Trading Journal API Tests...")
     print("=" * 50)
@@ -433,6 +639,13 @@ def main():
         ("AI Insights", tester.test_ai_insights),
         ("Delete Trade", tester.test_delete_trade),
         ("Invalid Auth Test", tester.test_invalid_auth),
+        # P&L Calculation Tests - CRITICAL
+        ("XAU/USD P&L Calculation", tester.test_xau_usd_pnl_calculation),
+        ("EUR/USD P&L Calculation", tester.test_eur_usd_pnl_calculation),
+        ("BTC P&L Calculation", tester.test_btc_pnl_calculation),
+        ("Short Position P&L", tester.test_short_position_pnl),
+        ("Silver P&L Calculation", tester.test_silver_pnl_calculation),
+        ("Unknown Instrument Default", tester.test_unknown_instrument_default_multiplier),
         # Forgot Password Flow
         ("Forgot Password", tester.test_forgot_password),
         ("Verify Reset Token", tester.test_verify_reset_token),
