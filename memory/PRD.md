@@ -30,6 +30,7 @@ Build a trading journal application which should be mobile friendly and a web ap
 - ✅ MT5 account management (MetaApi ready)
 - ✅ AI insights using OpenAI GPT-5.2
 - ✅ Export to CSV/XLSX functionality
+- ✅ **CSV Import** - Bulk import trades from broker CSV files (Exness/MT5)
 
 ### Frontend (React)
 - ✅ Custom app icon
@@ -45,9 +46,27 @@ Build a trading journal application which should be mobile friendly and a web ap
 - ✅ TraderWaves-style Dashboard with gauge charts, ratio bars, winstreaks
 - ✅ Calendar view with weekly summary sidebar
 - ✅ Export buttons for CSV/XLSX downloads
+- ✅ **Import dialog** for CSV file upload
 - ✅ Trade Journal with advanced form
 - ✅ Accounts page for MT5 connection
 - ✅ Mobile-responsive with bottom navigation
+
+### CSV Import Feature (New - March 5, 2026)
+- **Endpoint**: `POST /api/trades/import-csv`
+- **Supported Format**: Exness/MT5 CSV export
+- **Columns Parsed**:
+  - `ticket` → Used for duplicate prevention
+  - `symbol` → Normalized (XAUUSDm → XAU/USD)
+  - `type` → buy/sell positions
+  - `lots` → Position size
+  - `opening_price`, `closing_price` → Entry/Exit prices
+  - `opening_time_utc`, `closing_time_utc` → Dates
+  - `profit_usd` → P&L (used directly from CSV)
+  - `stop_loss`, `take_profit`, `commission_usd`, `swap_usd`
+- **Features**:
+  - Duplicate prevention via ticket number
+  - Bulk import (585+ trades in seconds)
+  - Error handling with detailed feedback
 
 ### Data Storage
 - **Database**: MongoDB running locally on the server
@@ -66,9 +85,8 @@ Build a trading journal application which should be mobile friendly and a web ap
 - Get free token at: https://metaapi.cloud
 
 ### Email Service (for password reset)
-- Resend SDK installed
-- To enable email sending: Add RESEND_API_KEY to backend .env
-- Currently works in dev mode (shows reset link directly)
+- Resend SDK installed and configured
+- RESEND_API_KEY already in backend/.env
 
 ## Prioritized Backlog
 
@@ -77,6 +95,7 @@ Build a trading journal application which should be mobile friendly and a web ap
 - ✅ Trade CRUD
 - ✅ Dashboard with charts
 - ✅ Export functionality
+- ✅ CSV Import
 
 ### P1 - DONE
 - ✅ TraderWaves-style dashboard
@@ -89,8 +108,9 @@ Build a trading journal application which should be mobile friendly and a web ap
 - [ ] Email notifications
 - [ ] Algos section
 - [ ] Trade Copier
+- [ ] Database query optimization (pagination, field projections)
 
-## Next Tasks
-1. Deploy the application
-2. Configure METAAPI_TOKEN for MT5 sync
-3. Configure RESEND_API_KEY for password reset emails
+## Deployment Status
+- ✅ Application ready for deployment
+- ⚠️ Performance warnings: Some database queries need optimization for scale
+- App URL: https://trade-ledger-18.preview.emergentagent.com
