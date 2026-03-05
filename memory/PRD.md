@@ -22,69 +22,60 @@ Build a trading journal application which should be mobile friendly and a web ap
 ### Backend (FastAPI)
 - ✅ User authentication (register, login, JWT tokens)
 - ✅ Trade CRUD with full fields (SL/TP, commission, swap)
-- ✅ Enhanced analytics endpoints:
-  - Summary with win rate, streaks, daily stats
-  - By instrument breakdown
-  - Monthly P&L data
-  - Daily analytics for calendar view
-  - Balance history for equity curve
-  - Trade count history for sparkline
-- ✅ MT5 account management (CRUD, sync placeholder)
-- ✅ AI insights using OpenAI GPT-5.2 via Emergent LLM Key
+- ✅ Enhanced analytics endpoints
+- ✅ MT5 account management
+- ✅ AI insights using OpenAI GPT-5.2
+- ✅ Export to CSV/XLSX functionality
 
 ### Frontend (React)
-- ✅ Auth pages (Login, Register) with beautiful dark theme
-- ✅ Enhanced Dashboard (TraderWaves-style):
-  - Semi-circular gauge charts (Winrate, Daily Winrate)
-  - Horizontal ratio bars (Avg Win/Loss, Day Win/Loss)
-  - Trade count with sparkline
-  - Winstreak section (Days & Trades)
-  - Balance equity curve chart
-  - Full calendar view with daily P&L and weekly totals
-  - Time period selectors (1D, 1W, 1M, 6M, 1Y, All)
-- ✅ Trade Journal page with:
-  - Advanced form (SL/TP, commission, swap)
-  - Search and filter functionality
-  - Summary bar (Total P&L, Wins, Losses, Open)
+- ✅ Custom app icon
+- ✅ Clean TradeLedger branding (no v2.0)
+- ✅ TraderWaves-style Dashboard with gauge charts, ratio bars, winstreaks
+- ✅ Calendar view with weekly summary sidebar
+- ✅ Export buttons for CSV/XLSX downloads
+- ✅ Trade Journal with advanced form
 - ✅ Accounts page for MT5 connection
-- ✅ Analytics page with charts
-- ✅ AI Insights page with GPT-5.2 analysis
 - ✅ Mobile-responsive with bottom navigation
-- ✅ Sidebar with "Coming Soon" items (Algos, Trade Copier)
 
-### Technologies
-- React 18 with Recharts for visualizations
-- FastAPI with Motor (async MongoDB)
-- Tailwind CSS + Shadcn UI components
-- Framer Motion for animations
-- MetaApi SDK installed for MT5 integration
+### Data Storage
+- **Database**: MongoDB running locally on the server
+- **Location**: `/data/db/` on the server
+- **Collections**: `users`, `trades`, `mt5_accounts`
+- All user data is isolated by `user_id`
+
+### MT5 Integration Ready
+- MetaApi SDK installed
+- Server: Exness-MT5Real24
+- Login: 170709804
+- Configure METAAPI_TOKEN to enable live sync
+
+## Admin Access Notes
+Currently, the app uses individual user authentication. Each user only sees their own data.
+For admin monitoring, you can:
+1. Access MongoDB directly via command line: `mongosh test_database`
+2. View all users: `db.users.find()`
+3. View all trades: `db.trades.find()`
 
 ## Prioritized Backlog
 
-### P0 (Critical) - DONE
+### P0 - DONE
 - ✅ User authentication
 - ✅ Trade CRUD
 - ✅ Dashboard with charts
-- ✅ Mobile responsiveness
+- ✅ Export functionality
 
-### P1 (High Priority) - DONE
+### P1 - DONE
 - ✅ TraderWaves-style dashboard
-- ✅ Calendar view
-- ✅ MT5 account management
-- ✅ AI insights
+- ✅ Calendar with weekly summary
+- ✅ Custom branding
 
-### P2 (Future Enhancements)
-- [ ] Live MT5 sync via MetaApi (requires METAAPI_TOKEN)
-- [ ] Algos section for automated trading rules
-- [ ] Trade Copier functionality
-- [ ] Export trades to CSV/PDF
-- [ ] Advanced charting (candlestick patterns)
-- [ ] Risk management calculator
-- [ ] Trade notifications/alerts
-- [ ] Multi-currency account support
+### P2 (Future)
+- [ ] Admin dashboard panel
+- [ ] Live MT5 sync via MetaApi
+- [ ] Algos section
+- [ ] Trade Copier
 
 ## Next Tasks
-1. Configure METAAPI_TOKEN for live MT5 synchronization
-2. Implement Algos section for trading rules
-3. Add Trade Copier functionality
-4. Add trade export feature (CSV/PDF)
+1. Deploy the application
+2. Configure METAAPI_TOKEN for MT5 sync
+3. Consider adding admin dashboard for monitoring
