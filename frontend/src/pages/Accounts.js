@@ -1,0 +1,331 @@
+import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import axios from 'axios';
+import { Plus, Trash2, RefreshCw, Link2, Unlink, Settings, Server } from 'lucide-react';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
+import { toast } from 'sonner';
+import { formatDateTime, formatCurrency } from '../lib/utils';
+
+const API_URL = `${process.env.REACT_APP_BACKEND_URL}/api`;
+
+const AccountForm = ({ onSubmit, onClose }) => {
+  const [formData, setFormData] = useState({
+    name: '',
+    login: '',
+    password: '',
+    server: '',
+    platform: 'mt5'
+  });
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    
+    try {
+      await onSubmit(formData);
+      onClose();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to add account');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label>Account Name</Label>
+        <Input
+          value={formData.name}
+          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+          className="bg-secondary border-white/10"
+          placeholder="My MT5 Account"
+          required
+          data-testid="account-name-input"
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Login / Account Number</Label>
+          <Input
+            value={formData.login}
+            onChange={(e) => setFormData({ ...formData, login: e.target.value })}
+            className="bg-secondary border-white/10 font-mono"
+            placeholder="12345678"
+            required
+            data-testid="account-login-input"
+          />
+        </div>
+        
+        <div className="space-y-2">
+          <Label>Platform</Label>
+          <Select value={formData.platform} onValueChange={(v) => setFormData({ ...formData, platform: v })}>
+            <SelectTrigger className="bg-secondary border-white/10">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="mt5">MetaTrader 5</SelectItem>
+              <SelectItem value="mt4">MetaTrader 4</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Password (Investor/Read-only recommended)</Label>
+        <Input
+          type="password"
+          value={formData.password}
+          onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+          className="bg-secondary border-white/10"
+          placeholder="Enter your MT5 password"
+          required
+          data-testid="account-password-input"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label>Broker Server</Label>
+        <Input
+          value={formData.server}
+          onChange={(e) => setFormData({ ...formData, server: e.target.value })}
+          className="bg-secondary border-white/10"
+          placeholder="e.g., ICMarkets-Demo, Exness-Real"
+          required
+          data-testid="account-server-input"
+        />
+      </div>
+
+      <div className="flex gap-3 pt-4">
+        <Button type="button" variant="outline" onClick={onClose} className="flex-1">
+          Cancel
+        </Button>
+        <Button type="submit" disabled={loading} className="flex-1 bg-white text-black hover:bg-gray-200">
+          {loading ? 'Adding...' : 'Add Account'}
+        </Button>
+      </div>
+    </form>
+  );
+};
+
+export default function Accounts() {
+  const [accounts, setAccounts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [syncing, setSyncing] = useState({});
+
+  useEffect(() => {
+    fetchAccounts();
+  }, []);
+
+  const fetchAccounts = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/mt5/accounts`);
+      setAccounts(response.data);
+    } catch (error) {
+      console.error('Failed to fetch accounts:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddAccount = async (data) => {
+    await axios.post(`${API_URL}/mt5/accounts`, data);
+    toast.success('Account added successfully');
+    fetchAccounts();
+  };
+
+  const handleDeleteAccount = async (accountId) => {
+    if (!window.confirm('Are you sure you want to delete this account?')) return;
+    
+    try {
+      await axios.delete(`${API_URL}/mt5/accounts/${accountId}`);
+      toast.success('Account deleted successfully');
+      fetchAccounts();
+    } catch (error) {
+      toast.error('Failed to delete account');
+    }
+  };
+
+  const handleSyncAccount = async (accountId) => {
+    setSyncing(prev => ({ ...prev, [accountId]: true }));
+    
+    try {
+      const response = await axios.post(`${API_URL}/mt5/accounts/${accountId}/sync`);
+      toast.success(response.data.message);
+      if (response.data.note) {
+        toast.info(response.data.note);
+      }
+      fetchAccounts();
+    } catch (error) {
+      toast.error('Failed to sync account');
+    } finally {
+      setSyncing(prev => ({ ...prev, [accountId]: false }));
+    }
+  };
+
+  return (
+    <div className="space-y-6" data-testid="accounts-page">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-heading font-black">Accounts</h1>
+          <p className="text-muted-foreground">Connect and manage your MT5/MT4 trading accounts</p>
+        </div>
+        
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="bg-white text-black hover:bg-gray-200 gap-2" data-testid="add-account-btn">
+              <Plus className="w-4 h-4" />
+              Add Account
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="bg-card border-white/10 max-w-md">
+            <DialogHeader>
+              <DialogTitle className="font-heading">Connect MT5 Account</DialogTitle>
+            </DialogHeader>
+            <AccountForm
+              onSubmit={handleAddAccount}
+              onClose={() => setDialogOpen(false)}
+            />
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Info Banner */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="glass-card p-4 border-l-4 border-l-accent"
+      >
+        <div className="flex items-start gap-3">
+          <Server className="w-5 h-5 text-accent mt-0.5" />
+          <div>
+            <h4 className="font-medium mb-1">MetaApi Integration</h4>
+            <p className="text-sm text-muted-foreground">
+              Connect your MT5 accounts via MetaApi cloud service to automatically sync trades. 
+              Use your investor (read-only) password for security. Configure the METAAPI_TOKEN 
+              in backend settings to enable live syncing.
+            </p>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Accounts List */}
+      {loading ? (
+        <div className="flex items-center justify-center h-64">
+          <div className="w-8 h-8 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
+        </div>
+      ) : accounts.length === 0 ? (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-card p-12 text-center"
+        >
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-accent/20 flex items-center justify-center">
+            <Link2 className="w-8 h-8 text-accent" />
+          </div>
+          <h3 className="text-xl font-heading font-bold mb-2">No accounts connected</h3>
+          <p className="text-muted-foreground mb-4">
+            Connect your MT5 or MT4 account to automatically import trades
+          </p>
+          <Button
+            onClick={() => setDialogOpen(true)}
+            className="bg-white text-black hover:bg-gray-200"
+          >
+            <Plus className="w-4 h-4 mr-2" /> Connect Your First Account
+          </Button>
+        </motion.div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {accounts.map((account, index) => (
+            <motion.div
+              key={account.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: index * 0.1 }}
+              className="glass-card p-6"
+              data-testid={`account-item-${account.id}`}
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                    account.is_connected ? 'bg-emerald-500/20' : 'bg-white/10'
+                  }`}>
+                    {account.is_connected ? (
+                      <Link2 className="w-6 h-6 text-emerald-500" />
+                    ) : (
+                      <Unlink className="w-6 h-6 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="font-heading font-bold">{account.name}</h3>
+                    <p className="text-sm text-muted-foreground">{account.platform.toUpperCase()} - {account.server}</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleSyncAccount(account.id)}
+                    disabled={syncing[account.id]}
+                    className="h-8 w-8"
+                    data-testid={`sync-account-${account.id}`}
+                  >
+                    <RefreshCw className={`w-4 h-4 ${syncing[account.id] ? 'animate-spin' : ''}`} />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDeleteAccount(account.id)}
+                    className="h-8 w-8 text-red-500 hover:text-red-400"
+                    data-testid={`delete-account-${account.id}`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="p-3 rounded-lg bg-secondary/50">
+                  <p className="text-xs text-muted-foreground mb-1">Login</p>
+                  <p className="font-mono font-bold">{account.login}</p>
+                </div>
+                <div className="p-3 rounded-lg bg-secondary/50">
+                  <p className="text-xs text-muted-foreground mb-1">Status</p>
+                  <p className={`font-medium ${account.is_connected ? 'text-emerald-500' : 'text-muted-foreground'}`}>
+                    {account.is_connected ? 'Connected' : 'Disconnected'}
+                  </p>
+                </div>
+              </div>
+
+              {(account.balance !== null || account.equity !== null) && (
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div className="p-3 rounded-lg bg-secondary/50">
+                    <p className="text-xs text-muted-foreground mb-1">Balance</p>
+                    <p className="font-mono font-bold">{formatCurrency(account.balance)}</p>
+                  </div>
+                  <div className="p-3 rounded-lg bg-secondary/50">
+                    <p className="text-xs text-muted-foreground mb-1">Equity</p>
+                    <p className="font-mono font-bold">{formatCurrency(account.equity)}</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="text-xs text-muted-foreground">
+                Last sync: {account.last_sync ? formatDateTime(account.last_sync) : 'Never'}
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

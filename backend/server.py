@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -7,7 +7,7 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timezone, timedelta
 import jwt
@@ -27,11 +27,12 @@ JWT_SECRET = os.environ.get('JWT_SECRET', 'trading_journal_secret')
 JWT_ALGORITHM = os.environ.get('JWT_ALGORITHM', 'HS256')
 JWT_EXPIRATION_HOURS = int(os.environ.get('JWT_EXPIRATION_HOURS', 24))
 
-# LLM Key
+# LLM & MetaApi Keys
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
+METAAPI_TOKEN = os.environ.get('METAAPI_TOKEN', '')
 
 # Create the main app
-app = FastAPI()
+app = FastAPI(title="TradeLedger API", version="2.0.0")
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
@@ -62,16 +63,43 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     user: UserResponse
 
+class MT5AccountCreate(BaseModel):
+    name: str
+    login: str
+    password: str
+    server: str
+    platform: str = "mt5"
+
+class MT5AccountResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    user_id: str
+    name: str
+    login: str
+    server: str
+    platform: str
+    is_connected: bool = False
+    last_sync: Optional[str] = None
+    balance: Optional[float] = None
+    equity: Optional[float] = None
+    created_at: str
+
 class TradeCreate(BaseModel):
-    instrument: str  # XAU/USD, BTC, ETH, Silver, EUR/USD, GBP/USD, Stocks
-    position: str  # long or short
+    instrument: str
+    position: str  # long or short (buy/sell)
     entry_price: float
     exit_price: Optional[float] = None
     quantity: float
     entry_date: str
     exit_date: Optional[str] = None
     notes: Optional[str] = ""
-    status: str = "open"  # open or closed
+    status: str = "open"
+    stop_loss: Optional[float] = None
+    take_profit: Optional[float] = None
+    commission: Optional[float] = 0
+    swap: Optional[float] = 0
+    mt5_ticket: Optional[str] = None
+    mt5_account_id: Optional[str] = None
 
 class TradeUpdate(BaseModel):
     instrument: Optional[str] = None
@@ -83,6 +111,8 @@ class TradeUpdate(BaseModel):
     exit_date: Optional[str] = None
     notes: Optional[str] = None
     status: Optional[str] = None
+    stop_loss: Optional[float] = None
+    take_profit: Optional[float] = None
 
 class TradeResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -97,8 +127,14 @@ class TradeResponse(BaseModel):
     exit_date: Optional[str] = None
     notes: str = ""
     status: str
+    stop_loss: Optional[float] = None
+    take_profit: Optional[float] = None
+    commission: float = 0
+    swap: float = 0
     pnl: Optional[float] = None
     pnl_percentage: Optional[float] = None
+    mt5_ticket: Optional[str] = None
+    mt5_account_id: Optional[str] = None
     created_at: str
 
 class AIInsightRequest(BaseModel):
@@ -114,11 +150,7 @@ def verify_password(password: str, hashed: str) -> bool:
 
 def create_access_token(user_id: str, email: str) -> str:
     expire = datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRATION_HOURS)
-    payload = {
-        "sub": user_id,
-        "email": email,
-        "exp": expire
-    }
+    payload = {"sub": user_id, "email": email, "exp": expire}
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
@@ -145,13 +177,15 @@ def calculate_pnl(trade: dict) -> dict:
         exit_p = trade['exit_price']
         qty = trade['quantity']
         position = trade['position']
+        commission = trade.get('commission', 0) or 0
+        swap = trade.get('swap', 0) or 0
         
-        if position == 'long':
-            pnl = (exit_p - entry) * qty
-        else:  # short
-            pnl = (entry - exit_p) * qty
+        if position in ['long', 'buy']:
+            pnl = (exit_p - entry) * qty - commission - swap
+        else:  # short/sell
+            pnl = (entry - exit_p) * qty - commission - swap
         
-        pnl_percentage = ((exit_p - entry) / entry * 100) if position == 'long' else ((entry - exit_p) / entry * 100)
+        pnl_percentage = ((exit_p - entry) / entry * 100) if position in ['long', 'buy'] else ((entry - exit_p) / entry * 100)
         trade['pnl'] = round(pnl, 2)
         trade['pnl_percentage'] = round(pnl_percentage, 2)
     else:
@@ -179,17 +213,11 @@ async def register(user_data: UserRegister):
     }
     
     await db.users.insert_one(user_doc)
-    
     token = create_access_token(user_id, user_data.email)
     
     return TokenResponse(
         access_token=token,
-        user=UserResponse(
-            id=user_id,
-            email=user_data.email,
-            name=user_data.name,
-            created_at=now
-        )
+        user=UserResponse(id=user_id, email=user_data.email, name=user_data.name, created_at=now)
     )
 
 @api_router.post("/auth/login", response_model=TokenResponse)
@@ -202,17 +230,82 @@ async def login(user_data: UserLogin):
     
     return TokenResponse(
         access_token=token,
-        user=UserResponse(
-            id=user['id'],
-            email=user['email'],
-            name=user['name'],
-            created_at=user['created_at']
-        )
+        user=UserResponse(id=user['id'], email=user['email'], name=user['name'], created_at=user['created_at'])
     )
 
 @api_router.get("/auth/me", response_model=UserResponse)
 async def get_me(current_user: dict = Depends(get_current_user)):
     return UserResponse(**current_user)
+
+# ============ MT5 ACCOUNT ROUTES ============
+
+@api_router.post("/mt5/accounts", response_model=MT5AccountResponse)
+async def add_mt5_account(account_data: MT5AccountCreate, current_user: dict = Depends(get_current_user)):
+    account_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    
+    account_doc = {
+        "id": account_id,
+        "user_id": current_user['id'],
+        "name": account_data.name,
+        "login": account_data.login,
+        "password": account_data.password,  # In production, encrypt this
+        "server": account_data.server,
+        "platform": account_data.platform,
+        "is_connected": False,
+        "last_sync": None,
+        "balance": None,
+        "equity": None,
+        "created_at": now
+    }
+    
+    await db.mt5_accounts.insert_one(account_doc)
+    
+    # Remove password from response
+    del account_doc['password']
+    if '_id' in account_doc:
+        del account_doc['_id']
+    
+    return MT5AccountResponse(**account_doc)
+
+@api_router.get("/mt5/accounts", response_model=List[MT5AccountResponse])
+async def get_mt5_accounts(current_user: dict = Depends(get_current_user)):
+    accounts = await db.mt5_accounts.find(
+        {"user_id": current_user['id']},
+        {"_id": 0, "password": 0}
+    ).to_list(100)
+    return [MT5AccountResponse(**acc) for acc in accounts]
+
+@api_router.delete("/mt5/accounts/{account_id}")
+async def delete_mt5_account(account_id: str, current_user: dict = Depends(get_current_user)):
+    result = await db.mt5_accounts.delete_one({"id": account_id, "user_id": current_user['id']})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Account not found")
+    return {"message": "Account deleted successfully"}
+
+@api_router.post("/mt5/accounts/{account_id}/sync")
+async def sync_mt5_account(account_id: str, current_user: dict = Depends(get_current_user)):
+    """Sync trades from MT5 account (placeholder for MetaApi integration)"""
+    account = await db.mt5_accounts.find_one(
+        {"id": account_id, "user_id": current_user['id']},
+        {"_id": 0}
+    )
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    # Update last sync time
+    now = datetime.now(timezone.utc).isoformat()
+    await db.mt5_accounts.update_one(
+        {"id": account_id},
+        {"$set": {"last_sync": now, "is_connected": True}}
+    )
+    
+    return {
+        "message": "Sync initiated",
+        "account_id": account_id,
+        "last_sync": now,
+        "note": "Configure METAAPI_TOKEN in .env to enable live MT5 sync"
+    }
 
 # ============ TRADE ROUTES ============
 
@@ -229,7 +322,6 @@ async def create_trade(trade_data: TradeCreate, current_user: dict = Depends(get
     }
     
     trade_doc = calculate_pnl(trade_doc)
-    
     await db.trades.insert_one(trade_doc)
     
     if '_id' in trade_doc:
@@ -240,6 +332,8 @@ async def create_trade(trade_data: TradeCreate, current_user: dict = Depends(get
 async def get_trades(
     status: Optional[str] = None,
     instrument: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     current_user: dict = Depends(get_current_user)
 ):
     query = {"user_id": current_user['id']}
@@ -247,80 +341,131 @@ async def get_trades(
         query["status"] = status
     if instrument:
         query["instrument"] = instrument
+    if start_date:
+        query["entry_date"] = {"$gte": start_date}
+    if end_date:
+        query.setdefault("entry_date", {})["$lte"] = end_date
     
     trades = await db.trades.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
-    
     return [TradeResponse(**calculate_pnl(t)) for t in trades]
 
 @api_router.get("/trades/{trade_id}", response_model=TradeResponse)
 async def get_trade(trade_id: str, current_user: dict = Depends(get_current_user)):
-    trade = await db.trades.find_one(
-        {"id": trade_id, "user_id": current_user['id']},
-        {"_id": 0}
-    )
+    trade = await db.trades.find_one({"id": trade_id, "user_id": current_user['id']}, {"_id": 0})
     if not trade:
         raise HTTPException(status_code=404, detail="Trade not found")
-    
     return TradeResponse(**calculate_pnl(trade))
 
 @api_router.put("/trades/{trade_id}", response_model=TradeResponse)
 async def update_trade(trade_id: str, trade_data: TradeUpdate, current_user: dict = Depends(get_current_user)):
-    existing = await db.trades.find_one(
-        {"id": trade_id, "user_id": current_user['id']},
-        {"_id": 0}
-    )
+    existing = await db.trades.find_one({"id": trade_id, "user_id": current_user['id']}, {"_id": 0})
     if not existing:
         raise HTTPException(status_code=404, detail="Trade not found")
     
     update_dict = {k: v for k, v in trade_data.model_dump().items() if v is not None}
-    
     if update_dict:
-        await db.trades.update_one(
-            {"id": trade_id},
-            {"$set": update_dict}
-        )
+        await db.trades.update_one({"id": trade_id}, {"$set": update_dict})
     
     updated = await db.trades.find_one({"id": trade_id}, {"_id": 0})
     return TradeResponse(**calculate_pnl(updated))
 
 @api_router.delete("/trades/{trade_id}")
 async def delete_trade(trade_id: str, current_user: dict = Depends(get_current_user)):
-    result = await db.trades.delete_one(
-        {"id": trade_id, "user_id": current_user['id']}
-    )
+    result = await db.trades.delete_one({"id": trade_id, "user_id": current_user['id']})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Trade not found")
     return {"message": "Trade deleted successfully"}
 
-# ============ ANALYTICS ROUTES ============
+# ============ ENHANCED ANALYTICS ROUTES ============
 
 @api_router.get("/analytics/summary")
-async def get_analytics_summary(current_user: dict = Depends(get_current_user)):
-    trades = await db.trades.find(
-        {"user_id": current_user['id'], "status": "closed"},
-        {"_id": 0}
-    ).to_list(1000)
+async def get_analytics_summary(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    query = {"user_id": current_user['id'], "status": "closed"}
+    if start_date:
+        query["exit_date"] = {"$gte": start_date}
+    if end_date:
+        query.setdefault("exit_date", {})["$lte"] = end_date
+    
+    trades = await db.trades.find(query, {"_id": 0}).to_list(10000)
     
     total_trades = len(trades)
     winning_trades = 0
     losing_trades = 0
     total_pnl = 0
+    total_wins = 0
+    total_losses = 0
     
     for trade in trades:
         trade = calculate_pnl(trade)
-        if trade.get('pnl'):
+        if trade.get('pnl') is not None:
             total_pnl += trade['pnl']
             if trade['pnl'] > 0:
                 winning_trades += 1
-            else:
+                total_wins += trade['pnl']
+            elif trade['pnl'] < 0:
                 losing_trades += 1
+                total_losses += abs(trade['pnl'])
     
     win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0
+    avg_win = total_wins / winning_trades if winning_trades > 0 else 0
+    avg_loss = total_losses / losing_trades if losing_trades > 0 else 0
+    avg_win_loss_ratio = avg_win / avg_loss if avg_loss > 0 else 0
     
     # Open trades
-    open_trades = await db.trades.count_documents(
-        {"user_id": current_user['id'], "status": "open"}
-    )
+    open_trades = await db.trades.count_documents({"user_id": current_user['id'], "status": "open"})
+    
+    # Calculate daily stats
+    daily_stats = {}
+    for trade in trades:
+        if trade.get('exit_date'):
+            day = trade['exit_date'][:10]
+            if day not in daily_stats:
+                daily_stats[day] = {"wins": 0, "losses": 0, "pnl": 0}
+            trade = calculate_pnl(trade)
+            if trade.get('pnl'):
+                daily_stats[day]['pnl'] += trade['pnl']
+                if trade['pnl'] > 0:
+                    daily_stats[day]['wins'] += 1
+                else:
+                    daily_stats[day]['losses'] += 1
+    
+    # Daily win rate
+    winning_days = sum(1 for d in daily_stats.values() if d['pnl'] > 0)
+    total_days = len(daily_stats)
+    daily_win_rate = (winning_days / total_days * 100) if total_days > 0 else 0
+    
+    # Day win/loss ratio
+    day_wins_total = sum(d['pnl'] for d in daily_stats.values() if d['pnl'] > 0)
+    day_losses_total = abs(sum(d['pnl'] for d in daily_stats.values() if d['pnl'] < 0))
+    day_win_loss_ratio = day_wins_total / day_losses_total if day_losses_total > 0 else 0
+    
+    # Calculate streaks
+    sorted_days = sorted(daily_stats.keys())
+    current_win_streak = 0
+    max_win_streak = 0
+    current_trade_streak = 0
+    max_trade_streak = 0
+    
+    for day in sorted_days:
+        if daily_stats[day]['pnl'] > 0:
+            current_win_streak += 1
+            max_win_streak = max(max_win_streak, current_win_streak)
+        else:
+            current_win_streak = 0
+    
+    # Trade streak (consecutive winning trades)
+    all_trades_sorted = sorted([t for t in trades if t.get('exit_date')], key=lambda x: x['exit_date'])
+    for trade in all_trades_sorted:
+        trade = calculate_pnl(trade)
+        if trade.get('pnl', 0) > 0:
+            current_trade_streak += 1
+            max_trade_streak = max(max_trade_streak, current_trade_streak)
+        else:
+            current_trade_streak = 0
     
     return {
         "total_trades": total_trades,
@@ -328,18 +473,25 @@ async def get_analytics_summary(current_user: dict = Depends(get_current_user)):
         "winning_trades": winning_trades,
         "losing_trades": losing_trades,
         "win_rate": round(win_rate, 2),
-        "total_pnl": round(total_pnl, 2)
+        "total_pnl": round(total_pnl, 2),
+        "avg_win": round(avg_win, 2),
+        "avg_loss": round(avg_loss, 2),
+        "avg_win_loss_ratio": round(avg_win_loss_ratio, 2),
+        "daily_win_rate": round(daily_win_rate, 2),
+        "day_win_loss_ratio": round(day_win_loss_ratio, 2),
+        "trading_days": total_days,
+        "winning_days": winning_days,
+        "win_streak_days": max_win_streak,
+        "win_streak_trades": max_trade_streak,
+        "current_win_streak_days": current_win_streak,
+        "current_win_streak_trades": current_trade_streak
     }
 
 @api_router.get("/analytics/by-instrument")
 async def get_analytics_by_instrument(current_user: dict = Depends(get_current_user)):
-    trades = await db.trades.find(
-        {"user_id": current_user['id'], "status": "closed"},
-        {"_id": 0}
-    ).to_list(1000)
+    trades = await db.trades.find({"user_id": current_user['id'], "status": "closed"}, {"_id": 0}).to_list(10000)
     
     instrument_stats = {}
-    
     for trade in trades:
         trade = calculate_pnl(trade)
         instrument = trade['instrument']
@@ -349,14 +501,19 @@ async def get_analytics_by_instrument(current_user: dict = Depends(get_current_u
                 "instrument": instrument,
                 "total_trades": 0,
                 "winning_trades": 0,
-                "total_pnl": 0
+                "losing_trades": 0,
+                "total_pnl": 0,
+                "total_volume": 0
             }
         
         instrument_stats[instrument]['total_trades'] += 1
-        if trade.get('pnl'):
+        instrument_stats[instrument]['total_volume'] += trade.get('quantity', 0)
+        if trade.get('pnl') is not None:
             instrument_stats[instrument]['total_pnl'] += trade['pnl']
             if trade['pnl'] > 0:
                 instrument_stats[instrument]['winning_trades'] += 1
+            else:
+                instrument_stats[instrument]['losing_trades'] += 1
     
     result = []
     for inst, stats in instrument_stats.items():
@@ -364,34 +521,171 @@ async def get_analytics_by_instrument(current_user: dict = Depends(get_current_u
         stats['win_rate'] = round(stats['winning_trades'] / stats['total_trades'] * 100, 2) if stats['total_trades'] > 0 else 0
         result.append(stats)
     
-    return result
+    return sorted(result, key=lambda x: x['total_pnl'], reverse=True)
 
 @api_router.get("/analytics/monthly")
 async def get_monthly_analytics(current_user: dict = Depends(get_current_user)):
-    trades = await db.trades.find(
-        {"user_id": current_user['id'], "status": "closed"},
-        {"_id": 0}
-    ).to_list(1000)
+    trades = await db.trades.find({"user_id": current_user['id'], "status": "closed"}, {"_id": 0}).to_list(10000)
     
     monthly_stats = {}
-    
     for trade in trades:
         trade = calculate_pnl(trade)
         if trade.get('exit_date'):
-            month = trade['exit_date'][:7]  # YYYY-MM format
-            
+            month = trade['exit_date'][:7]
             if month not in monthly_stats:
-                monthly_stats[month] = {"month": month, "pnl": 0, "trades": 0}
+                monthly_stats[month] = {"month": month, "pnl": 0, "trades": 0, "wins": 0}
             
             monthly_stats[month]['trades'] += 1
-            if trade.get('pnl'):
+            if trade.get('pnl') is not None:
                 monthly_stats[month]['pnl'] += trade['pnl']
+                if trade['pnl'] > 0:
+                    monthly_stats[month]['wins'] += 1
     
     result = sorted(monthly_stats.values(), key=lambda x: x['month'])
     for r in result:
         r['pnl'] = round(r['pnl'], 2)
+        r['win_rate'] = round(r['wins'] / r['trades'] * 100, 2) if r['trades'] > 0 else 0
     
     return result
+
+@api_router.get("/analytics/daily")
+async def get_daily_analytics(
+    year: int = Query(default=None),
+    month: int = Query(default=None),
+    current_user: dict = Depends(get_current_user)
+):
+    """Get daily P&L for calendar view"""
+    now = datetime.now(timezone.utc)
+    year = year or now.year
+    month = month or now.month
+    
+    start_date = f"{year}-{month:02d}-01"
+    if month == 12:
+        end_date = f"{year + 1}-01-01"
+    else:
+        end_date = f"{year}-{month + 1:02d}-01"
+    
+    trades = await db.trades.find({
+        "user_id": current_user['id'],
+        "status": "closed",
+        "exit_date": {"$gte": start_date, "$lt": end_date}
+    }, {"_id": 0}).to_list(10000)
+    
+    daily_stats = {}
+    total_trades = 0
+    total_wins = 0
+    total_pnl = 0
+    
+    for trade in trades:
+        trade = calculate_pnl(trade)
+        if trade.get('exit_date'):
+            day = trade['exit_date'][:10]
+            if day not in daily_stats:
+                daily_stats[day] = {"date": day, "pnl": 0, "trades": 0, "wins": 0, "percentage": 0}
+            
+            daily_stats[day]['trades'] += 1
+            total_trades += 1
+            if trade.get('pnl') is not None:
+                daily_stats[day]['pnl'] += trade['pnl']
+                total_pnl += trade['pnl']
+                if trade['pnl'] > 0:
+                    daily_stats[day]['wins'] += 1
+                    total_wins += 1
+    
+    result = sorted(daily_stats.values(), key=lambda x: x['date'])
+    for r in result:
+        r['pnl'] = round(r['pnl'], 2)
+    
+    return {
+        "year": year,
+        "month": month,
+        "days": result,
+        "summary": {
+            "total_trades": total_trades,
+            "total_wins": total_wins,
+            "total_pnl": round(total_pnl, 2),
+            "win_rate": round(total_wins / total_trades * 100, 2) if total_trades > 0 else 0
+        }
+    }
+
+@api_router.get("/analytics/balance-history")
+async def get_balance_history(
+    period: str = Query(default="1M", description="1D, 1W, 1M, 6M, 1Y, All"),
+    current_user: dict = Depends(get_current_user)
+):
+    """Get balance/equity curve data"""
+    now = datetime.now(timezone.utc)
+    
+    # Calculate start date based on period
+    period_map = {
+        "1D": timedelta(days=1),
+        "1W": timedelta(weeks=1),
+        "1M": timedelta(days=30),
+        "6M": timedelta(days=180),
+        "1Y": timedelta(days=365),
+        "All": timedelta(days=3650)
+    }
+    
+    start_date = (now - period_map.get(period, timedelta(days=30))).isoformat()[:10]
+    
+    trades = await db.trades.find({
+        "user_id": current_user['id'],
+        "status": "closed",
+        "exit_date": {"$gte": start_date}
+    }, {"_id": 0}).sort("exit_date", 1).to_list(10000)
+    
+    # Build cumulative balance
+    balance_history = []
+    cumulative_pnl = 0
+    
+    for trade in trades:
+        trade = calculate_pnl(trade)
+        if trade.get('pnl') is not None and trade.get('exit_date'):
+            cumulative_pnl += trade['pnl']
+            balance_history.append({
+                "date": trade['exit_date'][:10],
+                "balance": round(cumulative_pnl, 2),
+                "trade_pnl": round(trade['pnl'], 2)
+            })
+    
+    return balance_history
+
+@api_router.get("/analytics/trade-count")
+async def get_trade_count_history(
+    period: str = Query(default="1M"),
+    current_user: dict = Depends(get_current_user)
+):
+    """Get trade count over time for sparkline chart"""
+    now = datetime.now(timezone.utc)
+    
+    period_map = {
+        "1D": timedelta(days=1),
+        "1W": timedelta(weeks=1),
+        "1M": timedelta(days=30),
+        "6M": timedelta(days=180),
+        "1Y": timedelta(days=365),
+        "All": timedelta(days=3650)
+    }
+    
+    start_date = (now - period_map.get(period, timedelta(days=30))).isoformat()[:10]
+    
+    trades = await db.trades.find({
+        "user_id": current_user['id'],
+        "entry_date": {"$gte": start_date}
+    }, {"_id": 0}).to_list(10000)
+    
+    daily_counts = {}
+    for trade in trades:
+        day = trade['entry_date'][:10]
+        daily_counts[day] = daily_counts.get(day, 0) + 1
+    
+    result = sorted([{"date": k, "count": v} for k, v in daily_counts.items()], key=lambda x: x['date'])
+    total_count = sum(d['count'] for d in result)
+    
+    return {
+        "total": total_count,
+        "data": result
+    }
 
 # ============ AI INSIGHTS ============
 
@@ -400,19 +694,13 @@ async def get_ai_insights(request: AIInsightRequest, current_user: dict = Depend
     if not EMERGENT_LLM_KEY:
         raise HTTPException(status_code=500, detail="AI service not configured")
     
-    # Get user's trades for context
-    trades = await db.trades.find(
-        {"user_id": current_user['id']},
-        {"_id": 0}
-    ).sort("created_at", -1).to_list(50)
+    trades = await db.trades.find({"user_id": current_user['id']}, {"_id": 0}).sort("created_at", -1).to_list(100)
     
-    # Calculate stats
     closed_trades = [calculate_pnl(t) for t in trades if t['status'] == 'closed']
     total_pnl = sum(t.get('pnl', 0) or 0 for t in closed_trades)
     winning = len([t for t in closed_trades if t.get('pnl', 0) and t['pnl'] > 0])
     losing = len([t for t in closed_trades if t.get('pnl', 0) and t['pnl'] < 0])
     
-    # Build context
     trades_summary = f"""
 Trading Summary:
 - Total closed trades: {len(closed_trades)}
@@ -423,7 +711,7 @@ Trading Summary:
 
 Recent trades:
 """
-    for t in closed_trades[:10]:
+    for t in closed_trades[:15]:
         trades_summary += f"- {t['instrument']} {t['position'].upper()}: Entry ${t['entry_price']}, Exit ${t.get('exit_price', 'N/A')}, P&L: ${t.get('pnl', 0):.2f}\n"
     
     user_question = request.question or "Analyze my trading performance and provide insights on how I can improve."
@@ -462,13 +750,13 @@ Provide a concise, helpful analysis with specific recommendations."""
 
 @api_router.get("/")
 async def root():
-    return {"message": "Trading Journal API", "status": "healthy"}
+    return {"message": "TradeLedger API v2.0", "status": "healthy"}
 
 @api_router.get("/health")
 async def health_check():
     return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}
 
-# Include the router in the main app
+# Include the router
 app.include_router(api_router)
 
 app.add_middleware(
@@ -479,11 +767,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 @app.on_event("shutdown")

@@ -9,6 +9,7 @@ import Dashboard from './pages/Dashboard';
 import Journal from './pages/Journal';
 import Analytics from './pages/Analytics';
 import AIInsights from './pages/AIInsights';
+import Accounts from './pages/Accounts';
 import './App.css';
 
 // Protected Route wrapper
@@ -30,7 +31,7 @@ const ProtectedRoute = ({ children }) => {
   return <Layout>{children}</Layout>;
 };
 
-// Public Route wrapper (redirects to dashboard if already logged in)
+// Public Route wrapper
 const PublicRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
   
@@ -75,6 +76,11 @@ function AppRoutes() {
           <Journal />
         </ProtectedRoute>
       } />
+      <Route path="/accounts" element={
+        <ProtectedRoute>
+          <Accounts />
+        </ProtectedRoute>
+      } />
       <Route path="/analytics" element={
         <ProtectedRoute>
           <Analytics />
@@ -89,7 +95,7 @@ function AppRoutes() {
       {/* Redirect root to dashboard */}
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       
-      {/* Catch all - redirect to dashboard */}
+      {/* Catch all */}
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );

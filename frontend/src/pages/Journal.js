@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
-import { Plus, Edit2, Trash2, TrendingUp, TrendingDown, Filter, X, ChevronDown } from 'lucide-react';
+import { Plus, Edit2, Trash2, TrendingUp, TrendingDown, Filter, X, Search, SlidersHorizontal } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -15,15 +15,19 @@ const API_URL = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const TradeForm = ({ trade, onSubmit, onClose }) => {
   const [formData, setFormData] = useState({
-    instrument: trade?.instrument || 'BTC',
-    position: trade?.position || 'long',
+    instrument: trade?.instrument || 'XAU/USD',
+    position: trade?.position || 'buy',
     entry_price: trade?.entry_price || '',
     exit_price: trade?.exit_price || '',
     quantity: trade?.quantity || '',
-    entry_date: trade?.entry_date || new Date().toISOString().split('T')[0],
-    exit_date: trade?.exit_date || '',
+    entry_date: trade?.entry_date?.slice(0, 10) || new Date().toISOString().split('T')[0],
+    exit_date: trade?.exit_date?.slice(0, 10) || '',
     notes: trade?.notes || '',
-    status: trade?.status || 'open'
+    status: trade?.status || 'open',
+    stop_loss: trade?.stop_loss || '',
+    take_profit: trade?.take_profit || '',
+    commission: trade?.commission || '',
+    swap: trade?.swap || ''
   });
   const [loading, setLoading] = useState(false);
 
@@ -37,6 +41,10 @@ const TradeForm = ({ trade, onSubmit, onClose }) => {
         entry_price: parseFloat(formData.entry_price),
         exit_price: formData.exit_price ? parseFloat(formData.exit_price) : null,
         quantity: parseFloat(formData.quantity),
+        stop_loss: formData.stop_loss ? parseFloat(formData.stop_loss) : null,
+        take_profit: formData.take_profit ? parseFloat(formData.take_profit) : null,
+        commission: formData.commission ? parseFloat(formData.commission) : 0,
+        swap: formData.swap ? parseFloat(formData.swap) : 0,
         exit_date: formData.exit_date || null
       };
       
@@ -50,7 +58,7 @@ const TradeForm = ({ trade, onSubmit, onClose }) => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Instrument</Label>
@@ -60,7 +68,12 @@ const TradeForm = ({ trade, onSubmit, onClose }) => {
             </SelectTrigger>
             <SelectContent>
               {INSTRUMENTS.map((i) => (
-                <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>
+                <SelectItem key={i.value} value={i.value}>
+                  <span className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: i.color }} />
+                    {i.label}
+                  </span>
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -86,7 +99,7 @@ const TradeForm = ({ trade, onSubmit, onClose }) => {
           <Label>Entry Price</Label>
           <Input
             type="number"
-            step="0.01"
+            step="0.00001"
             value={formData.entry_price}
             onChange={(e) => setFormData({ ...formData, entry_price: e.target.value })}
             className="bg-secondary border-white/10 font-mono"
@@ -97,10 +110,10 @@ const TradeForm = ({ trade, onSubmit, onClose }) => {
         </div>
         
         <div className="space-y-2">
-          <Label>Exit Price (optional)</Label>
+          <Label>Exit Price</Label>
           <Input
             type="number"
-            step="0.01"
+            step="0.00001"
             value={formData.exit_price}
             onChange={(e) => setFormData({ ...formData, exit_price: e.target.value })}
             className="bg-secondary border-white/10 font-mono"
@@ -110,21 +123,47 @@ const TradeForm = ({ trade, onSubmit, onClose }) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <div className="space-y-2">
-          <Label>Quantity</Label>
+          <Label>Lot Size</Label>
           <Input
             type="number"
             step="0.01"
             value={formData.quantity}
             onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
             className="bg-secondary border-white/10 font-mono"
-            placeholder="0.00"
+            placeholder="0.01"
             required
             data-testid="trade-quantity-input"
           />
         </div>
         
+        <div className="space-y-2">
+          <Label>Stop Loss</Label>
+          <Input
+            type="number"
+            step="0.00001"
+            value={formData.stop_loss}
+            onChange={(e) => setFormData({ ...formData, stop_loss: e.target.value })}
+            className="bg-secondary border-white/10 font-mono"
+            placeholder="0.00"
+          />
+        </div>
+        
+        <div className="space-y-2">
+          <Label>Take Profit</Label>
+          <Input
+            type="number"
+            step="0.00001"
+            value={formData.take_profit}
+            onChange={(e) => setFormData({ ...formData, take_profit: e.target.value })}
+            className="bg-secondary border-white/10 font-mono"
+            placeholder="0.00"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4">
         <div className="space-y-2">
           <Label>Status</Label>
           <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v })}>
@@ -137,6 +176,30 @@ const TradeForm = ({ trade, onSubmit, onClose }) => {
               ))}
             </SelectContent>
           </Select>
+        </div>
+        
+        <div className="space-y-2">
+          <Label>Commission</Label>
+          <Input
+            type="number"
+            step="0.01"
+            value={formData.commission}
+            onChange={(e) => setFormData({ ...formData, commission: e.target.value })}
+            className="bg-secondary border-white/10 font-mono"
+            placeholder="0.00"
+          />
+        </div>
+        
+        <div className="space-y-2">
+          <Label>Swap</Label>
+          <Input
+            type="number"
+            step="0.01"
+            value={formData.swap}
+            onChange={(e) => setFormData({ ...formData, swap: e.target.value })}
+            className="bg-secondary border-white/10 font-mono"
+            placeholder="0.00"
+          />
         </div>
       </div>
 
@@ -154,7 +217,7 @@ const TradeForm = ({ trade, onSubmit, onClose }) => {
         </div>
         
         <div className="space-y-2">
-          <Label>Exit Date (optional)</Label>
+          <Label>Exit Date</Label>
           <Input
             type="date"
             value={formData.exit_date}
@@ -170,13 +233,13 @@ const TradeForm = ({ trade, onSubmit, onClose }) => {
         <textarea
           value={formData.notes}
           onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-          className="w-full h-24 px-3 py-2 bg-secondary border border-white/10 rounded-lg resize-none focus:border-accent focus:ring-1 focus:ring-accent"
-          placeholder="Trade notes..."
+          className="w-full h-20 px-3 py-2 bg-secondary border border-white/10 rounded-lg resize-none focus:border-accent focus:ring-1 focus:ring-accent text-sm"
+          placeholder="Trade notes, strategy, observations..."
           data-testid="trade-notes-input"
         />
       </div>
 
-      <div className="flex gap-3 pt-4">
+      <div className="flex gap-3 pt-4 sticky bottom-0 bg-card">
         <Button type="button" variant="outline" onClick={onClose} className="flex-1" data-testid="trade-form-cancel-btn">
           Cancel
         </Button>
@@ -193,11 +256,13 @@ export default function Journal() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTrade, setEditingTrade] = useState(null);
-  const [filters, setFilters] = useState({ status: '', instrument: '' });
+  const [filters, setFilters] = useState({ status: '', instrument: '', search: '' });
+  const [sortBy, setSortBy] = useState('created_at');
+  const [sortOrder, setSortOrder] = useState('desc');
 
   useEffect(() => {
     fetchTrades();
-  }, [filters]);
+  }, [filters.status, filters.instrument]);
 
   const fetchTrades = async () => {
     try {
@@ -248,6 +313,35 @@ export default function Journal() {
     setEditingTrade(null);
   };
 
+  // Filter trades by search
+  const filteredTrades = trades.filter(trade => {
+    if (!filters.search) return true;
+    const search = filters.search.toLowerCase();
+    return trade.instrument.toLowerCase().includes(search) ||
+           trade.notes?.toLowerCase().includes(search);
+  });
+
+  // Sort trades
+  const sortedTrades = [...filteredTrades].sort((a, b) => {
+    let comparison = 0;
+    if (sortBy === 'pnl') {
+      comparison = (a.pnl || 0) - (b.pnl || 0);
+    } else if (sortBy === 'entry_date') {
+      comparison = new Date(a.entry_date) - new Date(b.entry_date);
+    } else {
+      comparison = new Date(a.created_at) - new Date(b.created_at);
+    }
+    return sortOrder === 'desc' ? -comparison : comparison;
+  });
+
+  // Calculate summary
+  const summary = {
+    totalPnl: filteredTrades.reduce((sum, t) => sum + (t.pnl || 0), 0),
+    winCount: filteredTrades.filter(t => (t.pnl || 0) > 0).length,
+    lossCount: filteredTrades.filter(t => (t.pnl || 0) < 0).length,
+    openCount: filteredTrades.filter(t => t.status === 'open').length
+  };
+
   return (
     <div className="space-y-6" data-testid="journal-page">
       {/* Header */}
@@ -258,23 +352,34 @@ export default function Journal() {
         </div>
         
         <div className="flex items-center gap-3">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search trades..."
+              value={filters.search}
+              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+              className="pl-9 w-40 md:w-56 bg-secondary border-white/10"
+            />
+          </div>
+
           {/* Filters */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="gap-2" data-testid="filter-btn">
-                <Filter className="w-4 h-4" />
-                Filters
+                <SlidersHorizontal className="w-4 h-4" />
+                <span className="hidden md:inline">Filters</span>
                 {(filters.status || filters.instrument) && (
                   <span className="w-2 h-2 bg-accent rounded-full" />
                 )}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <div className="p-2 space-y-3">
+            <DropdownMenuContent align="end" className="w-64 p-3">
+              <div className="space-y-3">
                 <div className="space-y-1">
                   <Label className="text-xs">Status</Label>
                   <Select value={filters.status} onValueChange={(v) => setFilters({ ...filters, status: v })}>
-                    <SelectTrigger className="bg-secondary border-white/10 h-8 text-sm">
+                    <SelectTrigger className="bg-secondary border-white/10 h-9">
                       <SelectValue placeholder="All" />
                     </SelectTrigger>
                     <SelectContent>
@@ -288,7 +393,7 @@ export default function Journal() {
                 <div className="space-y-1">
                   <Label className="text-xs">Instrument</Label>
                   <Select value={filters.instrument} onValueChange={(v) => setFilters({ ...filters, instrument: v })}>
-                    <SelectTrigger className="bg-secondary border-white/10 h-8 text-sm">
+                    <SelectTrigger className="bg-secondary border-white/10 h-9">
                       <SelectValue placeholder="All" />
                     </SelectTrigger>
                     <SelectContent>
@@ -303,7 +408,7 @@ export default function Journal() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setFilters({ status: '', instrument: '' })}
+                    onClick={() => setFilters({ status: '', instrument: '', search: filters.search })}
                     className="w-full text-xs"
                   >
                     <X className="w-3 h-3 mr-1" /> Clear filters
@@ -325,7 +430,7 @@ export default function Journal() {
                 <span className="hidden sm:inline">Add Trade</span>
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-card border-white/10 max-w-lg">
+            <DialogContent className="bg-card border-white/10 max-w-lg max-h-[90vh]">
               <DialogHeader>
                 <DialogTitle className="font-heading">{editingTrade ? 'Edit Trade' : 'Add New Trade'}</DialogTitle>
               </DialogHeader>
@@ -339,12 +444,38 @@ export default function Journal() {
         </div>
       </div>
 
+      {/* Summary bar */}
+      <div className="flex flex-wrap gap-4 p-4 glass-card">
+        <div className="flex items-center gap-2">
+          <span className="text-muted-foreground text-sm">Total P&L:</span>
+          <span className={`font-mono font-bold ${summary.totalPnl >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+            {formatCurrency(summary.totalPnl)}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-muted-foreground text-sm">Wins:</span>
+          <span className="font-mono font-bold text-emerald-500">{summary.winCount}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-muted-foreground text-sm">Losses:</span>
+          <span className="font-mono font-bold text-red-500">{summary.lossCount}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-muted-foreground text-sm">Open:</span>
+          <span className="font-mono font-bold text-blue-400">{summary.openCount}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-muted-foreground text-sm">Total:</span>
+          <span className="font-mono font-bold">{filteredTrades.length}</span>
+        </div>
+      </div>
+
       {/* Trades List */}
       {loading ? (
         <div className="flex items-center justify-center h-64">
           <div className="w-8 h-8 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
         </div>
-      ) : trades.length === 0 ? (
+      ) : sortedTrades.length === 0 ? (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -363,36 +494,38 @@ export default function Journal() {
           </Button>
         </motion.div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           <AnimatePresence>
-            {trades.map((trade, index) => (
+            {sortedTrades.map((trade, index) => (
               <motion.div
                 key={trade.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.3, delay: index * 0.05 }}
+                transition={{ duration: 0.3, delay: index * 0.03 }}
                 className="glass-card-hover p-4"
                 data-testid={`trade-item-${trade.id}`}
               >
-                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                <div className="flex flex-col md:flex-row md:items-center gap-4">
                   {/* Instrument & Position */}
                   <div className="flex items-center gap-3 flex-1">
                     <div 
                       className="w-10 h-10 rounded-lg flex items-center justify-center"
                       style={{ backgroundColor: `${getInstrumentColor(trade.instrument)}20` }}
                     >
-                      {trade.position === 'long' ? (
+                      {trade.position === 'buy' || trade.position === 'long' ? (
                         <TrendingUp className="w-5 h-5" style={{ color: getInstrumentColor(trade.instrument) }} />
                       ) : (
                         <TrendingDown className="w-5 h-5" style={{ color: getInstrumentColor(trade.instrument) }} />
                       )}
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium">{trade.instrument}</span>
                         <span className={`text-xs px-2 py-0.5 rounded ${
-                          trade.position === 'long' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-red-500/20 text-red-500'
+                          trade.position === 'buy' || trade.position === 'long' 
+                            ? 'bg-emerald-500/20 text-emerald-500' 
+                            : 'bg-red-500/20 text-red-500'
                         }`}>
                           {trade.position.toUpperCase()}
                         </span>
@@ -404,13 +537,13 @@ export default function Journal() {
                       </div>
                       <div className="text-sm text-muted-foreground">
                         {formatDate(trade.entry_date)}
-                        {trade.exit_date && ` - ${formatDate(trade.exit_date)}`}
+                        {trade.exit_date && ` → ${formatDate(trade.exit_date)}`}
                       </div>
                     </div>
                   </div>
 
                   {/* Prices */}
-                  <div className="flex items-center gap-6 font-mono text-sm">
+                  <div className="flex items-center gap-4 md:gap-6 font-mono text-sm flex-wrap">
                     <div>
                       <span className="text-muted-foreground text-xs block">Entry</span>
                       <span>{formatCurrency(trade.entry_price)}</span>
@@ -420,7 +553,7 @@ export default function Journal() {
                       <span>{trade.exit_price ? formatCurrency(trade.exit_price) : '-'}</span>
                     </div>
                     <div>
-                      <span className="text-muted-foreground text-xs block">Qty</span>
+                      <span className="text-muted-foreground text-xs block">Lots</span>
                       <span>{trade.quantity}</span>
                     </div>
                     {trade.pnl !== null && (

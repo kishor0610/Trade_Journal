@@ -9,15 +9,19 @@ import {
   Sparkles, 
   LogOut, 
   TrendingUp,
-  User
+  User,
+  Wallet,
+  Bot,
+  Copy
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '../components/ui/dropdown-menu';
 import { Toaster } from '../components/ui/sonner';
 
 const navItems = [
   { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/journal', icon: BookOpen, label: 'Journal' },
+  { path: '/accounts', icon: Wallet, label: 'Accounts' },
   { path: '/analytics', icon: BarChart3, label: 'Analytics' },
   { path: '/insights', icon: Sparkles, label: 'AI Insights' },
 ];
@@ -43,7 +47,7 @@ const MobileNavItem = ({ path, icon: Icon, label }) => (
   <NavLink
     to={path}
     className={({ isActive }) => `
-      flex flex-col items-center gap-1 py-2 px-3 rounded-lg transition-all
+      flex flex-col items-center gap-1 py-2 px-2 rounded-lg transition-all
       ${isActive 
         ? 'text-accent' 
         : 'text-muted-foreground'
@@ -52,7 +56,7 @@ const MobileNavItem = ({ path, icon: Icon, label }) => (
     data-testid={`mobile-nav-${label.toLowerCase().replace(' ', '-')}`}
   >
     <Icon className="w-5 h-5" />
-    <span className="text-xs">{label}</span>
+    <span className="text-[10px]">{label}</span>
   </NavLink>
 );
 
@@ -72,10 +76,13 @@ export default function Layout({ children }) {
         {/* Logo */}
         <div className="p-6 border-b border-white/5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-accent/20 flex items-center justify-center">
-              <TrendingUp className="w-5 h-5 text-accent" />
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+              <TrendingUp className="w-5 h-5 text-white" />
             </div>
-            <span className="text-xl font-heading font-bold">TradeLedger</span>
+            <div>
+              <span className="text-xl font-heading font-bold">TradeLedger</span>
+              <span className="text-xs text-muted-foreground block">v2.0</span>
+            </div>
           </div>
         </div>
 
@@ -84,6 +91,19 @@ export default function Layout({ children }) {
           {navItems.map((item) => (
             <NavItem key={item.path} {...item} />
           ))}
+          
+          {/* Coming Soon Items */}
+          <div className="pt-4 mt-4 border-t border-white/5">
+            <p className="text-xs text-muted-foreground mb-2 px-4">Coming Soon</p>
+            <div className="flex items-center gap-3 px-4 py-3 text-muted-foreground/50 cursor-not-allowed">
+              <Bot className="w-5 h-5" />
+              <span className="hidden md:inline">Algos</span>
+            </div>
+            <div className="flex items-center gap-3 px-4 py-3 text-muted-foreground/50 cursor-not-allowed">
+              <Copy className="w-5 h-5" />
+              <span className="hidden md:inline">Trade Copier</span>
+            </div>
+          </div>
         </nav>
 
         {/* User Section */}
@@ -91,8 +111,8 @@ export default function Layout({ children }) {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 transition-colors text-left">
-                <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center">
-                  <User className="w-5 h-5 text-muted-foreground" />
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-accent/20 to-blue-500/20 flex items-center justify-center">
+                  <User className="w-5 h-5 text-accent" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-medium truncate">{user?.name}</p>
@@ -113,16 +133,16 @@ export default function Layout({ children }) {
       {/* Mobile Header */}
       <header className="md:hidden fixed top-0 left-0 right-0 h-16 bg-card/80 backdrop-blur-xl border-b border-white/5 z-50 flex items-center justify-between px-4">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-accent/20 flex items-center justify-center">
-            <TrendingUp className="w-4 h-4 text-accent" />
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+            <TrendingUp className="w-4 h-4 text-white" />
           </div>
           <span className="text-lg font-heading font-bold">TradeLedger</span>
         </div>
         
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
-              <User className="w-4 h-4 text-muted-foreground" />
+            <button className="w-8 h-8 rounded-full bg-gradient-to-br from-accent/20 to-blue-500/20 flex items-center justify-center">
+              <User className="w-4 h-4 text-accent" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
