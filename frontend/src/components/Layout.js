@@ -76,13 +76,8 @@ export default function Layout({ children }) {
         {/* Logo */}
         <div className="p-6 border-b border-white/5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
-              <TrendingUp className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <span className="text-xl font-heading font-bold">TradeLedger</span>
-              <span className="text-xs text-muted-foreground block">v2.0</span>
-            </div>
+            <img src="/app-icon.png" alt="TradeLedger" className="w-10 h-10 rounded-xl" />
+            <span className="text-xl font-heading font-bold">TradeLedger</span>
           </div>
         </div>
 
@@ -133,9 +128,7 @@ export default function Layout({ children }) {
       {/* Mobile Header */}
       <header className="md:hidden fixed top-0 left-0 right-0 h-16 bg-card/80 backdrop-blur-xl border-b border-white/5 z-50 flex items-center justify-between px-4">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
-            <TrendingUp className="w-4 h-4 text-white" />
-          </div>
+          <img src="/app-icon.png" alt="TradeLedger" className="w-8 h-8 rounded-lg" />
           <span className="text-lg font-heading font-bold">TradeLedger</span>
         </div>
         

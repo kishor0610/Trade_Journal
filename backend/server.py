@@ -13,6 +13,9 @@ from datetime import datetime, timezone, timedelta
 import jwt
 import bcrypt
 from emergentintegrations.llm.chat import LlmChat, UserMessage
+from fastapi.responses import StreamingResponse
+import io
+import csv
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -755,6 +758,137 @@ async def root():
 @api_router.get("/health")
 async def health_check():
     return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}
+
+# ============ EXPORT ROUTES ============
+
+@api_router.get("/export/trades/csv")
+async def export_trades_csv(current_user: dict = Depends(get_current_user)):
+    """Export all trades to CSV"""
+    trades = await db.trades.find({"user_id": current_user['id']}, {"_id": 0}).sort("entry_date", -1).to_list(10000)
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Header
+    writer.writerow([
+        'Instrument', 'Position', 'Status', 'Entry Price', 'Exit Price', 
+        'Quantity', 'Entry Date', 'Exit Date', 'P&L', 'P&L %',
+        'Stop Loss', 'Take Profit', 'Commission', 'Swap', 'Notes'
+    ])
+    
+    # Data rows
+    for trade in trades:
+        trade = calculate_pnl(trade)
+        writer.writerow([
+            trade.get('instrument', ''),
+            trade.get('position', ''),
+            trade.get('status', ''),
+            trade.get('entry_price', ''),
+            trade.get('exit_price', ''),
+            trade.get('quantity', ''),
+            trade.get('entry_date', ''),
+            trade.get('exit_date', ''),
+            trade.get('pnl', ''),
+            trade.get('pnl_percentage', ''),
+            trade.get('stop_loss', ''),
+            trade.get('take_profit', ''),
+            trade.get('commission', ''),
+            trade.get('swap', ''),
+            trade.get('notes', '')
+        ])
+    
+    output.seek(0)
+    
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode('utf-8')),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=trades_export_{datetime.now().strftime('%Y%m%d')}.csv"}
+    )
+
+@api_router.get("/export/trades/xlsx")
+async def export_trades_xlsx(current_user: dict = Depends(get_current_user)):
+    """Export all trades to Excel XLSX"""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    
+    trades = await db.trades.find({"user_id": current_user['id']}, {"_id": 0}).sort("entry_date", -1).to_list(10000)
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Trades"
+    
+    # Header styling
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="1F2937", end_color="1F2937", fill_type="solid")
+    thin_border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+    
+    headers = [
+        'Instrument', 'Position', 'Status', 'Entry Price', 'Exit Price', 
+        'Quantity', 'Entry Date', 'Exit Date', 'P&L', 'P&L %',
+        'Stop Loss', 'Take Profit', 'Commission', 'Swap', 'Notes'
+    ]
+    
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal='center')
+        cell.border = thin_border
+    
+    # Data rows
+    green_fill = PatternFill(start_color="D1FAE5", end_color="D1FAE5", fill_type="solid")
+    red_fill = PatternFill(start_color="FEE2E2", end_color="FEE2E2", fill_type="solid")
+    
+    for row_idx, trade in enumerate(trades, 2):
+        trade = calculate_pnl(trade)
+        row_data = [
+            trade.get('instrument', ''),
+            trade.get('position', ''),
+            trade.get('status', ''),
+            trade.get('entry_price', ''),
+            trade.get('exit_price', ''),
+            trade.get('quantity', ''),
+            trade.get('entry_date', ''),
+            trade.get('exit_date', ''),
+            trade.get('pnl', ''),
+            trade.get('pnl_percentage', ''),
+            trade.get('stop_loss', ''),
+            trade.get('take_profit', ''),
+            trade.get('commission', ''),
+            trade.get('swap', ''),
+            trade.get('notes', '')
+        ]
+        
+        for col, value in enumerate(row_data, 1):
+            cell = ws.cell(row=row_idx, column=col, value=value)
+            cell.border = thin_border
+            
+            # Color P&L column
+            if col == 9 and value:  # P&L column
+                if float(value) > 0:
+                    cell.fill = green_fill
+                elif float(value) < 0:
+                    cell.fill = red_fill
+    
+    # Adjust column widths
+    for col in range(1, len(headers) + 1):
+        ws.column_dimensions[chr(64 + col)].width = 15
+    
+    # Save to bytes
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=trades_export_{datetime.now().strftime('%Y%m%d')}.xlsx"}
+    )
 
 # Include the router
 app.include_router(api_router)

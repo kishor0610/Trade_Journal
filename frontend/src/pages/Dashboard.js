@@ -3,16 +3,19 @@ import { motion } from 'framer-motion';
 import axios from 'axios';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, 
-  AreaChart, Area, LineChart, Line 
+  AreaChart, Area 
 } from 'recharts';
 import { 
   TrendingUp, TrendingDown, Activity, Target, DollarSign, 
-  Percent, RefreshCw, Calendar, Award, Flame, ChevronLeft, ChevronRight
+  Percent, RefreshCw, Calendar, Award, Flame, ChevronLeft, ChevronRight,
+  Download
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
+import { toast } from 'sonner';
 import { 
-  formatCurrency, formatNumber, formatPercentage, getInstrumentColor,
-  getDaysInMonth, getFirstDayOfMonth, getMonthName, calculateWeeklyTotals,
+  formatCurrency, formatNumber, 
+  getDaysInMonth, getFirstDayOfMonth, getMonthName,
   TIME_PERIODS
 } from '../lib/utils';
 
@@ -29,7 +32,6 @@ const GaugeChart = ({ value, maxValue = 100, label, color = '#3B82F6', size = 12
   return (
     <div className="flex flex-col items-center">
       <svg width={size} height={size / 2 + 10} className="overflow-visible">
-        {/* Background arc */}
         <path
           d={`M ${strokeWidth/2} ${size/2} A ${radius} ${radius} 0 0 1 ${size - strokeWidth/2} ${size/2}`}
           fill="none"
@@ -37,7 +39,6 @@ const GaugeChart = ({ value, maxValue = 100, label, color = '#3B82F6', size = 12
           strokeWidth={strokeWidth}
           strokeLinecap="round"
         />
-        {/* Value arc */}
         <path
           d={`M ${strokeWidth/2} ${size/2} A ${radius} ${radius} 0 0 1 ${size - strokeWidth/2} ${size/2}`}
           fill="none"
@@ -167,111 +168,192 @@ const WinstreakCard = ({ daysStreak, tradesStreak, currentDaysStreak, currentTra
   </motion.div>
 );
 
-// Calendar component
+// New Calendar component matching reference image
 const TradingCalendar = ({ year, month, dailyData, summary, onMonthChange }) => {
-  const weeks = calculateWeeklyTotals(dailyData, year, month);
+  const daysInMonth = getDaysInMonth(year, month);
+  const firstDay = getFirstDayOfMonth(year, month);
   const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  
+  // Build calendar grid
+  const calendarDays = [];
+  for (let i = 0; i < firstDay; i++) {
+    calendarDays.push(null);
+  }
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const dayData = dailyData.find(d => d.date === dateStr);
+    calendarDays.push({
+      day,
+      date: dateStr,
+      pnl: dayData?.pnl || 0,
+      trades: dayData?.trades || 0
+    });
+  }
+  
+  // Calculate weekly summaries
+  const weeks = [];
+  let currentWeek = [];
+  let weekPnl = 0;
+  let weekDays = 0;
+  let weekNum = 1;
+  
+  calendarDays.forEach((dayData, index) => {
+    currentWeek.push(dayData);
+    if (dayData && dayData.pnl !== 0) {
+      weekPnl += dayData.pnl;
+      weekDays++;
+    }
+    
+    if (currentWeek.length === 7 || index === calendarDays.length - 1) {
+      while (currentWeek.length < 7) {
+        currentWeek.push(null);
+      }
+      
+      const weekStart = currentWeek.find(d => d !== null)?.day || 1;
+      const weekEnd = [...currentWeek].reverse().find(d => d !== null)?.day || weekStart;
+      
+      weeks.push({
+        days: currentWeek,
+        pnl: weekPnl,
+        tradingDays: weekDays,
+        weekNum,
+        dateRange: `${getMonthName(month).slice(0, 3)} ${weekStart} - ${getMonthName(month).slice(0, 3)} ${weekEnd}`
+      });
+      
+      currentWeek = [];
+      weekPnl = 0;
+      weekDays = 0;
+      weekNum++;
+    }
+  });
+  
+  const totalPnl = dailyData.reduce((sum, d) => sum + (d.pnl || 0), 0);
+  const totalDays = dailyData.filter(d => d.trades > 0).length;
+  
+  const goToToday = () => {
+    const now = new Date();
+    if (now.getFullYear() !== year || now.getMonth() !== month) {
+      const diff = (now.getFullYear() - year) * 12 + (now.getMonth() - month);
+      onMonthChange(diff);
+    }
+  };
   
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: 0.4 }}
-      className="glass-card p-4"
+      className="glass-card p-4 md:p-6"
     >
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+        <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => onMonthChange(-1)} className="h-8 w-8">
             <ChevronLeft className="w-4 h-4" />
           </Button>
-          <h3 className="text-lg font-heading font-bold">
+          <h3 className="text-lg font-heading font-bold min-w-[140px] text-center">
             {getMonthName(month)} {year}
           </h3>
           <Button variant="ghost" size="icon" onClick={() => onMonthChange(1)} className="h-8 w-8">
             <ChevronRight className="w-4 h-4" />
           </Button>
+          <Button variant="outline" size="sm" onClick={goToToday} className="ml-2 gap-2">
+            <Calendar className="w-4 h-4" />
+            Today
+          </Button>
         </div>
         
-        {/* Summary stats */}
-        <div className="hidden md:flex items-center gap-4 text-xs">
-          <div className="px-2 py-1 rounded bg-secondary">
-            <span className="text-muted-foreground">Trades</span>
-            <span className="ml-2 font-mono font-bold">{summary?.total_trades || 0}</span>
-          </div>
-          <div className="px-2 py-1 rounded bg-secondary">
-            <span className="text-muted-foreground">Wins</span>
-            <span className="ml-2 font-mono font-bold text-emerald-500">{summary?.total_wins || 0}</span>
-          </div>
-          <div className="px-2 py-1 rounded bg-secondary">
-            <span className="text-muted-foreground">Profits</span>
-            <span className={`ml-2 font-mono font-bold ${(summary?.total_pnl || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-              {formatCurrency(summary?.total_pnl || 0)}
-            </span>
-          </div>
-          <div className="px-2 py-1 rounded bg-secondary">
-            <span className="text-muted-foreground">Percent</span>
-            <span className="ml-2 font-mono font-bold">{summary?.win_rate || 0}%</span>
-          </div>
+        {/* Summary badge */}
+        <div className="flex items-center gap-3 px-4 py-2 rounded-lg bg-secondary/50">
+          <span className={`font-mono font-bold ${totalPnl >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+            PnL: {formatCurrency(totalPnl)}
+          </span>
+          <span className="text-muted-foreground">|</span>
+          <span className="text-muted-foreground">Days: <span className="font-mono font-bold text-white">{totalDays}</span></span>
         </div>
       </div>
       
-      {/* Calendar grid */}
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[600px]">
-          <thead>
-            <tr>
-              {daysOfWeek.map(day => (
-                <th key={day} className="text-center text-xs text-muted-foreground py-2 font-normal">{day}</th>
-              ))}
-              <th className="text-center text-xs text-muted-foreground py-2 font-normal w-20">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {weeks.map((week, weekIndex) => (
-              <tr key={weekIndex}>
-                {week.days.map((dayData, dayIndex) => (
-                  <td key={dayIndex} className="p-1">
-                    {dayData ? (
-                      <div className={`p-2 rounded-lg border min-h-[60px] transition-colors ${
-                        dayData.pnl > 0 ? 'border-emerald-500/30 bg-emerald-500/5' :
-                        dayData.pnl < 0 ? 'border-red-500/30 bg-red-500/5' :
-                        'border-white/5 bg-white/5'
-                      }`}>
-                        <div className="text-xs text-muted-foreground">{dayData.day}</div>
-                        {dayData.pnl !== 0 && (
-                          <>
-                            <div className={`text-sm font-mono font-bold ${dayData.pnl > 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                              {formatCurrency(dayData.pnl)}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {((dayData.pnl / 10000) * 100).toFixed(2)}%
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="p-2 min-h-[60px]" />
-                    )}
-                  </td>
+      {/* Calendar with weekly summary */}
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* Calendar grid */}
+        <div className="flex-1 overflow-x-auto">
+          <table className="w-full min-w-[500px]">
+            <thead>
+              <tr>
+                {daysOfWeek.map(day => (
+                  <th key={day} className="text-center text-sm text-muted-foreground py-3 font-normal">{day}</th>
                 ))}
-                <td className="p-1">
-                  <div className={`p-2 rounded-lg border min-h-[60px] flex items-center justify-center ${
-                    week.total > 0 ? 'border-emerald-500/50 bg-emerald-500/10' :
-                    week.total < 0 ? 'border-red-500/50 bg-red-500/10' :
-                    'border-white/10 bg-white/5'
-                  }`}>
-                    {week.total !== 0 && (
-                      <span className={`font-mono font-bold ${week.total > 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                        {formatCurrency(week.total)}
-                      </span>
-                    )}
-                  </div>
-                </td>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {weeks.map((week, weekIndex) => (
+                <tr key={weekIndex}>
+                  {week.days.map((dayData, dayIndex) => (
+                    <td key={dayIndex} className="p-1">
+                      {dayData ? (
+                        <div className={`p-2 rounded-lg min-h-[80px] transition-colors cursor-pointer hover:opacity-80 ${
+                          dayData.pnl > 0 ? 'bg-emerald-900/40 border border-emerald-500/30' :
+                          dayData.pnl < 0 ? 'bg-red-900/40 border border-red-500/30' :
+                          'bg-secondary/30 border border-white/5'
+                        }`}>
+                          <div className="text-sm font-medium text-muted-foreground">{dayData.day}</div>
+                          {dayData.trades > 0 && (
+                            <>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                {dayData.trades} <span className="text-[10px]">trades</span>
+                              </div>
+                              <div className={`text-sm font-mono font-bold mt-1 ${
+                                dayData.pnl > 0 ? 'text-emerald-400' : 'text-red-400'
+                              }`}>
+                                {formatCurrency(dayData.pnl)}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="p-2 min-h-[80px] bg-black/20 rounded-lg" />
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        
+        {/* Weekly Summary Sidebar */}
+        <div className="lg:w-64 space-y-3">
+          <h4 className="text-sm font-medium text-muted-foreground mb-3">Weekly Summary</h4>
+          {weeks.map((week, index) => (
+            <div 
+              key={index} 
+              className={`p-3 rounded-lg border ${
+                week.pnl > 0 ? 'border-emerald-500/30 bg-emerald-900/20' :
+                week.pnl < 0 ? 'border-red-500/30 bg-red-900/20' :
+                'border-white/10 bg-secondary/30'
+              }`}
+            >
+              <div className="flex justify-between items-start mb-2">
+                <div>
+                  <span className="font-medium">Week {week.weekNum}</span>
+                  <span className="text-xs text-muted-foreground block">{week.dateRange}</span>
+                </div>
+              </div>
+              {week.tradingDays > 0 ? (
+                <div className="flex justify-between items-center">
+                  <span className={`font-mono font-bold ${
+                    week.pnl > 0 ? 'text-emerald-400' : week.pnl < 0 ? 'text-red-400' : 'text-muted-foreground'
+                  }`}>
+                    PnL: {formatCurrency(week.pnl)}
+                  </span>
+                  <span className="text-xs text-muted-foreground">Days: {week.tradingDays}</span>
+                </div>
+              ) : (
+                <span className="text-xs text-muted-foreground">No trades</span>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
     </motion.div>
   );
@@ -346,6 +428,27 @@ export default function Dashboard() {
     fetchCalendarData();
   };
 
+  const handleExport = async (format) => {
+    try {
+      const response = await axios.get(`${API_URL}/export/trades/${format}`, {
+        responseType: 'blob'
+      });
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `trades_export_${new Date().toISOString().slice(0, 10)}.${format}`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      toast.success(`Trades exported as ${format.toUpperCase()}`);
+    } catch (error) {
+      toast.error('Failed to export trades');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -368,27 +471,46 @@ export default function Dashboard() {
           </p>
         </div>
         
-        {/* Period selector */}
-        <div className="flex items-center gap-1 bg-secondary/50 rounded-lg p-1">
-          {TIME_PERIODS.map(period => (
-            <button
-              key={period.value}
-              onClick={() => setSelectedPeriod(period.value)}
-              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                selectedPeriod === period.value 
-                  ? 'bg-accent text-black font-medium' 
-                  : 'text-muted-foreground hover:text-white'
-              }`}
-            >
-              {period.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-3">
+          {/* Export Button */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="gap-2" data-testid="export-btn">
+                <Download className="w-4 h-4" />
+                Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => handleExport('csv')}>
+                Export as CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExport('xlsx')}>
+                Export as Excel (XLSX)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          
+          {/* Period selector */}
+          <div className="flex items-center gap-1 bg-secondary/50 rounded-lg p-1">
+            {TIME_PERIODS.map(period => (
+              <button
+                key={period.value}
+                onClick={() => setSelectedPeriod(period.value)}
+                className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                  selectedPeriod === period.value 
+                    ? 'bg-accent text-black font-medium' 
+                    : 'text-muted-foreground hover:text-white'
+                }`}
+              >
+                {period.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* Top metrics row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {/* Winrate gauge */}
         <StatCard delay={0}>
           <GaugeChart 
             value={summary?.win_rate || 0} 
@@ -397,7 +519,6 @@ export default function Dashboard() {
           />
         </StatCard>
         
-        {/* Avg Win/Loss ratio */}
         <StatCard delay={0.1}>
           <RatioBar 
             value={summary?.avg_win_loss_ratio || 0} 
@@ -405,7 +526,6 @@ export default function Dashboard() {
           />
         </StatCard>
         
-        {/* Trade count with sparkline */}
         <StatCard delay={0.2}>
           <div className="flex items-start justify-between mb-2">
             <div>
@@ -417,7 +537,6 @@ export default function Dashboard() {
           <Sparkline data={tradeCount.data} color="#3B82F6" />
         </StatCard>
         
-        {/* Winstreak */}
         <WinstreakCard 
           daysStreak={summary?.win_streak_days || 0}
           tradesStreak={summary?.win_streak_trades || 0}
@@ -428,7 +547,6 @@ export default function Dashboard() {
 
       {/* Second metrics row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {/* Daily Winrate gauge */}
         <StatCard delay={0.3}>
           <GaugeChart 
             value={summary?.daily_win_rate || 0} 
@@ -437,7 +555,6 @@ export default function Dashboard() {
           />
         </StatCard>
         
-        {/* Day Win/Loss ratio */}
         <StatCard delay={0.4}>
           <RatioBar 
             value={summary?.day_win_loss_ratio || 0} 
@@ -446,7 +563,6 @@ export default function Dashboard() {
           />
         </StatCard>
         
-        {/* Total P&L */}
         <StatCard 
           title="Total P&L"
           value={formatCurrency(summary?.total_pnl || 0)}
@@ -455,7 +571,6 @@ export default function Dashboard() {
           delay={0.5}
         />
         
-        {/* Open Positions */}
         <StatCard 
           title="Open Positions"
           value={summary?.open_trades || 0}
