@@ -631,8 +631,10 @@ export default function Dashboard() {
                   backgroundColor: '#121212',
                   border: '1px solid rgba(255,255,255,0.1)',
                   borderRadius: '8px',
-                  fontFamily: 'JetBrains Mono'
+                  fontFamily: 'JetBrains Mono',
+                  color: '#fff'
                 }}
+                labelStyle={{ color: '#A1A1AA' }}
                 formatter={(value) => [formatCurrency(value), 'Balance']}
               />
               <Area 
