@@ -55,6 +55,7 @@ export default function AdminDashboard() {
     }
     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchData = async () => {

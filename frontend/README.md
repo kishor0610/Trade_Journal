@@ -68,3 +68,34 @@ This section has moved here: [https://facebook.github.io/create-react-app/docs/d
 ### `npm run build` fails to minify
 
 This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+
+## Deploy To Netlify
+
+This frontend is ready to deploy on Netlify.
+
+### 1. Connect the repository
+
+- In Netlify, create a new site from Git.
+- Select this repository.
+
+The repository includes `../netlify.toml`, so Netlify will use:
+
+- Base directory: `frontend`
+- Build command: `npm run build`
+- Publish directory: `build`
+
+### 2. Set environment variable
+
+In Netlify site settings, add this variable:
+
+- `REACT_APP_BACKEND_URL` = your deployed backend URL (for example: `https://your-backend.example.com`)
+
+### 3. Deploy
+
+- Trigger deploy from Netlify.
+- Open your Netlify URL.
+
+### Important
+
+- Netlify hosts the frontend only.
+- Backend (FastAPI) must be deployed separately (for example Render, Railway, Fly.io, or your VPS) and then used in `REACT_APP_BACKEND_URL`.

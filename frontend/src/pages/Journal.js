@@ -267,6 +267,7 @@ export default function Journal() {
 
   useEffect(() => {
     fetchTrades();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.status, filters.instrument]);
 
   const fetchTrades = async () => {

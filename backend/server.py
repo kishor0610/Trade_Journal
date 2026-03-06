@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime, timezone, timedelta
 import jwt
 import bcrypt
-from emergentintegrations.llm.chat import LlmChat, UserMessage
+from openai import AsyncOpenAI
 from fastapi.responses import StreamingResponse
 import io
 import csv
@@ -24,9 +24,12 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
 # MongoDB connection
-mongo_url = os.environ['MONGO_URL']
+mongo_url = os.environ.get('MONGO_URL') or os.environ.get('MONGODB_URI') or os.environ.get('DATABASE_URL')
+if not mongo_url:
+    raise RuntimeError('MongoDB connection URL is required. Set MONGO_URL, MONGODB_URI, or DATABASE_URL.')
+
 client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+db = client[os.environ.get('DB_NAME', 'trade_ledger')]
 
 # JWT Settings
 JWT_SECRET = os.environ.get('JWT_SECRET', 'trading_journal_secret')
@@ -35,6 +38,9 @@ JWT_EXPIRATION_HOURS = int(os.environ.get('JWT_EXPIRATION_HOURS', 24))
 
 # Keys
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '') or EMERGENT_LLM_KEY
+OPENAI_BASE_URL = os.environ.get('OPENAI_BASE_URL', '')
+AI_MODEL = os.environ.get('AI_MODEL', 'gpt-4o-mini')
 METAAPI_TOKEN = os.environ.get('METAAPI_TOKEN', '')
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
 SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev')
@@ -171,6 +177,31 @@ class TradeResponse(BaseModel):
 
 class AIInsightRequest(BaseModel):
     question: Optional[str] = None
+
+
+def build_rule_based_insight(total_trades: int, total_pnl: float, winning: int, losing: int) -> str:
+    win_rate = (winning / total_trades * 100) if total_trades else 0
+    tips = []
+
+    if total_trades == 0:
+        tips.append("No closed trades yet. Start by journaling at least 20 trades before evaluating strategy changes.")
+        tips.append("Use fixed risk per trade (for example 0.5% to 1% of account) to keep early variance controlled.")
+    else:
+        if win_rate < 45:
+            tips.append("Your win rate is low. Tighten entry criteria and avoid taking trades outside your setup checklist.")
+        if total_pnl < 0:
+            tips.append("You are net negative. Reduce position size for the next 10 trades and prioritize capital preservation.")
+        if losing > winning:
+            tips.append("Losing trades outnumber winners. Add a hard daily loss limit and stop after 2 to 3 consecutive losses.")
+        if win_rate >= 50 and total_pnl > 0:
+            tips.append("Performance is positive. Focus on consistency: keep risk fixed and avoid overtrading after winning streaks.")
+
+        tips.append("Track R-multiple per trade and review weekly to identify whether exits or entries are the main bottleneck.")
+
+    summary = (
+        f"Trading snapshot: {total_trades} closed trades, win rate {win_rate:.1f}%, total P&L ${total_pnl:.2f}."
+    )
+    return summary + "\n\nActionable recommendations:\n- " + "\n- ".join(tips[:4])
 
 # ============ AUTH HELPERS ============
 
@@ -1154,9 +1185,6 @@ async def get_trade_count_history(
 
 @api_router.post("/ai/insights")
 async def get_ai_insights(request: AIInsightRequest, current_user: dict = Depends(get_current_user)):
-    if not EMERGENT_LLM_KEY:
-        raise HTTPException(status_code=500, detail="AI service not configured")
-    
     trades = await db.trades.find({"user_id": current_user['id']}, {"_id": 0}).sort("created_at", -1).to_list(100)
     
     closed_trades = [calculate_pnl(t) for t in trades if t['status'] == 'closed']
@@ -1187,27 +1215,62 @@ User's question: {user_question}
 
 Provide a concise, helpful analysis with specific recommendations."""
 
+    if not OPENAI_API_KEY:
+        fallback = build_rule_based_insight(len(closed_trades), total_pnl, winning, losing)
+        return {
+            "insight": fallback,
+            "summary": {
+                "total_trades": len(closed_trades),
+                "total_pnl": round(total_pnl, 2),
+                "win_rate": round(winning/len(closed_trades)*100 if closed_trades else 0, 2)
+            },
+            "source": "rule_based"
+        }
+
     try:
-        chat = LlmChat(
-            api_key=EMERGENT_LLM_KEY,
-            session_id=f"trading-insights-{current_user['id']}",
-            system_message="You are a professional trading analyst helping traders improve their performance."
-        ).with_model("openai", "gpt-5.2")
-        
-        user_message = UserMessage(text=prompt)
-        response = await chat.send_message(user_message)
-        
+        client_kwargs = {"api_key": OPENAI_API_KEY}
+        if OPENAI_BASE_URL:
+            client_kwargs["base_url"] = OPENAI_BASE_URL
+
+        client = AsyncOpenAI(**client_kwargs)
+        completion = await client.chat.completions.create(
+            model=AI_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a professional trading analyst helping traders improve their performance."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0.4,
+        )
+
+        response = (completion.choices[0].message.content or "").strip()
+
         return {
             "insight": response,
             "summary": {
                 "total_trades": len(closed_trades),
                 "total_pnl": round(total_pnl, 2),
                 "win_rate": round(winning/len(closed_trades)*100 if closed_trades else 0, 2)
-            }
+            },
+            "source": "llm"
         }
     except Exception as e:
         logging.error(f"AI insight error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"AI service error: {str(e)}")
+        fallback = build_rule_based_insight(len(closed_trades), total_pnl, winning, losing)
+        return {
+            "insight": fallback,
+            "summary": {
+                "total_trades": len(closed_trades),
+                "total_pnl": round(total_pnl, 2),
+                "win_rate": round(winning/len(closed_trades)*100 if closed_trades else 0, 2)
+            },
+            "source": "rule_based"
+        }
 
 # ============ IMPORT ROUTES ============
 
