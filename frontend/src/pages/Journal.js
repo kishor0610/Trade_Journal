@@ -301,6 +301,7 @@ export default function Journal() {
   const [annotations, setAnnotations] = useState({ liquidity: [], fvgs: [] });
 
   const chartContainerRef = useRef(null);
+  const chartPanelRef = useRef(null);
   const chartRef = useRef(null);
   const candleSeriesRef = useRef(null);
   const replayCursorSeriesRef = useRef(null);
@@ -694,7 +695,7 @@ export default function Journal() {
   const replayTrade = useMemo(() => {
     if (chartTrades.length === 0) return null;
     if (selectedReplayTradeId === 'latest') return chartTrades[0];
-    return chartTrades.find((t) => t.id === selectedReplayTradeId) || chartTrades[0];
+    return chartTrades.find((t) => String(t.id) === String(selectedReplayTradeId)) || chartTrades[0];
   }, [chartTrades, selectedReplayTradeId]);
 
   const focusedCandles = useMemo(() => {
@@ -1092,6 +1093,20 @@ export default function Journal() {
 
   const clearAnnotations = () => {
     setAnnotations({ liquidity: [], fvgs: [] });
+  };
+
+  const loadTradeToChart = (trade, scrollToChart = true) => {
+    if (!trade) return;
+
+    const mappedSymbol = instrumentToChartSymbol(trade.instrument || '');
+    if (mappedSymbol) {
+      setChartSymbol(mappedSymbol);
+    }
+    setSelectedReplayTradeId(String(trade.id));
+
+    if (scrollToChart && chartPanelRef.current) {
+      chartPanelRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   };
 
   const tradeSummary = useMemo(() => {
@@ -1598,7 +1613,7 @@ export default function Journal() {
       </div>
 
       {/* TradingView-style Journal Chart */}
-      <div className="glass-card p-4 space-y-4" data-testid="journal-chart-panel">
+      <div ref={chartPanelRef} className="glass-card p-4 space-y-4" data-testid="journal-chart-panel">
         <div className="space-y-3">
           <div>
             <h3 className="font-heading text-lg">Trade Replay Chart</h3>
@@ -1629,20 +1644,13 @@ export default function Journal() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="w-full md:col-span-2">
-              <Select value={selectedReplayTradeId} onValueChange={setSelectedReplayTradeId}>
-                <SelectTrigger className="bg-secondary border-white/10 h-9">
-                  <SelectValue placeholder="Trade Focus" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="latest">Latest Trade</SelectItem>
-                  {chartTrades.slice(0, 20).map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {`${t.position.toUpperCase()} ${t.entry_date?.slice(0, 10) || ''} | ${formatCurrency(t.entry_price || 0)}`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="w-full md:col-span-2 glass-card p-2 h-9 flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Focused Trade</span>
+              <span className="text-xs font-medium truncate ml-3">
+                {replayTrade
+                  ? `${replayTrade.instrument} ${replayTrade.position?.toUpperCase()} ${replayTrade.entry_date?.slice(0, 10) || ''}`
+                  : 'Click a trade below to load chart focus'}
+              </span>
             </div>
           </div>
 
@@ -1775,7 +1783,8 @@ export default function Journal() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.3, delay: index * 0.03 }}
-                className="glass-card-hover p-4"
+                className={`glass-card-hover p-4 cursor-pointer ${String(selectedReplayTradeId) === String(trade.id) ? 'ring-1 ring-accent/60' : ''}`}
+                onClick={() => loadTradeToChart(trade)}
                 data-testid={`trade-item-${trade.id}`}
               >
                 <div className="flex flex-col md:flex-row md:items-center gap-4">
@@ -1841,9 +1850,24 @@ export default function Journal() {
                   {/* Actions */}
                   <div className="flex items-center gap-2">
                     <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        loadTradeToChart(trade, true);
+                      }}
+                      className="h-8"
+                      data-testid={`load-chart-${trade.id}`}
+                    >
+                      Load to Chart
+                    </Button>
+                    <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => openEditDialog(trade)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEditDialog(trade);
+                      }}
                       className="h-8 w-8"
                       data-testid={`edit-trade-${trade.id}`}
                     >
@@ -1852,7 +1876,10 @@ export default function Journal() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => handleDeleteTrade(trade.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteTrade(trade.id);
+                      }}
                       className="h-8 w-8 text-red-500 hover:text-red-400"
                       data-testid={`delete-trade-${trade.id}`}
                     >
