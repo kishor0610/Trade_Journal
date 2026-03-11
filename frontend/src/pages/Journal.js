@@ -23,6 +23,7 @@ const CHART_SYMBOLS = [
 ];
 
 const CHART_INTERVALS = ['1m', '5m', '15m', '1h', '4h', '1d'];
+const MARKET_SUPPORTED_SYMBOLS = new Set(CHART_SYMBOLS.map((s) => s.value));
 
 const INTERVAL_SECONDS = {
   '1m': 60,
@@ -287,6 +288,7 @@ export default function Journal() {
   const [deleting, setDeleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [chartSymbol, setChartSymbol] = useState('BTCUSDT');
+  const [focusedInstrumentKey, setFocusedInstrumentKey] = useState('');
   const [chartInterval, setChartInterval] = useState('5m');
   const [candles, setCandles] = useState([]);
   const [candlesLoading, setCandlesLoading] = useState(false);
@@ -378,10 +380,15 @@ export default function Journal() {
 
   const buildFallbackCandlesFromTrades = () => {
     const normalizedSymbol = normalizeSymbol(chartSymbol);
+    const focusedKey = normalizeSymbol(focusedInstrumentKey);
     const matching = trades
       .filter((t) => {
+        const instrumentKey = normalizeSymbol(t.instrument || '');
+        if (focusedKey) {
+          return instrumentKey === focusedKey;
+        }
         const mapped = instrumentToChartSymbol(t.instrument || '');
-        const direct = normalizeSymbol(t.instrument || '');
+        const direct = instrumentKey;
         return mapped === normalizedSymbol || direct === normalizedSymbol;
       })
       .filter((t) => isValidNumber(t.entry_price))
@@ -438,11 +445,16 @@ export default function Journal() {
   });
 
   const chartTrades = useMemo(() => {
+    const focusedKey = normalizeSymbol(focusedInstrumentKey);
     return filteredTrades
-      .filter((t) => instrumentToChartSymbol(t.instrument || '') === chartSymbol)
+      .filter((t) => {
+        const instrumentKey = normalizeSymbol(t.instrument || '');
+        if (focusedKey) return instrumentKey === focusedKey;
+        return instrumentToChartSymbol(t.instrument || '') === chartSymbol;
+      })
       .filter((t) => t.status === 'closed' || t.status === 'open')
       .slice(0, 20);
-  }, [filteredTrades, chartSymbol, instrumentToChartSymbol]);
+  }, [filteredTrades, chartSymbol, instrumentToChartSymbol, focusedInstrumentKey]);
 
   // Sort trades
   const sortedTrades = [...filteredTrades].sort((a, b) => {
@@ -486,9 +498,19 @@ export default function Journal() {
   const fetchCandles = async () => {
     setCandlesLoading(true);
     try {
+      if (focusedInstrumentKey) {
+        setCandles(sanitizeCandles(buildFallbackCandlesFromTrades()));
+        setCandlesLoading(false);
+        return;
+      }
+
       let series = [];
 
       try {
+        if (!MARKET_SUPPORTED_SYMBOLS.has(chartSymbol)) {
+          throw new Error('Unsupported market symbol');
+        }
+
         const response = await axios.get(
           `${API_URL}/market/candles?symbol=${chartSymbol}&interval=${chartInterval}&limit=500`
         );
@@ -536,7 +558,7 @@ export default function Journal() {
   useEffect(() => {
     fetchCandles();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chartSymbol, chartInterval]);
+  }, [chartSymbol, chartInterval, focusedInstrumentKey]);
 
   useEffect(() => {
     try {
@@ -988,11 +1010,11 @@ export default function Journal() {
 
   useEffect(() => {
     if (!replayTrade) {
-      setSelectedReplayTradeId('latest');
+      setSelectedReplayTradeId(chartTrades[0]?.id ? String(chartTrades[0].id) : 'latest');
       return;
     }
-    if (selectedReplayTradeId !== 'latest' && !chartTrades.some((t) => t.id === selectedReplayTradeId)) {
-      setSelectedReplayTradeId('latest');
+    if (selectedReplayTradeId !== 'latest' && !chartTrades.some((t) => String(t.id) === String(selectedReplayTradeId))) {
+      setSelectedReplayTradeId(chartTrades[0]?.id ? String(chartTrades[0].id) : 'latest');
     }
   }, [replayTrade, selectedReplayTradeId, chartTrades]);
 
@@ -1099,6 +1121,7 @@ export default function Journal() {
     if (!trade) return;
 
     const mappedSymbol = instrumentToChartSymbol(trade.instrument || '');
+    setFocusedInstrumentKey(normalizeSymbol(trade.instrument || ''));
     if (mappedSymbol) {
       setChartSymbol(mappedSymbol);
     }
@@ -1621,7 +1644,14 @@ export default function Journal() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div className="w-full">
-              <Select value={chartSymbol} onValueChange={setChartSymbol}>
+              <Select
+                value={chartSymbol}
+                onValueChange={(value) => {
+                  setChartSymbol(value);
+                  setFocusedInstrumentKey('');
+                  setSelectedReplayTradeId('latest');
+                }}
+              >
                 <SelectTrigger className="bg-secondary border-white/10 h-9">
                   <SelectValue placeholder="Symbol" />
                 </SelectTrigger>
