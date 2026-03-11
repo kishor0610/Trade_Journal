@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { Plus, Edit2, Trash2, TrendingUp, TrendingDown, Filter, X, Search, SlidersHorizontal, Download, Upload, FileSpreadsheet, AlertCircle, CheckCircle, AlertTriangle } from 'lucide-react';
-import { createChart, LineStyle } from 'lightweight-charts';
+import { createChart, LineStyle, CrosshairMode } from 'lightweight-charts';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -300,6 +300,7 @@ export default function Journal() {
   const [chartInterval, setChartInterval] = useState('5m');
   const [candles, setCandles] = useState([]);
   const [candlesLoading, setCandlesLoading] = useState(false);
+  const [candleSource, setCandleSource] = useState('trade');
   const [chartError, setChartError] = useState('');
   const [selectedReplayTradeId, setSelectedReplayTradeId] = useState('latest');
   const [replayCursor, setReplayCursor] = useState(null);
@@ -552,6 +553,7 @@ export default function Journal() {
     try {
       if (focusedInstrumentKey) {
         setCandles(sanitizeCandles(buildFallbackCandlesFromTrades()));
+        setCandleSource('trade');
         setCandlesLoading(false);
         return;
       }
@@ -590,6 +592,9 @@ export default function Journal() {
       series = sanitizeCandles(series);
       if (!Array.isArray(series) || series.length === 0) {
         series = sanitizeCandles(buildFallbackCandlesFromTrades());
+        setCandleSource('trade');
+      } else {
+        setCandleSource('live');
       }
 
       setCandles(series);
@@ -597,10 +602,12 @@ export default function Journal() {
       const fallbackSeries = sanitizeCandles(buildFallbackCandlesFromTrades());
       if (fallbackSeries.length > 0) {
         setCandles(fallbackSeries);
+        setCandleSource('trade');
         toast.warning('Live market candles unavailable. Showing chart from journal trade history.');
       } else {
         toast.error('Failed to load chart data for selected symbol/timeframe');
         setCandles([]);
+        setCandleSource('none');
       }
     } finally {
       setCandlesLoading(false);
@@ -644,23 +651,41 @@ export default function Journal() {
       chart = createChart(chartContainerRef.current, {
         layout: {
           background: { color: '#0f172a' },
-          textColor: '#94a3b8',
+          textColor: '#d1d5db',
         },
         grid: {
-          vertLines: { color: '#1f2937' },
-          horzLines: { color: '#1f2937' },
+          vertLines: { color: '#1e293b' },
+          horzLines: { color: '#1e293b' },
         },
         width: chartContainerRef.current.clientWidth,
         height: 550,
         rightPriceScale: {
-          borderColor: '#27272A',
+          borderVisible: false,
           autoScale: true,
+          scaleMargins: {
+            top: 0.1,
+            bottom: 0.1,
+          },
         },
         timeScale: {
           borderColor: '#27272A',
           timeVisible: true,
+          rightBarStaysOnScroll: true,
+          barSpacing: 8,
+        },
+        handleScroll: {
+          mouseWheel: true,
+          pressedMouseMove: true,
+          horzTouchDrag: true,
+          vertTouchDrag: false,
+        },
+        handleScale: {
+          axisPressedMouseMove: true,
+          mouseWheel: true,
+          pinch: true,
         },
         crosshair: {
+          mode: CrosshairMode.Normal,
           vertLine: {
             color: '#10B981',
             style: LineStyle.Dashed,
@@ -832,7 +857,7 @@ export default function Journal() {
         }
         return current + 1;
       });
-    }, 500);
+    }, 400);
 
     return () => clearInterval(timer);
   }, [isReplayPlaying, focusedCandles]);
@@ -845,24 +870,8 @@ export default function Journal() {
 
   useEffect(() => {
     if (!replayCursorSeriesRef.current) return;
-
-    if (!replayCursor || displayedCandles.length === 0) {
-      replayCursorSeriesRef.current.setData([]);
-      return;
-    }
-
-    const values = displayedCandles.flatMap((c) => [c.low, c.high]).filter(Number.isFinite);
-    if (values.length === 0) {
-      replayCursorSeriesRef.current.setData([]);
-      return;
-    }
-
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    replayCursorSeriesRef.current.setData([
-      { time: replayCursor, value: min },
-      { time: replayCursor, value: max },
-    ]);
+    // Keep replay pointer subtle via marker only to avoid noisy full-height lines.
+    replayCursorSeriesRef.current.setData([]);
   }, [replayCursor, displayedCandles]);
 
   useEffect(() => {
@@ -1130,17 +1139,35 @@ export default function Journal() {
     setIsReplayPlaying(true);
   };
 
-  const stepReplay = (direction) => {
+  const replayFromStart = () => {
+    if (!focusedCandles.length) return;
+    const startIndex = Math.min(50, focusedCandles.length);
+    const startTime = focusedCandles[Math.max(0, startIndex - 1)]?.time || null;
+    setIsReplayPlaying(false);
+    setReplayIndex(startIndex);
+    setReplayCursor(startTime);
+    setReplayRange(startTime, replayTrade?.entry_price || null);
+  };
+
+  const stepReplay = (direction, stepSize = 1) => {
     if (!focusedCandles.length) return;
     setIsReplayPlaying(false);
     setReplayIndex((prev) => {
       const current = prev === null ? focusedCandles.length : prev;
-      const next = Math.max(1, Math.min(focusedCandles.length, current + direction));
+      const next = Math.max(1, Math.min(focusedCandles.length, current + direction * stepSize));
       const nextTime = focusedCandles[next - 1]?.time || null;
       setReplayCursor(nextTime);
       setReplayRange(nextTime, replayTrade?.entry_price || null);
       return next;
     });
+  };
+
+  const toggleReplay = () => {
+    if (!focusedCandles.length) return;
+    if (replayIndex === null || replayIndex >= focusedCandles.length) {
+      replayFromStart();
+    }
+    setIsReplayPlaying((prev) => !prev);
   };
 
   const addLiquidityLevel = () => {
@@ -1737,17 +1764,32 @@ export default function Journal() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <span className={`text-xs px-2 py-1 rounded border ${
+              candleSource === 'live'
+                ? 'text-emerald-300 border-emerald-500/40 bg-emerald-500/10'
+                : candleSource === 'trade'
+                  ? 'text-amber-300 border-amber-500/40 bg-amber-500/10'
+                  : 'text-muted-foreground border-white/10'
+            }`}>
+              {candleSource === 'live' ? 'Live Market' : candleSource === 'trade' ? 'Trade Data' : 'No Data'}
+            </span>
             <Button variant="outline" size="sm" onClick={fetchCandles} disabled={candlesLoading}>
               {candlesLoading ? 'Loading...' : 'Refresh Candles'}
             </Button>
-            <Button variant="outline" size="sm" onClick={() => stepReplay(-1)}>
-              Back 1
+            <Button variant="outline" size="sm" onClick={replayFromStart}>
+              Start
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => stepReplay(-1, 10)}>
+              Back 10
             </Button>
             <Button variant="outline" size="sm" onClick={replayLatestTrade} disabled={candles.length === 0}>
               {isReplayPlaying ? 'Replay...' : 'Replay'}
             </Button>
-            <Button variant="outline" size="sm" onClick={() => stepReplay(1)}>
-              Forward 1
+            <Button variant="outline" size="sm" onClick={toggleReplay} disabled={candles.length === 0}>
+              {isReplayPlaying ? 'Pause' : 'Play'}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => stepReplay(1, 10)}>
+              Forward 10
             </Button>
           </div>
         </div>
