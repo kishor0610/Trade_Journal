@@ -325,16 +325,33 @@ export default function Journal() {
   const fetchCandles = async () => {
     setCandlesLoading(true);
     try {
-      const response = await axios.get(
-        `${API_URL}/market/candles?symbol=${chartSymbol}&interval=${chartInterval}&limit=500`
-      );
-      const series = response.data.map((c) => ({
-        time: Math.floor(c.time / 1000),
-        open: c.open,
-        high: c.high,
-        low: c.low,
-        close: c.close,
-      }));
+      let series = [];
+
+      try {
+        const response = await axios.get(
+          `${API_URL}/market/candles?symbol=${chartSymbol}&interval=${chartInterval}&limit=500`
+        );
+        series = response.data.map((c) => ({
+          time: Math.floor(c.time / 1000),
+          open: Number(c.open),
+          high: Number(c.high),
+          low: Number(c.low),
+          close: Number(c.close),
+        }));
+      } catch (apiError) {
+        // Backend may still be on an older revision without /market/candles.
+        const fallback = await axios.get('https://api.binance.com/api/v3/klines', {
+          params: { symbol: chartSymbol, interval: chartInterval, limit: 500 },
+        });
+        series = fallback.data.map((k) => ({
+          time: Math.floor(Number(k[0]) / 1000),
+          open: Number(k[1]),
+          high: Number(k[2]),
+          low: Number(k[3]),
+          close: Number(k[4]),
+        }));
+      }
+
       setCandles(series);
     } catch (error) {
       toast.error('Failed to load market candles for selected symbol/timeframe');
