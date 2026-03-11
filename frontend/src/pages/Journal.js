@@ -307,6 +307,65 @@ export default function Journal() {
   const isValidNumber = (value) => Number.isFinite(Number(value));
   const annotationStorageKey = `journal_chart_annotations_${chartSymbol}`;
 
+  // Filter trades by search
+  const filteredTrades = trades.filter((trade) => {
+    if (filters.status && trade.status !== filters.status) return false;
+
+    if (filters.instrument) {
+      const selected = normalizeSymbol(filters.instrument);
+      const instrument = normalizeSymbol(trade.instrument || '');
+      if (selected !== instrument) return false;
+    }
+
+    if (!filters.search) return true;
+
+    const rawSearch = filters.search.toLowerCase().trim();
+    const normalizedSearch = normalizeSymbol(filters.search);
+    const tradeInstrument = (trade.instrument || '').toLowerCase();
+    const normalizedInstrument = normalizeSymbol(trade.instrument || '');
+    const notes = (trade.notes || '').toLowerCase();
+    const position = (trade.position || '').toLowerCase();
+    const status = (trade.status || '').toLowerCase();
+
+    return (
+      tradeInstrument.includes(rawSearch) ||
+      normalizedInstrument.includes(normalizedSearch) ||
+      notes.includes(rawSearch) ||
+      position.includes(rawSearch) ||
+      status.includes(rawSearch)
+    );
+  });
+
+  const chartTrades = useMemo(() => {
+    return filteredTrades
+      .filter((t) => t.status === 'closed' || t.status === 'open')
+      .slice(0, 20);
+  }, [filteredTrades]);
+
+  // Sort trades
+  const sortedTrades = [...filteredTrades].sort((a, b) => {
+    let comparison = 0;
+
+    if (sortBy === 'pnl') {
+      comparison = (a.pnl || 0) - (b.pnl || 0);
+    } else if (sortBy === 'entry_date') {
+      comparison = new Date(a.entry_date || 0) - new Date(b.entry_date || 0);
+
+      // For imported rows with same trade date, keep newer imports first.
+      if (comparison === 0) {
+        comparison = new Date(a.created_at || 0) - new Date(b.created_at || 0);
+      }
+    } else {
+      comparison = new Date(a.created_at || 0) - new Date(b.created_at || 0);
+    }
+
+    return sortOrder === 'desc' ? -comparison : comparison;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(sortedTrades.length / PAGE_SIZE));
+  const pageStart = (currentPage - 1) * PAGE_SIZE;
+  const paginatedTrades = sortedTrades.slice(pageStart, pageStart + PAGE_SIZE);
+
   useEffect(() => {
     fetchTrades();
   }, []);
@@ -765,65 +824,6 @@ export default function Journal() {
       setDeleting(false);
     }
   };
-
-  // Filter trades by search
-  const filteredTrades = trades.filter((trade) => {
-    if (filters.status && trade.status !== filters.status) return false;
-
-    if (filters.instrument) {
-      const selected = normalizeSymbol(filters.instrument);
-      const instrument = normalizeSymbol(trade.instrument || '');
-      if (selected !== instrument) return false;
-    }
-
-    if (!filters.search) return true;
-
-    const rawSearch = filters.search.toLowerCase().trim();
-    const normalizedSearch = normalizeSymbol(filters.search);
-    const tradeInstrument = (trade.instrument || '').toLowerCase();
-    const normalizedInstrument = normalizeSymbol(trade.instrument || '');
-    const notes = (trade.notes || '').toLowerCase();
-    const position = (trade.position || '').toLowerCase();
-    const status = (trade.status || '').toLowerCase();
-
-    return (
-      tradeInstrument.includes(rawSearch) ||
-      normalizedInstrument.includes(normalizedSearch) ||
-      notes.includes(rawSearch) ||
-      position.includes(rawSearch) ||
-      status.includes(rawSearch)
-    );
-  });
-
-  const chartTrades = useMemo(() => {
-    return filteredTrades
-      .filter((t) => t.status === 'closed' || t.status === 'open')
-      .slice(0, 20);
-  }, [filteredTrades]);
-
-  // Sort trades
-  const sortedTrades = [...filteredTrades].sort((a, b) => {
-    let comparison = 0;
-
-    if (sortBy === 'pnl') {
-      comparison = (a.pnl || 0) - (b.pnl || 0);
-    } else if (sortBy === 'entry_date') {
-      comparison = new Date(a.entry_date || 0) - new Date(b.entry_date || 0);
-
-      // For imported rows with same trade date, keep newer imports first.
-      if (comparison === 0) {
-        comparison = new Date(a.created_at || 0) - new Date(b.created_at || 0);
-      }
-    } else {
-      comparison = new Date(a.created_at || 0) - new Date(b.created_at || 0);
-    }
-
-    return sortOrder === 'desc' ? -comparison : comparison;
-  });
-
-  const totalPages = Math.max(1, Math.ceil(sortedTrades.length / PAGE_SIZE));
-  const pageStart = (currentPage - 1) * PAGE_SIZE;
-  const paginatedTrades = sortedTrades.slice(pageStart, pageStart + PAGE_SIZE);
 
   useEffect(() => {
     setCurrentPage(1);
