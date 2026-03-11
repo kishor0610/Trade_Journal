@@ -31,7 +31,6 @@ const CHART_SYMBOLS = [
 ];
 
 const CHART_INTERVALS = ['1m', '5m', '15m', '1h', '4h', '1d'];
-const MARKET_SUPPORTED_SYMBOLS = new Set(['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT']);
 
 const INTERVAL_SECONDS = {
   '1m': 60,
@@ -551,43 +550,16 @@ export default function Journal() {
   const fetchCandles = async () => {
     setCandlesLoading(true);
     try {
-      if (focusedInstrumentKey) {
-        setCandles(sanitizeCandles(buildFallbackCandlesFromTrades()));
-        setCandleSource('trade');
-        setCandlesLoading(false);
-        return;
-      }
-
-      let series = [];
-
-      try {
-        if (!MARKET_SUPPORTED_SYMBOLS.has(chartSymbol)) {
-          throw new Error('Unsupported market symbol');
-        }
-
-        const response = await axios.get(
-          `${API_URL}/market/candles?symbol=${chartSymbol}&interval=${chartInterval}&limit=500`
-        );
-        series = response.data.map((c) => ({
-          time: c.time,
-          open: Number(c.open),
-          high: Number(c.high),
-          low: Number(c.low),
-          close: Number(c.close),
-        }));
-      } catch (apiError) {
-        // Backend may still be on an older revision without /market/candles.
-        const fallback = await axios.get('https://api.binance.com/api/v3/klines', {
-          params: { symbol: chartSymbol, interval: chartInterval, limit: 500 },
-        });
-        series = fallback.data.map((k) => ({
-          time: Math.floor(Number(k[0]) / 1000),
-          open: Number(k[1]),
-          high: Number(k[2]),
-          low: Number(k[3]),
-          close: Number(k[4]),
-        }));
-      }
+      const response = await axios.get(
+        `${API_URL}/market/candles?symbol=${chartSymbol}&interval=${chartInterval}&limit=500`
+      );
+      let series = response.data.map((c) => ({
+        time: c.time,
+        open: Number(c.open),
+        high: Number(c.high),
+        low: Number(c.low),
+        close: Number(c.close),
+      }));
 
       series = sanitizeCandles(series);
       if (!Array.isArray(series) || series.length === 0) {

@@ -45,6 +45,7 @@ AI_MODEL = os.environ.get('AI_MODEL', 'gpt-4o-mini')
 METAAPI_TOKEN = os.environ.get('METAAPI_TOKEN', '')
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
 SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev')
+TWELVE_DATA_API_KEY = os.environ.get('TWELVE_DATA_API_KEY', '')
 
 # Admin credentials
 ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'admin@tradeledger.com')
@@ -1200,15 +1201,88 @@ async def get_market_candles(
     interval: str = Query(default="5m"),
     limit: int = Query(default=500, ge=50, le=1000)
 ):
-    """Fetch OHLCV candles from Binance public klines API for charting."""
-    valid_intervals = {"1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "1d"}
-    if interval not in valid_intervals:
+    """Fetch OHLCV candles from Twelve Data with Binance fallback for crypto."""
+    interval_map = {
+        "1m": "1min",
+        "3m": "3min",
+        "5m": "5min",
+        "15m": "15min",
+        "30m": "30min",
+        "1h": "1h",
+        "2h": "2h",
+        "4h": "4h",
+        "1d": "1day",
+    }
+    if interval not in interval_map:
         raise HTTPException(status_code=400, detail="Unsupported interval")
 
     clean_symbol = symbol.upper().replace("/", "").replace("-", "")
-    url = "https://api.binance.com/api/v3/klines"
 
-    try:
+    # Map local chart symbols to Twelve Data symbols.
+    symbol_map = {
+        "BTCUSDT": "BTC/USD",
+        "ETHUSDT": "ETH/USD",
+        "BNBUSDT": "BNB/USD",
+        "SOLUSDT": "SOL/USD",
+        "XAUUSD": "XAU/USD",
+        "XAGUSD": "XAG/USD",
+        "EURUSD": "EUR/USD",
+        "GBPUSD": "GBP/USD",
+        "USDJPY": "USD/JPY",
+        "AUDUSD": "AUD/USD",
+        "NAS100": "NASDAQ",
+        "US30": "DJI",
+        "SPX500": "SPX",
+    }
+    market_symbol = symbol_map.get(clean_symbol, symbol)
+
+    async def fetch_from_twelve_data() -> List[CandleResponse]:
+        if not TWELVE_DATA_API_KEY:
+            raise HTTPException(status_code=400, detail="TWELVE_DATA_API_KEY is not configured")
+
+        url = "https://api.twelvedata.com/time_series"
+        params = {
+            "symbol": market_symbol,
+            "interval": interval_map[interval],
+            "outputsize": limit,
+            "apikey": TWELVE_DATA_API_KEY,
+            "timezone": "UTC",
+        }
+        async with httpx.AsyncClient(timeout=20.0) as client_http:
+            response = await client_http.get(url, params=params)
+
+        if response.status_code != 200:
+            raise HTTPException(status_code=400, detail="Failed to fetch candles from Twelve Data")
+
+        payload = response.json()
+        values = payload.get("values")
+        if not isinstance(values, list) or len(values) == 0:
+            message = payload.get("message", "No candle data available")
+            raise HTTPException(status_code=400, detail=message)
+
+        candles: List[CandleResponse] = []
+        for item in reversed(values):
+            dt_raw = item.get("datetime")
+            if not dt_raw:
+                continue
+
+            dt = datetime.strptime(dt_raw, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+            candles.append(
+                CandleResponse(
+                    time=int(dt.timestamp() * 1000),
+                    open=float(item["open"]),
+                    high=float(item["high"]),
+                    low=float(item["low"]),
+                    close=float(item["close"]),
+                    volume=float(item.get("volume") or 0),
+                )
+            )
+        if not candles:
+            raise HTTPException(status_code=400, detail="No valid candle data returned")
+        return candles
+
+    async def fetch_from_binance() -> List[CandleResponse]:
+        url = "https://api.binance.com/api/v3/klines"
         async with httpx.AsyncClient(timeout=15.0) as client_http:
             response = await client_http.get(
                 url,
@@ -1219,7 +1293,7 @@ async def get_market_candles(
             raise HTTPException(status_code=400, detail="Failed to fetch candles for symbol")
 
         raw = response.json()
-        candles = [
+        return [
             CandleResponse(
                 time=int(item[0]),
                 open=float(item[1]),
@@ -1230,9 +1304,18 @@ async def get_market_candles(
             )
             for item in raw
         ]
-        return candles
-    except HTTPException:
-        raise
+
+    try:
+        return await fetch_from_twelve_data()
+    except HTTPException as twelve_error:
+        # Keep crypto charts available even if Twelve Data is not configured.
+        crypto_symbols = {"BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"}
+        if clean_symbol in crypto_symbols:
+            try:
+                return await fetch_from_binance()
+            except HTTPException:
+                raise twelve_error
+        raise twelve_error
     except Exception as e:
         logging.error(f"Candle API error: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to fetch market candles")
