@@ -293,6 +293,8 @@ export default function Journal() {
   const [chartError, setChartError] = useState('');
   const [selectedReplayTradeId, setSelectedReplayTradeId] = useState('latest');
   const [replayCursor, setReplayCursor] = useState(null);
+  const [replayIndex, setReplayIndex] = useState(null);
+  const [isReplayPlaying, setIsReplayPlaying] = useState(false);
   const [liquidityInput, setLiquidityInput] = useState('');
   const [fvgLowInput, setFvgLowInput] = useState('');
   const [fvgHighInput, setFvgHighInput] = useState('');
@@ -301,11 +303,61 @@ export default function Journal() {
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
   const candleSeriesRef = useRef(null);
+  const replayCursorSeriesRef = useRef(null);
   const priceLinesRef = useRef([]);
 
   const normalizeSymbol = (value = '') => value.toString().toUpperCase().replace(/[^A-Z0-9]/g, '');
   const isValidNumber = (value) => Number.isFinite(Number(value));
   const annotationStorageKey = `journal_chart_annotations_${chartSymbol}`;
+
+  const toUnixSeconds = (value) => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric <= 0) return null;
+    return numeric > 1e12 ? Math.floor(numeric / 1000) : Math.floor(numeric);
+  };
+
+  const sanitizeCandles = (source = []) => {
+    const normalized = source
+      .map((item) => {
+        const time = toUnixSeconds(item.time);
+        const open = Number(item.open);
+        const high = Number(item.high);
+        const low = Number(item.low);
+        const close = Number(item.close);
+        if (!time || ![open, high, low, close].every(Number.isFinite)) {
+          return null;
+        }
+
+        const normalizedHigh = Math.max(high, open, close, low);
+        const normalizedLow = Math.min(low, open, close, high);
+        if (normalizedHigh < normalizedLow) {
+          return null;
+        }
+
+        return {
+          time,
+          open,
+          high: normalizedHigh,
+          low: normalizedLow,
+          close,
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.time - b.time);
+
+    const deduped = [];
+    const seen = new Set();
+    normalized.forEach((candle) => {
+      if (seen.has(candle.time)) {
+        deduped[deduped.length - 1] = candle;
+        return;
+      }
+      seen.add(candle.time);
+      deduped.push(candle);
+    });
+
+    return deduped;
+  };
 
   const buildFallbackCandlesFromTrades = () => {
     const normalizedSymbol = normalizeSymbol(chartSymbol);
@@ -419,7 +471,7 @@ export default function Journal() {
           `${API_URL}/market/candles?symbol=${chartSymbol}&interval=${chartInterval}&limit=500`
         );
         series = response.data.map((c) => ({
-          time: Math.floor(c.time / 1000),
+          time: c.time,
           open: Number(c.open),
           high: Number(c.high),
           low: Number(c.low),
@@ -439,13 +491,14 @@ export default function Journal() {
         }));
       }
 
+      series = sanitizeCandles(series);
       if (!Array.isArray(series) || series.length === 0) {
-        series = buildFallbackCandlesFromTrades();
+        series = sanitizeCandles(buildFallbackCandlesFromTrades());
       }
 
       setCandles(series);
     } catch (error) {
-      const fallbackSeries = buildFallbackCandlesFromTrades();
+      const fallbackSeries = sanitizeCandles(buildFallbackCandlesFromTrades());
       if (fallbackSeries.length > 0) {
         setCandles(fallbackSeries);
         toast.warning('Live market candles unavailable. Showing chart from journal trade history.');
@@ -494,17 +547,18 @@ export default function Journal() {
     try {
       chart = createChart(chartContainerRef.current, {
         layout: {
-          background: { color: '#0A0A0A' },
-          textColor: '#A1A1AA',
+          background: { color: '#0f172a' },
+          textColor: '#94a3b8',
         },
         grid: {
-          vertLines: { color: '#1F2937' },
-          horzLines: { color: '#1F2937' },
+          vertLines: { color: '#1f2937' },
+          horzLines: { color: '#1f2937' },
         },
         width: chartContainerRef.current.clientWidth,
-        height: 380,
+        height: 550,
         rightPriceScale: {
           borderColor: '#27272A',
+          autoScale: true,
         },
         timeScale: {
           borderColor: '#27272A',
@@ -523,16 +577,24 @@ export default function Journal() {
       });
 
       const candleSeries = chart.addCandlestickSeries({
-        upColor: '#10B981',
-        downColor: '#EF4444',
-        borderUpColor: '#10B981',
-        borderDownColor: '#EF4444',
-        wickUpColor: '#10B981',
-        wickDownColor: '#EF4444',
+        upColor: '#22c55e',
+        downColor: '#ef4444',
+        borderVisible: false,
+        wickUpColor: '#22c55e',
+        wickDownColor: '#ef4444',
+      });
+
+      const replayCursorSeries = chart.addLineSeries({
+        color: '#facc15',
+        lineWidth: 2,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false,
       });
 
       chartRef.current = chart;
       candleSeriesRef.current = candleSeries;
+      replayCursorSeriesRef.current = replayCursorSeries;
       setChartError('');
     } catch (err) {
       console.error('Chart init failed:', err);
@@ -542,8 +604,13 @@ export default function Journal() {
 
     const handleResize = () => {
       if (!chartContainerRef.current || !chartRef.current) return;
-      chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
+      chartRef.current.applyOptions({
+        width: chartContainerRef.current.clientWidth,
+        height: Math.max(500, Math.floor(window.innerHeight * 0.55)),
+      });
     };
+
+    handleResize();
 
     window.addEventListener('resize', handleResize);
     return () => {
@@ -551,23 +618,88 @@ export default function Journal() {
       if (chart) chart.remove();
       chartRef.current = null;
       candleSeriesRef.current = null;
+      replayCursorSeriesRef.current = null;
       priceLinesRef.current = [];
     };
   }, []);
 
+  const displayedCandles = useMemo(() => {
+    if (!candles.length) return [];
+    if (replayIndex === null) return candles;
+    return candles.slice(0, Math.max(1, Math.min(replayIndex, candles.length)));
+  }, [candles, replayIndex]);
+
   useEffect(() => {
-    if (!candleSeriesRef.current) return;
+    if (!candleSeriesRef.current || !chartRef.current) return;
     try {
-      candleSeriesRef.current.setData(candles);
-      if (candles.length > 0 && chartRef.current) {
+      candleSeriesRef.current.setData(displayedCandles);
+      if (displayedCandles.length > 0) {
         chartRef.current.timeScale().fitContent();
       }
+      chartRef.current.applyOptions({ rightPriceScale: { autoScale: true } });
       setChartError('');
     } catch (err) {
       console.error('Chart data update failed:', err);
       setChartError('Failed to render candle data.');
     }
+  }, [displayedCandles]);
+
+  useEffect(() => {
+    if (candles.length === 0) {
+      setReplayIndex(null);
+      setReplayCursor(null);
+      setIsReplayPlaying(false);
+      return;
+    }
+
+    setReplayIndex(candles.length);
+    setReplayCursor(candles[candles.length - 1].time);
+    setIsReplayPlaying(false);
   }, [candles]);
+
+  useEffect(() => {
+    if (!isReplayPlaying || candles.length === 0) return undefined;
+    const timer = setInterval(() => {
+      setReplayIndex((prev) => {
+        const current = prev === null ? Math.min(50, candles.length) : prev;
+        if (current >= candles.length) {
+          setIsReplayPlaying(false);
+          return candles.length;
+        }
+        return current + 1;
+      });
+    }, 500);
+
+    return () => clearInterval(timer);
+  }, [isReplayPlaying, candles]);
+
+  useEffect(() => {
+    const visibleLast = displayedCandles[displayedCandles.length - 1];
+    if (!visibleLast) return;
+    setReplayCursor(visibleLast.time);
+  }, [displayedCandles]);
+
+  useEffect(() => {
+    if (!replayCursorSeriesRef.current) return;
+
+    if (!replayCursor || displayedCandles.length === 0) {
+      replayCursorSeriesRef.current.setData([]);
+      return;
+    }
+
+    const values = displayedCandles.flatMap((c) => [c.low, c.high]).filter(Number.isFinite);
+    if (values.length === 0) {
+      replayCursorSeriesRef.current.setData([]);
+      return;
+    }
+
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    replayCursorSeriesRef.current.setData([
+      { time: replayCursor, value: min },
+      { time: replayCursor + 1, value: max },
+    ]);
+  }, [replayCursor, displayedCandles]);
 
   useEffect(() => {
     if (!candleSeriesRef.current) return;
@@ -699,6 +831,15 @@ export default function Journal() {
       });
 
       if (typeof candleSeriesRef.current.setMarkers === 'function') {
+        if (replayCursor) {
+          markers.push({
+            time: replayCursor,
+            position: 'inBar',
+            color: '#facc15',
+            shape: 'circle',
+            text: 'Replay',
+          });
+        }
         candleSeriesRef.current.setMarkers(markers.sort((a, b) => a.time - b.time));
       }
       setChartError('');
@@ -706,7 +847,7 @@ export default function Journal() {
       console.error('Chart overlays failed:', err);
       setChartError('Chart overlays failed to render.');
     }
-  }, [chartTrades, annotations]);
+  }, [chartTrades, annotations, replayCursor]);
 
   const replayTrade = useMemo(() => {
     if (chartTrades.length === 0) return null;
@@ -734,20 +875,36 @@ export default function Journal() {
   };
 
   const replayLatestTrade = () => {
-    if (!replayTrade) return;
-    const entryTimeSec = Math.floor(new Date(replayTrade.entry_date).getTime() / 1000);
-    if (!entryTimeSec || Number.isNaN(entryTimeSec)) return;
-    setReplayCursor(entryTimeSec);
-    setReplayRange(entryTimeSec);
+    if (!candles.length) return;
+
+    let replayStart = Math.min(50, candles.length);
+    if (replayTrade?.entry_date) {
+      const entryTimeSec = Math.floor(new Date(replayTrade.entry_date).getTime() / 1000);
+      if (Number.isFinite(entryTimeSec)) {
+        const nearestIndex = candles.findIndex((c) => c.time >= entryTimeSec);
+        if (nearestIndex >= 0) {
+          replayStart = Math.max(1, nearestIndex);
+        }
+      }
+    }
+
+    setReplayIndex(replayStart);
+    setReplayCursor(candles[Math.max(0, replayStart - 1)]?.time || null);
+    setReplayRange(candles[Math.max(0, replayStart - 1)]?.time || null);
+    setIsReplayPlaying(true);
   };
 
   const stepReplay = (direction) => {
-    const candleSeconds = INTERVAL_SECONDS[chartInterval] || 300;
-    const base = replayCursor || (candles[candles.length - 1]?.time || null);
-    if (!base) return;
-    const next = base + direction * candleSeconds * 20;
-    setReplayCursor(next);
-    setReplayRange(next);
+    if (!candles.length) return;
+    setIsReplayPlaying(false);
+    setReplayIndex((prev) => {
+      const current = prev === null ? candles.length : prev;
+      const next = Math.max(1, Math.min(candles.length, current + direction));
+      const nextTime = candles[next - 1]?.time || null;
+      setReplayCursor(nextTime);
+      setReplayRange(nextTime);
+      return next;
+    });
   };
 
   const addLiquidityLevel = () => {
@@ -1254,13 +1411,13 @@ export default function Journal() {
               </Select>
             </div>
             <Button variant="outline" size="sm" onClick={() => stepReplay(-1)}>
-              Back 20
+              Back 1
             </Button>
-            <Button variant="outline" size="sm" onClick={replayLatestTrade} disabled={chartTrades.length === 0}>
-              Replay
+            <Button variant="outline" size="sm" onClick={replayLatestTrade} disabled={candles.length === 0}>
+              {isReplayPlaying ? 'Replay...' : 'Replay'}
             </Button>
             <Button variant="outline" size="sm" onClick={() => stepReplay(1)}>
-              Forward 20
+              Forward 1
             </Button>
           </div>
         </div>
