@@ -307,6 +307,34 @@ export default function Journal() {
   const isValidNumber = (value) => Number.isFinite(Number(value));
   const annotationStorageKey = `journal_chart_annotations_${chartSymbol}`;
 
+  const buildFallbackCandlesFromTrades = () => {
+    const normalizedSymbol = normalizeSymbol(chartSymbol);
+    const matching = trades
+      .filter((t) => normalizeSymbol(t.instrument || '') === normalizedSymbol)
+      .filter((t) => isValidNumber(t.entry_price))
+      .sort((a, b) => new Date(a.entry_date || 0) - new Date(b.entry_date || 0));
+
+    const source = matching.length > 0 ? matching : trades.filter((t) => isValidNumber(t.entry_price));
+    if (source.length === 0) return [];
+
+    return source.slice(-300).map((t, idx) => {
+      const entry = Number(t.entry_price);
+      const exit = isValidNumber(t.exit_price) ? Number(t.exit_price) : entry;
+      const high = Math.max(entry, exit);
+      const low = Math.min(entry, exit);
+      const ts = Date.parse(t.entry_date || '');
+      const fallbackTime = Math.floor(Date.now() / 1000) - (source.length - idx) * 300;
+
+      return {
+        time: Number.isNaN(ts) ? fallbackTime : Math.floor(ts / 1000),
+        open: entry,
+        high,
+        low,
+        close: exit,
+      };
+    });
+  };
+
   // Filter trades by search
   const filteredTrades = trades.filter((trade) => {
     if (filters.status && trade.status !== filters.status) return false;
@@ -411,10 +439,20 @@ export default function Journal() {
         }));
       }
 
+      if (!Array.isArray(series) || series.length === 0) {
+        series = buildFallbackCandlesFromTrades();
+      }
+
       setCandles(series);
     } catch (error) {
-      toast.error('Failed to load market candles for selected symbol/timeframe');
-      setCandles([]);
+      const fallbackSeries = buildFallbackCandlesFromTrades();
+      if (fallbackSeries.length > 0) {
+        setCandles(fallbackSeries);
+        toast.warning('Live market candles unavailable. Showing chart from journal trade history.');
+      } else {
+        toast.error('Failed to load chart data for selected symbol/timeframe');
+        setCandles([]);
+      }
     } finally {
       setCandlesLoading(false);
     }
