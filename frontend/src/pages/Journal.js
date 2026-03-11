@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { Plus, Edit2, Trash2, TrendingUp, TrendingDown, Filter, X, Search, SlidersHorizontal, Download, Upload, FileSpreadsheet, AlertCircle, CheckCircle, AlertTriangle } from 'lucide-react';
@@ -436,7 +436,7 @@ export default function Journal() {
       .filter((t) => instrumentToChartSymbol(t.instrument || '') === chartSymbol)
       .filter((t) => t.status === 'closed' || t.status === 'open')
       .slice(0, 20);
-  }, [filteredTrades, chartSymbol]);
+  }, [filteredTrades, chartSymbol, instrumentToChartSymbol]);
 
   // Sort trades
   const sortedTrades = [...filteredTrades].sort((a, b) => {
@@ -890,19 +890,7 @@ export default function Journal() {
     }
   }, [replayTrade, selectedReplayTradeId, chartTrades]);
 
-  useEffect(() => {
-    if (!replayTrade || !focusedCandles.length) return;
-    const entryTimeSec = Math.floor(new Date(replayTrade.entry_date || '').getTime() / 1000);
-    const cursor = Number.isFinite(entryTimeSec)
-      ? (focusedCandles.find((c) => c.time >= entryTimeSec)?.time || focusedCandles[0].time)
-      : focusedCandles[0].time;
-
-    setReplayCursor(cursor);
-    setReplayRange(cursor, replayTrade.entry_price || null);
-    setIsReplayPlaying(false);
-  }, [replayTrade, focusedCandles]);
-
-  const setReplayRange = (cursorTime, focusPrice = null) => {
+  const setReplayRange = useCallback((cursorTime, focusPrice = null) => {
     if (!chartRef.current || !cursorTime) return;
     const candleSeconds = INTERVAL_SECONDS[chartInterval] || 300;
     chartRef.current.timeScale().setVisibleRange({
@@ -927,7 +915,19 @@ export default function Journal() {
         // Keep autoscale when explicit range is unavailable.
       }
     }
-  };
+  }, [chartInterval]);
+
+  useEffect(() => {
+    if (!replayTrade || !focusedCandles.length) return;
+    const entryTimeSec = Math.floor(new Date(replayTrade.entry_date || '').getTime() / 1000);
+    const cursor = Number.isFinite(entryTimeSec)
+      ? (focusedCandles.find((c) => c.time >= entryTimeSec)?.time || focusedCandles[0].time)
+      : focusedCandles[0].time;
+
+    setReplayCursor(cursor);
+    setReplayRange(cursor, replayTrade.entry_price || null);
+    setIsReplayPlaying(false);
+  }, [replayTrade, focusedCandles, setReplayRange]);
 
   const replayLatestTrade = () => {
     if (!focusedCandles.length) return;
