@@ -446,15 +446,19 @@ export default function Journal() {
 
   const chartTrades = useMemo(() => {
     const focusedKey = normalizeSymbol(focusedInstrumentKey);
-    return filteredTrades
+    return trades
       .filter((t) => {
         const instrumentKey = normalizeSymbol(t.instrument || '');
         if (focusedKey) return instrumentKey === focusedKey;
         return instrumentToChartSymbol(t.instrument || '') === chartSymbol;
       })
       .filter((t) => t.status === 'closed' || t.status === 'open')
-      .slice(0, 20);
-  }, [filteredTrades, chartSymbol, instrumentToChartSymbol, focusedInstrumentKey]);
+      .sort((a, b) => {
+        const byEntry = new Date(b.entry_date || 0) - new Date(a.entry_date || 0);
+        if (byEntry !== 0) return byEntry;
+        return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+      });
+  }, [trades, chartSymbol, instrumentToChartSymbol, focusedInstrumentKey]);
 
   // Sort trades
   const sortedTrades = [...filteredTrades].sort((a, b) => {
