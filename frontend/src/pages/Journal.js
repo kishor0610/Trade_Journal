@@ -572,12 +572,13 @@ export default function Journal() {
       setCandles(series);
     } catch (error) {
       const fallbackSeries = sanitizeCandles(buildFallbackCandlesFromTrades());
+      const backendDetail = error?.response?.data?.detail;
       if (fallbackSeries.length > 0) {
         setCandles(fallbackSeries);
         setCandleSource('trade');
-        toast.warning('Live market candles unavailable. Showing chart from journal trade history.');
+        toast.warning(backendDetail ? `Live market candles unavailable (${backendDetail}). Showing chart from journal trade history.` : 'Live market candles unavailable. Showing chart from journal trade history.');
       } else {
-        toast.error('Failed to load chart data for selected symbol/timeframe');
+        toast.error(backendDetail || 'Failed to load chart data for selected symbol/timeframe');
         setCandles([]);
         setCandleSource('none');
       }
