@@ -26,7 +26,12 @@ export default function Register() {
       toast.success('Account created successfully!');
       navigate('/dashboard');
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Registration failed');
+      const detail = error.response?.data?.detail || '';
+      if (detail === 'Email already registered') {
+        toast.error('Account already exists. Please login with your email and password.');
+      } else {
+        toast.error(detail || 'Registration failed');
+      }
     } finally {
       setLoading(false);
     }

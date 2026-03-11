@@ -257,7 +257,7 @@ export default function Journal() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTrade, setEditingTrade] = useState(null);
   const [filters, setFilters] = useState({ status: '', instrument: '', search: '' });
-  const [sortBy, setSortBy] = useState('created_at');
+  const [sortBy, setSortBy] = useState('entry_date');
   const [sortOrder, setSortOrder] = useState('desc'); // Always desc - newest first
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -383,13 +383,20 @@ export default function Journal() {
   // Sort trades
   const sortedTrades = [...filteredTrades].sort((a, b) => {
     let comparison = 0;
+
     if (sortBy === 'pnl') {
       comparison = (a.pnl || 0) - (b.pnl || 0);
     } else if (sortBy === 'entry_date') {
-      comparison = new Date(a.entry_date) - new Date(b.entry_date);
+      comparison = new Date(a.entry_date || 0) - new Date(b.entry_date || 0);
+
+      // For imported rows with same trade date, keep newer imports first.
+      if (comparison === 0) {
+        comparison = new Date(a.created_at || 0) - new Date(b.created_at || 0);
+      }
     } else {
-      comparison = new Date(a.created_at) - new Date(b.created_at);
+      comparison = new Date(a.created_at || 0) - new Date(b.created_at || 0);
     }
+
     return sortOrder === 'desc' ? -comparison : comparison;
   });
 
