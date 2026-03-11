@@ -303,7 +303,12 @@ export default function Journal() {
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
   const candleSeriesRef = useRef(null);
+  const replayCursorSeriesRef = useRef(null);
   const positionSeriesRef = useRef(null);
+  const positionBoxTopRef = useRef(null);
+  const positionBoxBottomRef = useRef(null);
+  const positionBoxLeftRef = useRef(null);
+  const positionBoxRightRef = useRef(null);
   const priceLinesRef = useRef([]);
 
   const normalizeSymbol = (value = '') => value.toString().toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -608,9 +613,51 @@ export default function Journal() {
         crosshairMarkerVisible: false,
       });
 
+      const replayCursorSeries = chart.addLineSeries({
+        color: 'rgba(250, 204, 21, 0.45)',
+        lineWidth: 1,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false,
+      });
+
+      const positionBoxTop = chart.addLineSeries({
+        color: 'rgba(34, 197, 94, 0.65)',
+        lineWidth: 1,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false,
+      });
+      const positionBoxBottom = chart.addLineSeries({
+        color: 'rgba(34, 197, 94, 0.65)',
+        lineWidth: 1,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false,
+      });
+      const positionBoxLeft = chart.addLineSeries({
+        color: 'rgba(34, 197, 94, 0.65)',
+        lineWidth: 1,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false,
+      });
+      const positionBoxRight = chart.addLineSeries({
+        color: 'rgba(34, 197, 94, 0.65)',
+        lineWidth: 1,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false,
+      });
+
       chartRef.current = chart;
       candleSeriesRef.current = candleSeries;
+      replayCursorSeriesRef.current = replayCursorSeries;
       positionSeriesRef.current = positionSeries;
+      positionBoxTopRef.current = positionBoxTop;
+      positionBoxBottomRef.current = positionBoxBottom;
+      positionBoxLeftRef.current = positionBoxLeft;
+      positionBoxRightRef.current = positionBoxRight;
       setChartError('');
     } catch (err) {
       console.error('Chart init failed:', err);
@@ -634,7 +681,12 @@ export default function Journal() {
       if (chart) chart.remove();
       chartRef.current = null;
       candleSeriesRef.current = null;
+      replayCursorSeriesRef.current = null;
       positionSeriesRef.current = null;
+      positionBoxTopRef.current = null;
+      positionBoxBottomRef.current = null;
+      positionBoxLeftRef.current = null;
+      positionBoxRightRef.current = null;
       priceLinesRef.current = [];
     };
   }, []);
@@ -717,6 +769,28 @@ export default function Journal() {
   }, [displayedCandles]);
 
   useEffect(() => {
+    if (!replayCursorSeriesRef.current) return;
+
+    if (!replayCursor || displayedCandles.length === 0) {
+      replayCursorSeriesRef.current.setData([]);
+      return;
+    }
+
+    const values = displayedCandles.flatMap((c) => [c.low, c.high]).filter(Number.isFinite);
+    if (values.length === 0) {
+      replayCursorSeriesRef.current.setData([]);
+      return;
+    }
+
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    replayCursorSeriesRef.current.setData([
+      { time: replayCursor, value: min },
+      { time: replayCursor, value: max },
+    ]);
+  }, [replayCursor, displayedCandles]);
+
+  useEffect(() => {
     if (!candleSeriesRef.current || !chartRef.current) return;
 
     try {
@@ -740,6 +814,10 @@ export default function Journal() {
       if (positionSeriesRef.current) {
         positionSeriesRef.current.setData([]);
       }
+      if (positionBoxTopRef.current) positionBoxTopRef.current.setData([]);
+      if (positionBoxBottomRef.current) positionBoxBottomRef.current.setData([]);
+      if (positionBoxLeftRef.current) positionBoxLeftRef.current.setData([]);
+      if (positionBoxRightRef.current) positionBoxRightRef.current.setData([]);
 
       const trade = replayTrade;
       if (trade) {
@@ -817,12 +895,39 @@ export default function Journal() {
         }
 
         if (positionSeriesRef.current && entryTime && exitTime && isValidNumber(entryPrice) && isValidNumber(exitPrice)) {
+          const pnlUp = (trade.pnl || 0) >= 0;
+          const boxColor = pnlUp ? 'rgba(34, 197, 94, 0.7)' : 'rgba(239, 68, 68, 0.7)';
+          const boxHigh = Math.max(entryPrice, exitPrice);
+          const boxLow = Math.min(entryPrice, exitPrice);
+
           positionSeriesRef.current.applyOptions({
-            color: (trade.pnl || 0) >= 0 ? '#22c55e' : '#ef4444',
+            color: pnlUp ? '#22c55e' : '#ef4444',
           });
           positionSeriesRef.current.setData([
             { time: entryTime, value: entryPrice },
             { time: exitTime, value: exitPrice },
+          ]);
+
+          positionBoxTopRef.current?.applyOptions({ color: boxColor });
+          positionBoxBottomRef.current?.applyOptions({ color: boxColor });
+          positionBoxLeftRef.current?.applyOptions({ color: boxColor });
+          positionBoxRightRef.current?.applyOptions({ color: boxColor });
+
+          positionBoxTopRef.current?.setData([
+            { time: entryTime, value: boxHigh },
+            { time: exitTime, value: boxHigh },
+          ]);
+          positionBoxBottomRef.current?.setData([
+            { time: entryTime, value: boxLow },
+            { time: exitTime, value: boxLow },
+          ]);
+          positionBoxLeftRef.current?.setData([
+            { time: entryTime, value: boxLow },
+            { time: entryTime, value: boxHigh },
+          ]);
+          positionBoxRightRef.current?.setData([
+            { time: exitTime, value: boxLow },
+            { time: exitTime, value: boxHigh },
           ]);
         }
       }
@@ -988,6 +1093,42 @@ export default function Journal() {
   const clearAnnotations = () => {
     setAnnotations({ liquidity: [], fvgs: [] });
   };
+
+  const tradeSummary = useMemo(() => {
+    if (!replayTrade) return null;
+
+    const entry = Number(replayTrade.entry_price);
+    const exit = Number(replayTrade.exit_price);
+    const sl = Number(replayTrade.stop_loss);
+    const tp = Number(replayTrade.take_profit);
+    const isShort = replayTrade.position === 'sell' || replayTrade.position === 'short';
+    const risk = isValidNumber(sl) && isValidNumber(entry) ? Math.abs(entry - sl) : null;
+    const reward = isValidNumber(tp) && isValidNumber(entry) ? Math.abs(tp - entry) : null;
+
+    const entryTs = Date.parse(replayTrade.entry_date || '');
+    const exitTs = Date.parse(replayTrade.exit_date || '');
+    let durationText = '-';
+    if (Number.isFinite(entryTs) && Number.isFinite(exitTs) && exitTs > entryTs) {
+      const mins = Math.floor((exitTs - entryTs) / 60000);
+      const hrs = Math.floor(mins / 60);
+      const rem = mins % 60;
+      durationText = `${hrs}h ${rem}m`;
+    }
+
+    return {
+      symbol: replayTrade.instrument || chartSymbol,
+      direction: isShort ? 'SELL' : 'BUY',
+      entry: isValidNumber(entry) ? entry : null,
+      exit: isValidNumber(exit) ? exit : null,
+      pnl: isValidNumber(replayTrade.pnl) ? Number(replayTrade.pnl) : null,
+      rr: risk && reward && risk > 0 ? `1:${(reward / risk).toFixed(2)}` : '-',
+      duration: durationText,
+      trend: replayTrade.pnl >= 0 ? 'Execution aligned with bias' : 'Bias/execution mismatch',
+      liquidity: annotations.liquidity.length > 0 ? 'Tagged' : 'Not tagged',
+      model: annotations.fvgs.length > 0 ? 'FVG Context' : 'No model tag',
+      notes: replayTrade.notes || 'No notes added yet.',
+    };
+  }, [replayTrade, annotations, chartSymbol]);
 
   const handleAddTrade = async (data) => {
     await axios.post(`${API_URL}/trades`, data);
@@ -1416,6 +1557,46 @@ export default function Journal() {
         </div>
       </div>
 
+      {/* Trade Summary */}
+      <div className="glass-card p-4 space-y-3" data-testid="trade-summary-panel">
+        <div>
+          <h3 className="font-heading text-lg">Trade Summary</h3>
+          <p className="text-xs text-muted-foreground">Focused metrics for the selected replay trade</p>
+        </div>
+        {!tradeSummary ? (
+          <p className="text-sm text-muted-foreground">Select a trade to view summary details.</p>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+            <div className="glass-card p-3">
+              <p className="text-xs text-muted-foreground">Symbol</p>
+              <p className="font-medium">{tradeSummary.symbol}</p>
+            </div>
+            <div className="glass-card p-3">
+              <p className="text-xs text-muted-foreground">Direction</p>
+              <p className={`font-medium ${tradeSummary.direction === 'SELL' ? 'text-red-400' : 'text-emerald-400'}`}>{tradeSummary.direction}</p>
+            </div>
+            <div className="glass-card p-3">
+              <p className="text-xs text-muted-foreground">Entry</p>
+              <p className="font-mono">{tradeSummary.entry ? formatCurrency(tradeSummary.entry) : '-'}</p>
+            </div>
+            <div className="glass-card p-3">
+              <p className="text-xs text-muted-foreground">Exit</p>
+              <p className="font-mono">{tradeSummary.exit ? formatCurrency(tradeSummary.exit) : '-'}</p>
+            </div>
+            <div className="glass-card p-3">
+              <p className="text-xs text-muted-foreground">PnL</p>
+              <p className={`font-mono ${tradeSummary.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {tradeSummary.pnl !== null ? formatCurrency(tradeSummary.pnl) : '-'}
+              </p>
+            </div>
+            <div className="glass-card p-3">
+              <p className="text-xs text-muted-foreground">RR</p>
+              <p className="font-medium">{tradeSummary.rr}</p>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* TradingView-style Journal Chart */}
       <div className="glass-card p-4 space-y-4" data-testid="journal-chart-panel">
         <div className="space-y-3">
@@ -1525,6 +1706,40 @@ export default function Journal() {
             </Button>
           </div>
         </div>
+      </div>
+
+      {/* Trade Analysis */}
+      <div className="glass-card p-4 space-y-3" data-testid="trade-analysis-panel">
+        <div>
+          <h3 className="font-heading text-lg">Trade Analysis</h3>
+          <p className="text-xs text-muted-foreground">Review structure, liquidity, execution model, and notes</p>
+        </div>
+        {!tradeSummary ? (
+          <p className="text-sm text-muted-foreground">No trade selected for analysis.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="glass-card p-3">
+              <p className="text-xs text-muted-foreground">Market Structure</p>
+              <p className="text-sm">{tradeSummary.trend}</p>
+            </div>
+            <div className="glass-card p-3">
+              <p className="text-xs text-muted-foreground">Liquidity</p>
+              <p className="text-sm">{tradeSummary.liquidity}</p>
+            </div>
+            <div className="glass-card p-3">
+              <p className="text-xs text-muted-foreground">Entry Model</p>
+              <p className="text-sm">{tradeSummary.model}</p>
+            </div>
+            <div className="glass-card p-3">
+              <p className="text-xs text-muted-foreground">Trade Duration</p>
+              <p className="text-sm">{tradeSummary.duration}</p>
+            </div>
+            <div className="glass-card p-3 md:col-span-2">
+              <p className="text-xs text-muted-foreground">Notes</p>
+              <p className="text-sm whitespace-pre-wrap">{tradeSummary.notes}</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Trades List */}
