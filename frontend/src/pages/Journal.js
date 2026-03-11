@@ -290,6 +290,7 @@ export default function Journal() {
   const [chartInterval, setChartInterval] = useState('5m');
   const [candles, setCandles] = useState([]);
   const [candlesLoading, setCandlesLoading] = useState(false);
+  const [chartError, setChartError] = useState('');
   const [selectedReplayTradeId, setSelectedReplayTradeId] = useState('latest');
   const [replayCursor, setReplayCursor] = useState(null);
   const [liquidityInput, setLiquidityInput] = useState('');
@@ -303,6 +304,7 @@ export default function Journal() {
   const priceLinesRef = useRef([]);
 
   const normalizeSymbol = (value = '') => value.toString().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const isValidNumber = (value) => Number.isFinite(Number(value));
   const annotationStorageKey = `journal_chart_annotations_${chartSymbol}`;
 
   useEffect(() => {
@@ -348,12 +350,12 @@ export default function Journal() {
   }, [chartSymbol, chartInterval]);
 
   useEffect(() => {
-    const raw = localStorage.getItem(annotationStorageKey);
-    if (!raw) {
-      setAnnotations({ liquidity: [], fvgs: [] });
-      return;
-    }
     try {
+      const raw = localStorage.getItem(annotationStorageKey);
+      if (!raw) {
+        setAnnotations({ liquidity: [], fvgs: [] });
+        return;
+      }
       const parsed = JSON.parse(raw);
       setAnnotations({
         liquidity: Array.isArray(parsed.liquidity) ? parsed.liquidity : [],
@@ -365,53 +367,64 @@ export default function Journal() {
   }, [annotationStorageKey]);
 
   useEffect(() => {
-    localStorage.setItem(annotationStorageKey, JSON.stringify(annotations));
+    try {
+      localStorage.setItem(annotationStorageKey, JSON.stringify(annotations));
+    } catch {
+      // Ignore storage failures and keep chart usable.
+    }
   }, [annotationStorageKey, annotations]);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
-
-    const chart = createChart(chartContainerRef.current, {
-      layout: {
-        background: { color: '#0A0A0A' },
-        textColor: '#A1A1AA',
-      },
-      grid: {
-        vertLines: { color: '#1F2937' },
-        horzLines: { color: '#1F2937' },
-      },
-      width: chartContainerRef.current.clientWidth,
-      height: 380,
-      rightPriceScale: {
-        borderColor: '#27272A',
-      },
-      timeScale: {
-        borderColor: '#27272A',
-        timeVisible: true,
-      },
-      crosshair: {
-        vertLine: {
-          color: '#10B981',
-          style: LineStyle.Dashed,
+    let chart;
+    try {
+      chart = createChart(chartContainerRef.current, {
+        layout: {
+          background: { color: '#0A0A0A' },
+          textColor: '#A1A1AA',
         },
-        horzLine: {
-          color: '#10B981',
-          style: LineStyle.Dashed,
+        grid: {
+          vertLines: { color: '#1F2937' },
+          horzLines: { color: '#1F2937' },
         },
-      },
-    });
+        width: chartContainerRef.current.clientWidth,
+        height: 380,
+        rightPriceScale: {
+          borderColor: '#27272A',
+        },
+        timeScale: {
+          borderColor: '#27272A',
+          timeVisible: true,
+        },
+        crosshair: {
+          vertLine: {
+            color: '#10B981',
+            style: LineStyle.Dashed,
+          },
+          horzLine: {
+            color: '#10B981',
+            style: LineStyle.Dashed,
+          },
+        },
+      });
 
-    const candleSeries = chart.addCandlestickSeries({
-      upColor: '#10B981',
-      downColor: '#EF4444',
-      borderUpColor: '#10B981',
-      borderDownColor: '#EF4444',
-      wickUpColor: '#10B981',
-      wickDownColor: '#EF4444',
-    });
+      const candleSeries = chart.addCandlestickSeries({
+        upColor: '#10B981',
+        downColor: '#EF4444',
+        borderUpColor: '#10B981',
+        borderDownColor: '#EF4444',
+        wickUpColor: '#10B981',
+        wickDownColor: '#EF4444',
+      });
 
-    chartRef.current = chart;
-    candleSeriesRef.current = candleSeries;
+      chartRef.current = chart;
+      candleSeriesRef.current = candleSeries;
+      setChartError('');
+    } catch (err) {
+      console.error('Chart init failed:', err);
+      setChartError('Chart failed to initialize. Please refresh the page.');
+      return () => {};
+    }
 
     const handleResize = () => {
       if (!chartContainerRef.current || !chartRef.current) return;
@@ -421,7 +434,7 @@ export default function Journal() {
     window.addEventListener('resize', handleResize);
     return () => {
       window.removeEventListener('resize', handleResize);
-      chart.remove();
+      if (chart) chart.remove();
       chartRef.current = null;
       candleSeriesRef.current = null;
       priceLinesRef.current = [];
@@ -430,131 +443,155 @@ export default function Journal() {
 
   useEffect(() => {
     if (!candleSeriesRef.current) return;
-    candleSeriesRef.current.setData(candles);
-    if (candles.length > 0 && chartRef.current) {
-      chartRef.current.timeScale().fitContent();
+    try {
+      candleSeriesRef.current.setData(candles);
+      if (candles.length > 0 && chartRef.current) {
+        chartRef.current.timeScale().fitContent();
+      }
+      setChartError('');
+    } catch (err) {
+      console.error('Chart data update failed:', err);
+      setChartError('Failed to render candle data.');
     }
   }, [candles]);
 
   useEffect(() => {
     if (!candleSeriesRef.current) return;
 
-    // Clear previous trade overlays.
-    priceLinesRef.current.forEach((line) => candleSeriesRef.current.removePriceLine(line));
-    priceLinesRef.current = [];
-
-    const toUnix = (value) => {
-      const ts = Date.parse(value || '');
-      if (Number.isNaN(ts)) return null;
-      return Math.floor(ts / 1000);
-    };
-
-    const recentTrades = chartTrades.slice(0, 3);
-    const markers = [];
-    recentTrades.forEach((trade, idx) => {
-      const entryTime = toUnix(trade.entry_date);
-      const exitTime = toUnix(trade.exit_date);
-
-      const entryLine = candleSeriesRef.current.createPriceLine({
-        price: Number(trade.entry_price),
-        color: '#3B82F6',
-        lineWidth: 1,
-        lineStyle: LineStyle.Solid,
-        axisLabelVisible: true,
-        title: `Entry ${idx + 1}`,
+    try {
+      // Clear previous trade overlays.
+      priceLinesRef.current.forEach((line) => {
+        try {
+          candleSeriesRef.current.removePriceLine(line);
+        } catch {
+          // Ignore stale lines from previous rerenders.
+        }
       });
-      priceLinesRef.current.push(entryLine);
+      priceLinesRef.current = [];
 
-      if (entryTime) {
-        markers.push({
-          time: entryTime,
-          position: 'belowBar',
-          color: '#3B82F6',
-          shape: 'arrowUp',
-          text: `ENTRY ${idx + 1}`,
-        });
-      }
+      const toUnix = (value) => {
+        const ts = Date.parse(value || '');
+        if (Number.isNaN(ts)) return null;
+        return Math.floor(ts / 1000);
+      };
 
-      if (trade.exit_price) {
-        const exitLine = candleSeriesRef.current.createPriceLine({
-          price: Number(trade.exit_price),
-          color: '#F59E0B',
-          lineWidth: 1,
-          lineStyle: LineStyle.Dashed,
-          axisLabelVisible: true,
-          title: `Exit ${idx + 1}`,
-        });
-        priceLinesRef.current.push(exitLine);
+      const recentTrades = chartTrades.slice(0, 3);
+      const markers = [];
+      recentTrades.forEach((trade, idx) => {
+        const entryTime = toUnix(trade.entry_date);
+        const exitTime = toUnix(trade.exit_date);
 
-        if (exitTime) {
+        if (isValidNumber(trade.entry_price)) {
+          const entryLine = candleSeriesRef.current.createPriceLine({
+            price: Number(trade.entry_price),
+            color: '#3B82F6',
+            lineWidth: 1,
+            lineStyle: LineStyle.Solid,
+            axisLabelVisible: true,
+            title: `Entry ${idx + 1}`,
+          });
+          priceLinesRef.current.push(entryLine);
+        }
+
+        if (entryTime) {
           markers.push({
-            time: exitTime,
-            position: 'aboveBar',
-            color: '#F59E0B',
-            shape: 'arrowDown',
-            text: `EXIT ${idx + 1}`,
+            time: entryTime,
+            position: 'belowBar',
+            color: '#3B82F6',
+            shape: 'arrowUp',
+            text: `ENTRY ${idx + 1}`,
           });
         }
-      }
 
-      if (trade.stop_loss) {
-        const slLine = candleSeriesRef.current.createPriceLine({
-          price: Number(trade.stop_loss),
-          color: '#EF4444',
+        if (isValidNumber(trade.exit_price)) {
+          const exitLine = candleSeriesRef.current.createPriceLine({
+            price: Number(trade.exit_price),
+            color: '#F59E0B',
+            lineWidth: 1,
+            lineStyle: LineStyle.Dashed,
+            axisLabelVisible: true,
+            title: `Exit ${idx + 1}`,
+          });
+          priceLinesRef.current.push(exitLine);
+
+          if (exitTime) {
+            markers.push({
+              time: exitTime,
+              position: 'aboveBar',
+              color: '#F59E0B',
+              shape: 'arrowDown',
+              text: `EXIT ${idx + 1}`,
+            });
+          }
+        }
+
+        if (isValidNumber(trade.stop_loss)) {
+          const slLine = candleSeriesRef.current.createPriceLine({
+            price: Number(trade.stop_loss),
+            color: '#EF4444',
+            lineWidth: 1,
+            lineStyle: LineStyle.Dotted,
+            axisLabelVisible: true,
+            title: `SL ${idx + 1}`,
+          });
+          priceLinesRef.current.push(slLine);
+        }
+
+        if (isValidNumber(trade.take_profit)) {
+          const tpLine = candleSeriesRef.current.createPriceLine({
+            price: Number(trade.take_profit),
+            color: '#10B981',
+            lineWidth: 1,
+            lineStyle: LineStyle.Dotted,
+            axisLabelVisible: true,
+            title: `TP ${idx + 1}`,
+          });
+          priceLinesRef.current.push(tpLine);
+        }
+      });
+
+      annotations.liquidity.forEach((price, idx) => {
+        if (!isValidNumber(price)) return;
+        const line = candleSeriesRef.current.createPriceLine({
+          price: Number(price),
+          color: '#A855F7',
           lineWidth: 1,
           lineStyle: LineStyle.Dotted,
           axisLabelVisible: true,
-          title: `SL ${idx + 1}`,
+          title: `LQ ${idx + 1}`,
         });
-        priceLinesRef.current.push(slLine);
-      }
+        priceLinesRef.current.push(line);
+      });
 
-      if (trade.take_profit) {
-        const tpLine = candleSeriesRef.current.createPriceLine({
-          price: Number(trade.take_profit),
-          color: '#10B981',
+      annotations.fvgs.forEach((zone, idx) => {
+        if (!isValidNumber(zone.low) || !isValidNumber(zone.high)) return;
+        const low = candleSeriesRef.current.createPriceLine({
+          price: Number(zone.low),
+          color: '#F97316',
           lineWidth: 1,
           lineStyle: LineStyle.Dotted,
           axisLabelVisible: true,
-          title: `TP ${idx + 1}`,
+          title: `FVG${idx + 1} Low`,
         });
-        priceLinesRef.current.push(tpLine);
+        const high = candleSeriesRef.current.createPriceLine({
+          price: Number(zone.high),
+          color: '#F97316',
+          lineWidth: 1,
+          lineStyle: LineStyle.Dotted,
+          axisLabelVisible: true,
+          title: `FVG${idx + 1} High`,
+        });
+        priceLinesRef.current.push(low, high);
+      });
+
+      if (typeof candleSeriesRef.current.setMarkers === 'function') {
+        candleSeriesRef.current.setMarkers(markers.sort((a, b) => a.time - b.time));
       }
-    });
-
-    annotations.liquidity.forEach((price, idx) => {
-      const line = candleSeriesRef.current.createPriceLine({
-        price: Number(price),
-        color: '#A855F7',
-        lineWidth: 1,
-        lineStyle: LineStyle.Dotted,
-        axisLabelVisible: true,
-        title: `LQ ${idx + 1}`,
-      });
-      priceLinesRef.current.push(line);
-    });
-
-    annotations.fvgs.forEach((zone, idx) => {
-      const low = candleSeriesRef.current.createPriceLine({
-        price: Number(zone.low),
-        color: '#F97316',
-        lineWidth: 1,
-        lineStyle: LineStyle.Dotted,
-        axisLabelVisible: true,
-        title: `FVG${idx + 1} Low`,
-      });
-      const high = candleSeriesRef.current.createPriceLine({
-        price: Number(zone.high),
-        color: '#F97316',
-        lineWidth: 1,
-        lineStyle: LineStyle.Dotted,
-        axisLabelVisible: true,
-        title: `FVG${idx + 1} High`,
-      });
-      priceLinesRef.current.push(low, high);
-    });
-
-    candleSeriesRef.current.setMarkers(markers.sort((a, b) => a.time - b.time));
+      setChartError('');
+    } catch (err) {
+      console.error('Chart overlays failed:', err);
+      setChartError('Chart overlays failed to render.');
+    }
   }, [chartTrades, annotations]);
 
   const replayTrade = useMemo(() => {
@@ -1174,6 +1211,9 @@ export default function Journal() {
         </div>
 
         <div ref={chartContainerRef} className="w-full rounded-lg overflow-hidden border border-white/10" />
+        {chartError && (
+          <p className="text-sm text-red-400">{chartError}</p>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="glass-card p-3 space-y-2">
