@@ -19,6 +19,7 @@ import csv
 import asyncio
 import secrets
 import resend
+import httpx
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -177,6 +178,15 @@ class TradeResponse(BaseModel):
 
 class AIInsightRequest(BaseModel):
     question: Optional[str] = None
+
+
+class CandleResponse(BaseModel):
+    time: int
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
 
 
 def build_rule_based_insight(total_trades: int, total_pnl: float, winning: int, losing: int) -> str:
@@ -1180,6 +1190,52 @@ async def get_trade_count_history(
     total_count = sum(d['count'] for d in result)
     
     return {"total": total_count, "data": result}
+
+
+# ============ MARKET DATA ROUTES ============
+
+@api_router.get("/market/candles", response_model=List[CandleResponse])
+async def get_market_candles(
+    symbol: str = Query(default="BTCUSDT"),
+    interval: str = Query(default="5m"),
+    limit: int = Query(default=500, ge=50, le=1000)
+):
+    """Fetch OHLCV candles from Binance public klines API for charting."""
+    valid_intervals = {"1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "1d"}
+    if interval not in valid_intervals:
+        raise HTTPException(status_code=400, detail="Unsupported interval")
+
+    clean_symbol = symbol.upper().replace("/", "").replace("-", "")
+    url = "https://api.binance.com/api/v3/klines"
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client_http:
+            response = await client_http.get(
+                url,
+                params={"symbol": clean_symbol, "interval": interval, "limit": limit},
+            )
+
+        if response.status_code != 200:
+            raise HTTPException(status_code=400, detail="Failed to fetch candles for symbol")
+
+        raw = response.json()
+        candles = [
+            CandleResponse(
+                time=int(item[0]),
+                open=float(item[1]),
+                high=float(item[2]),
+                low=float(item[3]),
+                close=float(item[4]),
+                volume=float(item[5]),
+            )
+            for item in raw
+        ]
+        return candles
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Candle API error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch market candles")
 
 # ============ AI INSIGHTS ============
 

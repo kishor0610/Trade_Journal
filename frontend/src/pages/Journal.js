@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { Plus, Edit2, Trash2, TrendingUp, TrendingDown, Filter, X, Search, SlidersHorizontal, Download, Upload, FileSpreadsheet, AlertCircle, CheckCircle, AlertTriangle } from 'lucide-react';
+import { createChart, LineStyle } from 'lightweight-charts';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -12,6 +13,25 @@ import { toast } from 'sonner';
 import { formatCurrency, formatDate, INSTRUMENTS, POSITIONS, STATUSES, getInstrumentColor } from '../lib/utils';
 
 const API_URL = `${process.env.REACT_APP_BACKEND_URL}/api`;
+
+const CHART_SYMBOLS = [
+  { label: 'BTC/USDT', value: 'BTCUSDT' },
+  { label: 'ETH/USDT', value: 'ETHUSDT' },
+  { label: 'PAXG/USDT (Gold)', value: 'PAXGUSDT' },
+  { label: 'BNB/USDT', value: 'BNBUSDT' },
+  { label: 'SOL/USDT', value: 'SOLUSDT' },
+];
+
+const CHART_INTERVALS = ['1m', '5m', '15m', '1h', '4h', '1d'];
+
+const INTERVAL_SECONDS = {
+  '1m': 60,
+  '5m': 300,
+  '15m': 900,
+  '1h': 3600,
+  '4h': 14400,
+  '1d': 86400,
+};
 
 const TradeForm = ({ trade, onSubmit, onClose }) => {
   const [formData, setFormData] = useState({
@@ -266,8 +286,24 @@ export default function Journal() {
   const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [chartSymbol, setChartSymbol] = useState('BTCUSDT');
+  const [chartInterval, setChartInterval] = useState('5m');
+  const [candles, setCandles] = useState([]);
+  const [candlesLoading, setCandlesLoading] = useState(false);
+  const [selectedReplayTradeId, setSelectedReplayTradeId] = useState('latest');
+  const [replayCursor, setReplayCursor] = useState(null);
+  const [liquidityInput, setLiquidityInput] = useState('');
+  const [fvgLowInput, setFvgLowInput] = useState('');
+  const [fvgHighInput, setFvgHighInput] = useState('');
+  const [annotations, setAnnotations] = useState({ liquidity: [], fvgs: [] });
+
+  const chartContainerRef = useRef(null);
+  const chartRef = useRef(null);
+  const candleSeriesRef = useRef(null);
+  const priceLinesRef = useRef([]);
 
   const normalizeSymbol = (value = '') => value.toString().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const annotationStorageKey = `journal_chart_annotations_${chartSymbol}`;
 
   useEffect(() => {
     fetchTrades();
@@ -282,6 +318,311 @@ export default function Journal() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchCandles = async () => {
+    setCandlesLoading(true);
+    try {
+      const response = await axios.get(
+        `${API_URL}/market/candles?symbol=${chartSymbol}&interval=${chartInterval}&limit=500`
+      );
+      const series = response.data.map((c) => ({
+        time: Math.floor(c.time / 1000),
+        open: c.open,
+        high: c.high,
+        low: c.low,
+        close: c.close,
+      }));
+      setCandles(series);
+    } catch (error) {
+      toast.error('Failed to load market candles for selected symbol/timeframe');
+      setCandles([]);
+    } finally {
+      setCandlesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCandles();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chartSymbol, chartInterval]);
+
+  useEffect(() => {
+    const raw = localStorage.getItem(annotationStorageKey);
+    if (!raw) {
+      setAnnotations({ liquidity: [], fvgs: [] });
+      return;
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      setAnnotations({
+        liquidity: Array.isArray(parsed.liquidity) ? parsed.liquidity : [],
+        fvgs: Array.isArray(parsed.fvgs) ? parsed.fvgs : [],
+      });
+    } catch {
+      setAnnotations({ liquidity: [], fvgs: [] });
+    }
+  }, [annotationStorageKey]);
+
+  useEffect(() => {
+    localStorage.setItem(annotationStorageKey, JSON.stringify(annotations));
+  }, [annotationStorageKey, annotations]);
+
+  useEffect(() => {
+    if (!chartContainerRef.current) return;
+
+    const chart = createChart(chartContainerRef.current, {
+      layout: {
+        background: { color: '#0A0A0A' },
+        textColor: '#A1A1AA',
+      },
+      grid: {
+        vertLines: { color: '#1F2937' },
+        horzLines: { color: '#1F2937' },
+      },
+      width: chartContainerRef.current.clientWidth,
+      height: 380,
+      rightPriceScale: {
+        borderColor: '#27272A',
+      },
+      timeScale: {
+        borderColor: '#27272A',
+        timeVisible: true,
+      },
+      crosshair: {
+        vertLine: {
+          color: '#10B981',
+          style: LineStyle.Dashed,
+        },
+        horzLine: {
+          color: '#10B981',
+          style: LineStyle.Dashed,
+        },
+      },
+    });
+
+    const candleSeries = chart.addCandlestickSeries({
+      upColor: '#10B981',
+      downColor: '#EF4444',
+      borderUpColor: '#10B981',
+      borderDownColor: '#EF4444',
+      wickUpColor: '#10B981',
+      wickDownColor: '#EF4444',
+    });
+
+    chartRef.current = chart;
+    candleSeriesRef.current = candleSeries;
+
+    const handleResize = () => {
+      if (!chartContainerRef.current || !chartRef.current) return;
+      chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      chart.remove();
+      chartRef.current = null;
+      candleSeriesRef.current = null;
+      priceLinesRef.current = [];
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!candleSeriesRef.current) return;
+    candleSeriesRef.current.setData(candles);
+    if (candles.length > 0 && chartRef.current) {
+      chartRef.current.timeScale().fitContent();
+    }
+  }, [candles]);
+
+  useEffect(() => {
+    if (!candleSeriesRef.current) return;
+
+    // Clear previous trade overlays.
+    priceLinesRef.current.forEach((line) => candleSeriesRef.current.removePriceLine(line));
+    priceLinesRef.current = [];
+
+    const toUnix = (value) => {
+      const ts = Date.parse(value || '');
+      if (Number.isNaN(ts)) return null;
+      return Math.floor(ts / 1000);
+    };
+
+    const recentTrades = chartTrades.slice(0, 3);
+    const markers = [];
+    recentTrades.forEach((trade, idx) => {
+      const entryTime = toUnix(trade.entry_date);
+      const exitTime = toUnix(trade.exit_date);
+
+      const entryLine = candleSeriesRef.current.createPriceLine({
+        price: Number(trade.entry_price),
+        color: '#3B82F6',
+        lineWidth: 1,
+        lineStyle: LineStyle.Solid,
+        axisLabelVisible: true,
+        title: `Entry ${idx + 1}`,
+      });
+      priceLinesRef.current.push(entryLine);
+
+      if (entryTime) {
+        markers.push({
+          time: entryTime,
+          position: 'belowBar',
+          color: '#3B82F6',
+          shape: 'arrowUp',
+          text: `ENTRY ${idx + 1}`,
+        });
+      }
+
+      if (trade.exit_price) {
+        const exitLine = candleSeriesRef.current.createPriceLine({
+          price: Number(trade.exit_price),
+          color: '#F59E0B',
+          lineWidth: 1,
+          lineStyle: LineStyle.Dashed,
+          axisLabelVisible: true,
+          title: `Exit ${idx + 1}`,
+        });
+        priceLinesRef.current.push(exitLine);
+
+        if (exitTime) {
+          markers.push({
+            time: exitTime,
+            position: 'aboveBar',
+            color: '#F59E0B',
+            shape: 'arrowDown',
+            text: `EXIT ${idx + 1}`,
+          });
+        }
+      }
+
+      if (trade.stop_loss) {
+        const slLine = candleSeriesRef.current.createPriceLine({
+          price: Number(trade.stop_loss),
+          color: '#EF4444',
+          lineWidth: 1,
+          lineStyle: LineStyle.Dotted,
+          axisLabelVisible: true,
+          title: `SL ${idx + 1}`,
+        });
+        priceLinesRef.current.push(slLine);
+      }
+
+      if (trade.take_profit) {
+        const tpLine = candleSeriesRef.current.createPriceLine({
+          price: Number(trade.take_profit),
+          color: '#10B981',
+          lineWidth: 1,
+          lineStyle: LineStyle.Dotted,
+          axisLabelVisible: true,
+          title: `TP ${idx + 1}`,
+        });
+        priceLinesRef.current.push(tpLine);
+      }
+    });
+
+    annotations.liquidity.forEach((price, idx) => {
+      const line = candleSeriesRef.current.createPriceLine({
+        price: Number(price),
+        color: '#A855F7',
+        lineWidth: 1,
+        lineStyle: LineStyle.Dotted,
+        axisLabelVisible: true,
+        title: `LQ ${idx + 1}`,
+      });
+      priceLinesRef.current.push(line);
+    });
+
+    annotations.fvgs.forEach((zone, idx) => {
+      const low = candleSeriesRef.current.createPriceLine({
+        price: Number(zone.low),
+        color: '#F97316',
+        lineWidth: 1,
+        lineStyle: LineStyle.Dotted,
+        axisLabelVisible: true,
+        title: `FVG${idx + 1} Low`,
+      });
+      const high = candleSeriesRef.current.createPriceLine({
+        price: Number(zone.high),
+        color: '#F97316',
+        lineWidth: 1,
+        lineStyle: LineStyle.Dotted,
+        axisLabelVisible: true,
+        title: `FVG${idx + 1} High`,
+      });
+      priceLinesRef.current.push(low, high);
+    });
+
+    candleSeriesRef.current.setMarkers(markers.sort((a, b) => a.time - b.time));
+  }, [chartTrades, annotations]);
+
+  const replayTrade = useMemo(() => {
+    if (chartTrades.length === 0) return null;
+    if (selectedReplayTradeId === 'latest') return chartTrades[0];
+    return chartTrades.find((t) => t.id === selectedReplayTradeId) || chartTrades[0];
+  }, [chartTrades, selectedReplayTradeId]);
+
+  useEffect(() => {
+    if (!replayTrade) {
+      setSelectedReplayTradeId('latest');
+      return;
+    }
+    if (selectedReplayTradeId !== 'latest' && !chartTrades.some((t) => t.id === selectedReplayTradeId)) {
+      setSelectedReplayTradeId('latest');
+    }
+  }, [replayTrade, selectedReplayTradeId, chartTrades]);
+
+  const setReplayRange = (cursorTime) => {
+    if (!chartRef.current || !cursorTime) return;
+    const candleSeconds = INTERVAL_SECONDS[chartInterval] || 300;
+    chartRef.current.timeScale().setVisibleRange({
+      from: cursorTime - 200 * candleSeconds,
+      to: cursorTime + 40 * candleSeconds,
+    });
+  };
+
+  const replayLatestTrade = () => {
+    if (!replayTrade) return;
+    const entryTimeSec = Math.floor(new Date(replayTrade.entry_date).getTime() / 1000);
+    if (!entryTimeSec || Number.isNaN(entryTimeSec)) return;
+    setReplayCursor(entryTimeSec);
+    setReplayRange(entryTimeSec);
+  };
+
+  const stepReplay = (direction) => {
+    const candleSeconds = INTERVAL_SECONDS[chartInterval] || 300;
+    const base = replayCursor || (candles[candles.length - 1]?.time || null);
+    if (!base) return;
+    const next = base + direction * candleSeconds * 20;
+    setReplayCursor(next);
+    setReplayRange(next);
+  };
+
+  const addLiquidityLevel = () => {
+    const price = Number(liquidityInput);
+    if (!price || Number.isNaN(price)) {
+      toast.error('Enter a valid liquidity price');
+      return;
+    }
+    setAnnotations((prev) => ({ ...prev, liquidity: [...prev.liquidity, price] }));
+    setLiquidityInput('');
+  };
+
+  const addFvgZone = () => {
+    const low = Number(fvgLowInput);
+    const high = Number(fvgHighInput);
+    if (!low || !high || Number.isNaN(low) || Number.isNaN(high) || low >= high) {
+      toast.error('Enter valid FVG low/high with low < high');
+      return;
+    }
+    setAnnotations((prev) => ({ ...prev, fvgs: [...prev.fvgs, { low, high }] }));
+    setFvgLowInput('');
+    setFvgHighInput('');
+  };
+
+  const clearAnnotations = () => {
+    setAnnotations({ liquidity: [], fvgs: [] });
   };
 
   const handleAddTrade = async (data) => {
@@ -399,6 +740,12 @@ export default function Journal() {
       status.includes(rawSearch)
     );
   });
+
+  const chartTrades = useMemo(() => {
+    return filteredTrades
+      .filter((t) => t.status === 'closed' || t.status === 'open')
+      .slice(0, 20);
+  }, [filteredTrades]);
 
   // Sort trades
   const sortedTrades = [...filteredTrades].sort((a, b) => {
@@ -761,6 +1108,111 @@ export default function Journal() {
         <div className="flex items-center gap-2">
           <span className="text-muted-foreground text-sm">Total:</span>
           <span className="font-mono font-bold">{filteredTrades.length}</span>
+        </div>
+      </div>
+
+      {/* TradingView-style Journal Chart */}
+      <div className="glass-card p-4 space-y-4" data-testid="journal-chart-panel">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div>
+            <h3 className="font-heading text-lg">Trade Replay Chart</h3>
+            <p className="text-xs text-muted-foreground">Candles + overlays for recent entries, exits, stop-loss and take-profit</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="w-44">
+              <Select value={chartSymbol} onValueChange={setChartSymbol}>
+                <SelectTrigger className="bg-secondary border-white/10 h-9">
+                  <SelectValue placeholder="Symbol" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CHART_SYMBOLS.map((s) => (
+                    <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-24">
+              <Select value={chartInterval} onValueChange={setChartInterval}>
+                <SelectTrigger className="bg-secondary border-white/10 h-9">
+                  <SelectValue placeholder="TF" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CHART_INTERVALS.map((itv) => (
+                    <SelectItem key={itv} value={itv}>{itv}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button variant="outline" size="sm" onClick={fetchCandles} disabled={candlesLoading}>
+              {candlesLoading ? 'Loading...' : 'Refresh'}
+            </Button>
+            <div className="w-52">
+              <Select value={selectedReplayTradeId} onValueChange={setSelectedReplayTradeId}>
+                <SelectTrigger className="bg-secondary border-white/10 h-9">
+                  <SelectValue placeholder="Replay Trade" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="latest">Latest Trade</SelectItem>
+                  {chartTrades.slice(0, 20).map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {`${t.instrument} ${t.position.toUpperCase()} ${t.entry_date?.slice(0, 10) || ''}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => stepReplay(-1)}>
+              Back 20
+            </Button>
+            <Button variant="outline" size="sm" onClick={replayLatestTrade} disabled={chartTrades.length === 0}>
+              Replay
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => stepReplay(1)}>
+              Forward 20
+            </Button>
+          </div>
+        </div>
+
+        <div ref={chartContainerRef} className="w-full rounded-lg overflow-hidden border border-white/10" />
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="glass-card p-3 space-y-2">
+            <Label className="text-xs">Liquidity Price</Label>
+            <div className="flex gap-2">
+              <Input
+                value={liquidityInput}
+                onChange={(e) => setLiquidityInput(e.target.value)}
+                placeholder="e.g. 5088.5"
+                className="bg-secondary border-white/10 h-9"
+              />
+              <Button size="sm" onClick={addLiquidityLevel}>Add</Button>
+            </div>
+          </div>
+
+          <div className="glass-card p-3 space-y-2">
+            <Label className="text-xs">FVG Zone (Low / High)</Label>
+            <div className="flex gap-2">
+              <Input
+                value={fvgLowInput}
+                onChange={(e) => setFvgLowInput(e.target.value)}
+                placeholder="Low"
+                className="bg-secondary border-white/10 h-9"
+              />
+              <Input
+                value={fvgHighInput}
+                onChange={(e) => setFvgHighInput(e.target.value)}
+                placeholder="High"
+                className="bg-secondary border-white/10 h-9"
+              />
+              <Button size="sm" onClick={addFvgZone}>Add</Button>
+            </div>
+          </div>
+
+          <div className="glass-card p-3 flex items-end">
+            <Button variant="outline" size="sm" className="w-full" onClick={clearAnnotations}>
+              Clear Liquidity/FVG
+            </Button>
+          </div>
         </div>
       </div>
 
