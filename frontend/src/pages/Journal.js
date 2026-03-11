@@ -252,6 +252,7 @@ const TradeForm = ({ trade, onSubmit, onClose }) => {
 };
 
 export default function Journal() {
+  const PAGE_SIZE = 10;
   const [trades, setTrades] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -264,19 +265,17 @@ export default function Journal() {
   const [importResult, setImportResult] = useState(null);
   const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const normalizeSymbol = (value = '') => value.toString().toUpperCase().replace(/[^A-Z0-9]/g, '');
 
   useEffect(() => {
     fetchTrades();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.status, filters.instrument]);
+  }, []);
 
   const fetchTrades = async () => {
     try {
-      const params = new URLSearchParams();
-      if (filters.status) params.append('status', filters.status);
-      if (filters.instrument) params.append('instrument', filters.instrument);
-      
-      const response = await axios.get(`${API_URL}/trades?${params}`);
+      const response = await axios.get(`${API_URL}/trades`);
       setTrades(response.data);
     } catch (error) {
       console.error('Failed to fetch trades:', error);
@@ -373,11 +372,32 @@ export default function Journal() {
   };
 
   // Filter trades by search
-  const filteredTrades = trades.filter(trade => {
+  const filteredTrades = trades.filter((trade) => {
+    if (filters.status && trade.status !== filters.status) return false;
+
+    if (filters.instrument) {
+      const selected = normalizeSymbol(filters.instrument);
+      const instrument = normalizeSymbol(trade.instrument || '');
+      if (selected !== instrument) return false;
+    }
+
     if (!filters.search) return true;
-    const search = filters.search.toLowerCase();
-    return trade.instrument.toLowerCase().includes(search) ||
-           trade.notes?.toLowerCase().includes(search);
+
+    const rawSearch = filters.search.toLowerCase().trim();
+    const normalizedSearch = normalizeSymbol(filters.search);
+    const tradeInstrument = (trade.instrument || '').toLowerCase();
+    const normalizedInstrument = normalizeSymbol(trade.instrument || '');
+    const notes = (trade.notes || '').toLowerCase();
+    const position = (trade.position || '').toLowerCase();
+    const status = (trade.status || '').toLowerCase();
+
+    return (
+      tradeInstrument.includes(rawSearch) ||
+      normalizedInstrument.includes(normalizedSearch) ||
+      notes.includes(rawSearch) ||
+      position.includes(rawSearch) ||
+      status.includes(rawSearch)
+    );
   });
 
   // Sort trades
@@ -399,6 +419,20 @@ export default function Journal() {
 
     return sortOrder === 'desc' ? -comparison : comparison;
   });
+
+  const totalPages = Math.max(1, Math.ceil(sortedTrades.length / PAGE_SIZE));
+  const pageStart = (currentPage - 1) * PAGE_SIZE;
+  const paginatedTrades = sortedTrades.slice(pageStart, pageStart + PAGE_SIZE);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters.status, filters.instrument, filters.search, sortBy, sortOrder]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   // Calculate summary
   const summary = {
@@ -756,7 +790,7 @@ export default function Journal() {
       ) : (
         <div className="space-y-2">
           <AnimatePresence>
-            {sortedTrades.map((trade, index) => (
+            {paginatedTrades.map((trade, index) => (
               <motion.div
                 key={trade.id}
                 initial={{ opacity: 0, y: 20 }}
@@ -857,6 +891,43 @@ export default function Journal() {
               </motion.div>
             ))}
           </AnimatePresence>
+
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-4">
+            <p className="text-sm text-muted-foreground">
+              Showing {sortedTrades.length === 0 ? 0 : pageStart + 1} to {Math.min(pageStart + PAGE_SIZE, sortedTrades.length)} of {sortedTrades.length} trades
+            </p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                Prev
+              </Button>
+
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                <Button
+                  key={page}
+                  variant={page === currentPage ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setCurrentPage(page)}
+                  className={page === currentPage ? 'bg-white text-black hover:bg-gray-200' : ''}
+                >
+                  {page}
+                </Button>
+              ))}
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 
