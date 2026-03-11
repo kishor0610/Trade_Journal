@@ -17,13 +17,21 @@ const API_URL = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const CHART_SYMBOLS = [
   { label: 'BTC/USDT', value: 'BTCUSDT' },
   { label: 'ETH/USDT', value: 'ETHUSDT' },
-  { label: 'PAXG/USDT (Gold)', value: 'PAXGUSDT' },
+  { label: 'XAU/USD (Gold)', value: 'XAUUSD' },
+  { label: 'XAG/USD (Silver)', value: 'XAGUSD' },
+  { label: 'EUR/USD', value: 'EURUSD' },
+  { label: 'GBP/USD', value: 'GBPUSD' },
+  { label: 'USD/JPY', value: 'USDJPY' },
+  { label: 'AUD/USD', value: 'AUDUSD' },
+  { label: 'NAS100', value: 'NAS100' },
+  { label: 'US30', value: 'US30' },
+  { label: 'SPX500', value: 'SPX500' },
   { label: 'BNB/USDT', value: 'BNBUSDT' },
   { label: 'SOL/USDT', value: 'SOLUSDT' },
 ];
 
 const CHART_INTERVALS = ['1m', '5m', '15m', '1h', '4h', '1d'];
-const MARKET_SUPPORTED_SYMBOLS = new Set(CHART_SYMBOLS.map((s) => s.value));
+const MARKET_SUPPORTED_SYMBOLS = new Set(['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT']);
 
 const INTERVAL_SECONDS = {
   '1m': 60,
@@ -323,7 +331,15 @@ export default function Journal() {
     if (!key) return null;
     if (key.includes('BTC')) return 'BTCUSDT';
     if (key.includes('ETH')) return 'ETHUSDT';
-    if (key.includes('PAXG') || key.includes('XAU') || key.includes('GOLD')) return 'PAXGUSDT';
+    if (key.includes('XAU') || key.includes('GOLD') || key.includes('PAXG')) return 'XAUUSD';
+    if (key.includes('XAG') || key.includes('SILVER')) return 'XAGUSD';
+    if (key.includes('EURUSD')) return 'EURUSD';
+    if (key.includes('GBPUSD')) return 'GBPUSD';
+    if (key.includes('USDJPY')) return 'USDJPY';
+    if (key.includes('AUDUSD')) return 'AUDUSD';
+    if (key.includes('NAS100') || key.includes('NASDAQ')) return 'NAS100';
+    if (key.includes('US30') || key.includes('DOW')) return 'US30';
+    if (key.includes('SPX500') || key.includes('SP500') || key.includes('SPX')) return 'SPX500';
     if (key.includes('BNB')) return 'BNBUSDT';
     if (key.includes('SOL')) return 'SOLUSDT';
     return null;
@@ -397,22 +413,54 @@ export default function Journal() {
     const source = matching.length > 0 ? matching : trades.filter((t) => isValidNumber(t.entry_price));
     if (source.length === 0) return [];
 
-    return source.slice(-300).map((t, idx) => {
+    const intervalSeconds = INTERVAL_SECONDS[chartInterval] || 300;
+    const smoothed = [];
+    let prevClose = null;
+    let prevTime = null;
+
+    source.slice(-180).forEach((t, idx) => {
       const entry = Number(t.entry_price);
       const exit = isValidNumber(t.exit_price) ? Number(t.exit_price) : entry;
-      const high = Math.max(entry, exit);
-      const low = Math.min(entry, exit);
       const ts = Date.parse(t.entry_date || '');
-      const fallbackTime = Math.floor(Date.now() / 1000) - (source.length - idx) * 300;
+      const candleTime = Number.isNaN(ts)
+        ? Math.floor(Date.now() / 1000) - (source.length - idx) * intervalSeconds
+        : Math.floor(ts / 1000);
 
-      return {
-        time: Number.isNaN(ts) ? fallbackTime : Math.floor(ts / 1000),
-        open: entry,
-        high,
-        low,
-        close: exit,
-      };
+      if (prevTime && candleTime > prevTime + intervalSeconds && Number.isFinite(prevClose)) {
+        const gapSteps = Math.min(12, Math.max(0, Math.floor((candleTime - prevTime) / intervalSeconds) - 1));
+        for (let step = 1; step <= gapSteps; step += 1) {
+          const ratio = step / (gapSteps + 1);
+          const bridgeClose = prevClose + (entry - prevClose) * ratio;
+          const bridgeOpen = prevClose + (entry - prevClose) * ((step - 1) / (gapSteps + 1));
+          const wick = Math.max(Math.abs(bridgeClose - bridgeOpen) * 0.3, Math.abs(bridgeClose) * 0.0005);
+
+          smoothed.push({
+            time: prevTime + step * intervalSeconds,
+            open: bridgeOpen,
+            high: Math.max(bridgeOpen, bridgeClose) + wick,
+            low: Math.max(0, Math.min(bridgeOpen, bridgeClose) - wick),
+            close: bridgeClose,
+          });
+        }
+      }
+
+      const open = Number.isFinite(prevClose) ? prevClose : entry;
+      const close = exit;
+      const wick = Math.max(Math.abs(close - open) * 0.35, Math.abs(close) * 0.0008);
+
+      smoothed.push({
+        time: candleTime,
+        open,
+        high: Math.max(open, close) + wick,
+        low: Math.max(0, Math.min(open, close) - wick),
+        close,
+      });
+
+      prevClose = close;
+      prevTime = candleTime;
     });
+
+    return smoothed.slice(-500);
   };
 
   // Filter trades by search
@@ -1124,7 +1172,7 @@ export default function Journal() {
   const loadTradeToChart = (trade, scrollToChart = true) => {
     if (!trade) return;
 
-    const mappedSymbol = instrumentToChartSymbol(trade.instrument || '');
+    const mappedSymbol = instrumentToChartSymbol(trade.instrument || '') || normalizeSymbol(trade.instrument || '');
     setFocusedInstrumentKey(normalizeSymbol(trade.instrument || ''));
     if (mappedSymbol) {
       setChartSymbol(mappedSymbol);
