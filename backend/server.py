@@ -1201,7 +1201,7 @@ async def get_market_candles(
     interval: str = Query(default="5m"),
     limit: int = Query(default=500, ge=50, le=1000)
 ):
-    """Fetch OHLCV candles from Twelve Data with Binance fallback for crypto."""
+    """Fetch OHLCV candles from Twelve Data with Yahoo/Binance fallbacks."""
     interval_map = {
         "1m": "1min",
         "3m": "3min",
@@ -1212,6 +1212,28 @@ async def get_market_candles(
         "2h": "2h",
         "4h": "4h",
         "1d": "1day",
+    }
+    yahoo_interval_map = {
+        "1m": "1m",
+        "3m": "5m",
+        "5m": "5m",
+        "15m": "15m",
+        "30m": "30m",
+        "1h": "60m",
+        "2h": "60m",
+        "4h": "60m",
+        "1d": "1d",
+    }
+    yahoo_range_map = {
+        "1m": "7d",
+        "3m": "30d",
+        "5m": "30d",
+        "15m": "60d",
+        "30m": "60d",
+        "1h": "730d",
+        "2h": "730d",
+        "4h": "730d",
+        "1d": "10y",
     }
     if interval not in interval_map:
         raise HTTPException(status_code=400, detail="Unsupported interval")
@@ -1235,6 +1257,22 @@ async def get_market_candles(
         "SPX500": ["SPX", "GSPC", "SPX500"],
     }
     market_symbol_candidates = symbol_map.get(clean_symbol, [symbol, clean_symbol])
+
+    yahoo_symbol_map = {
+        "XAUUSD": "GC=F",
+        "XAGUSD": "SI=F",
+        "EURUSD": "EURUSD=X",
+        "GBPUSD": "GBPUSD=X",
+        "USDJPY": "JPY=X",
+        "AUDUSD": "AUDUSD=X",
+        "NAS100": "^NDX",
+        "US30": "^DJI",
+        "SPX500": "^GSPC",
+        "BTCUSDT": "BTC-USD",
+        "ETHUSDT": "ETH-USD",
+        "BNBUSDT": "BNB-USD",
+        "SOLUSDT": "SOL-USD",
+    }
 
     def parse_twelve_datetime(value: str) -> datetime:
         # Twelve Data can return either intraday datetime or date-only values.
@@ -1325,17 +1363,96 @@ async def get_market_candles(
             for item in raw
         ]
 
+    async def fetch_from_yahoo() -> List[CandleResponse]:
+        yahoo_symbol = yahoo_symbol_map.get(clean_symbol)
+        if not yahoo_symbol:
+            raise HTTPException(status_code=400, detail=f"No Yahoo symbol mapping for {clean_symbol}")
+
+        interval_value = yahoo_interval_map[interval]
+        range_value = yahoo_range_map[interval]
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{yahoo_symbol}"
+
+        async with httpx.AsyncClient(timeout=20.0) as client_http:
+            response = await client_http.get(
+                url,
+                params={
+                    "interval": interval_value,
+                    "range": range_value,
+                    "includePrePost": "false",
+                    "events": "div,splits",
+                },
+            )
+
+        if response.status_code != 200:
+            raise HTTPException(status_code=400, detail=f"Yahoo request failed for {yahoo_symbol}")
+
+        payload = response.json()
+        chart = payload.get("chart", {})
+        error = chart.get("error")
+        if error:
+            raise HTTPException(status_code=400, detail=f"Yahoo error: {error.get('description', 'Unknown error')}")
+
+        result_list = chart.get("result") or []
+        if not result_list:
+            raise HTTPException(status_code=400, detail=f"No Yahoo data for {yahoo_symbol}")
+
+        result = result_list[0]
+        timestamps = result.get("timestamp") or []
+        quote = ((result.get("indicators") or {}).get("quote") or [{}])[0]
+
+        opens = quote.get("open") or []
+        highs = quote.get("high") or []
+        lows = quote.get("low") or []
+        closes = quote.get("close") or []
+        volumes = quote.get("volume") or []
+
+        candles: List[CandleResponse] = []
+        for idx, ts in enumerate(timestamps):
+            if idx >= len(opens) or idx >= len(highs) or idx >= len(lows) or idx >= len(closes):
+                continue
+
+            o = opens[idx]
+            h = highs[idx]
+            l = lows[idx]
+            c = closes[idx]
+            v = volumes[idx] if idx < len(volumes) else 0
+
+            if o is None or h is None or l is None or c is None:
+                continue
+
+            candles.append(
+                CandleResponse(
+                    time=int(ts) * 1000,
+                    open=float(o),
+                    high=float(h),
+                    low=float(l),
+                    close=float(c),
+                    volume=float(v or 0),
+                )
+            )
+
+        if not candles:
+            raise HTTPException(status_code=400, detail=f"No valid Yahoo candles for {yahoo_symbol}")
+
+        return candles[-limit:]
+
     try:
         return await fetch_from_twelve_data()
     except HTTPException as twelve_error:
-        # Keep crypto charts available even if Twelve Data is not configured.
         crypto_symbols = {"BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"}
+        provider_errors = [f"twelve:{twelve_error.detail}"]
+
         if clean_symbol in crypto_symbols:
             try:
                 return await fetch_from_binance()
-            except HTTPException:
-                raise twelve_error
-        raise twelve_error
+            except HTTPException as binance_error:
+                provider_errors.append(f"binance:{binance_error.detail}")
+
+        try:
+            return await fetch_from_yahoo()
+        except HTTPException as yahoo_error:
+            provider_errors.append(f"yahoo:{yahoo_error.detail}")
+            raise HTTPException(status_code=400, detail=" | ".join(provider_errors))
     except Exception as e:
         logging.error(f"Candle API error: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to fetch market candles")
