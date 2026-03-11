@@ -315,7 +315,7 @@ export default function Journal() {
   const isValidNumber = (value) => Number.isFinite(Number(value));
   const annotationStorageKey = `journal_chart_annotations_${chartSymbol}`;
 
-  const instrumentToChartSymbol = (instrument = '') => {
+  const instrumentToChartSymbol = useCallback((instrument = '') => {
     const key = normalizeSymbol(instrument);
     if (!key) return null;
     if (key.includes('BTC')) return 'BTCUSDT';
@@ -324,7 +324,7 @@ export default function Journal() {
     if (key.includes('BNB')) return 'BNBUSDT';
     if (key.includes('SOL')) return 'SOLUSDT';
     return null;
-  };
+  }, []);
 
   const toUnixSeconds = (value) => {
     const numeric = Number(value);
