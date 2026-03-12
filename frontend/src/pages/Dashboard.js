@@ -63,9 +63,9 @@ const AnimatedNumber = ({ value, decimals = 0, prefix = '', suffix = '', classNa
 
 const cardHover = {
   whileHover: {
-    y: -4,
-    scale: 1.01,
-    transition: { type: 'spring', stiffness: 320, damping: 26, mass: 0.4 },
+    y: -3,
+    scale: 1.006,
+    transition: { duration: 0.16, ease: [0.22, 1, 0.36, 1] },
   },
 };
 
@@ -75,7 +75,8 @@ const DashboardCard = ({ title, borderClass = 'border-white/10', children }) => 
     animate={{ opacity: 1, y: 0 }}
     transition={{ duration: 0.28 }}
     {...cardHover}
-    className={`glass-card p-4 border ${borderClass} transition-transform duration-200 will-change-transform transform-gpu shadow-[0_10px_20px_rgba(0,0,0,0.22)]`}
+    className={`glass-card p-4 border ${borderClass} transition-transform duration-200 will-change-transform transform-gpu shadow-[0_8px_16px_rgba(0,0,0,0.18)]`}
+    style={{ backfaceVisibility: 'hidden' }}
   >
     <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">{title}</p>
     {children}
@@ -120,8 +121,8 @@ const RadialGauge = ({ value, label, weeklyDelta, accentClass }) => {
     <div className="flex items-center gap-3">
       <motion.div
         className="relative"
-        animate={settledPulse ? { scale: [1, 1.03, 1], filter: ['drop-shadow(0 0 0px transparent)', `drop-shadow(0 0 8px ${color})`, 'drop-shadow(0 0 0px transparent)'] } : { scale: 1 }}
-        transition={{ duration: 0.55, ease: 'easeOut' }}
+        animate={settledPulse ? { scale: [1, 1.02, 1] } : { scale: 1 }}
+        transition={{ duration: 0.42, ease: 'easeOut' }}
       >
         <svg width={size} height={size}>
           <circle cx={size / 2} cy={size / 2} r={radius} stroke="rgba(255,255,255,0.12)" strokeWidth={stroke} fill="none" />
@@ -549,13 +550,13 @@ export default function Dashboard() {
       <div className="pointer-events-none absolute inset-0 -z-10">
         <motion.div
           className="absolute -top-24 -left-16 h-72 w-72 rounded-full bg-cyan-500/10 blur-3xl"
-          animate={{ x: [0, 14, 0], y: [0, 8, 0], opacity: [0.1, 0.16, 0.1] }}
-          transition={{ duration: 24, repeat: Infinity, ease: 'easeInOut' }}
+          animate={{ x: [0, 10, 0], y: [0, 6, 0], opacity: [0.08, 0.13, 0.08] }}
+          transition={{ duration: 32, repeat: Infinity, ease: 'easeInOut' }}
         />
         <motion.div
           className="absolute bottom-0 right-0 h-72 w-72 rounded-full bg-emerald-500/10 blur-3xl"
-          animate={{ x: [0, -14, 0], y: [0, -8, 0], opacity: [0.08, 0.14, 0.08] }}
-          transition={{ duration: 28, repeat: Infinity, ease: 'easeInOut' }}
+          animate={{ x: [0, -10, 0], y: [0, -6, 0], opacity: [0.07, 0.12, 0.07] }}
+          transition={{ duration: 36, repeat: Infinity, ease: 'easeInOut' }}
         />
         <motion.div
           className="absolute inset-0"
@@ -566,13 +567,13 @@ export default function Dashboard() {
             backgroundSize: '30px 30px',
           }}
         />
-        {Array.from({ length: 6 }).map((_, i) => (
+        {Array.from({ length: 4 }).map((_, i) => (
           <motion.span
             key={`particle-${i}`}
-            className="absolute h-[2px] w-[2px] rounded-full bg-slate-300/30"
-            style={{ left: `${12 + i * 15}%`, top: `${18 + (i % 3) * 24}%` }}
-            animate={{ opacity: [0.08, 0.35, 0.08], y: [0, -3, 0] }}
-            transition={{ duration: 6 + i, repeat: Infinity, ease: 'easeInOut' }}
+            className="absolute h-[2px] w-[2px] rounded-full bg-slate-300/20"
+            style={{ left: `${16 + i * 20}%`, top: `${20 + (i % 2) * 30}%` }}
+            animate={{ opacity: [0.06, 0.22, 0.06], y: [0, -2, 0] }}
+            transition={{ duration: 9 + i * 2, repeat: Infinity, ease: 'easeInOut' }}
           />
         ))}
       </div>
