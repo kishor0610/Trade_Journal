@@ -82,6 +82,42 @@ const DashboardCard = ({ title, borderClass = 'border-white/10', className = '',
   </motion.div>
 );
 
+const BiasDuelIcon = ({ bullDominant }) => (
+  <div className="relative h-16 w-40 overflow-hidden rounded-lg border border-white/10 bg-slate-950/55">
+    <motion.div
+      className={`absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full ${bullDominant ? 'bg-emerald-300/80' : 'bg-red-300/80'}`}
+      animate={{ scale: [0.7, 1.7, 0.7], opacity: [0.2, 0.95, 0.2] }}
+      transition={{ duration: 0.7, repeat: Infinity, ease: 'easeOut' }}
+    />
+
+    <motion.div
+      className="absolute bottom-1 left-2 text-3xl leading-none"
+      animate={bullDominant
+        ? { x: [0, 12, 22, 12, 0], y: [0, -2, -1, -2, 0], scale: [1.12, 1.2, 1.24, 1.2, 1.12], rotate: [0, -3, -2, -3, 0] }
+        : { x: [0, 2, 0], y: [0, -1, 0], scale: [0.96, 0.94, 0.96], rotate: [0, -1, 0] }}
+      transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
+      style={{ filter: `drop-shadow(0 0 10px ${bullDominant ? 'rgba(16,185,129,0.55)' : 'rgba(255,255,255,0.25)'})` }}
+      aria-label="bull icon"
+      role="img"
+    >
+      🐂
+    </motion.div>
+
+    <motion.div
+      className="absolute bottom-1 right-2 text-3xl leading-none"
+      animate={bullDominant
+        ? { x: [0, 6, 12, 6, 0], y: [0, 2, 4, 2, 0], scale: [0.96, 0.9, 0.86, 0.9, 0.96], rotate: [0, 2, 4, 2, 0] }
+        : { x: [0, -12, -22, -12, 0], y: [0, -2, -1, -2, 0], scale: [1.12, 1.2, 1.24, 1.2, 1.12], rotate: [0, 3, 2, 3, 0] }}
+      transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
+      style={{ filter: `drop-shadow(0 0 10px ${bullDominant ? 'rgba(255,255,255,0.25)' : 'rgba(239,68,68,0.55)'})` }}
+      aria-label="bear icon"
+      role="img"
+    >
+      🐻
+    </motion.div>
+  </div>
+);
+
 const getGaugeColor = (value) => {
   if (value < 50) return '#ef4444';
   if (value < 65) return '#f59e0b';
@@ -543,12 +579,14 @@ export default function Dashboard() {
   const biasStats = useMemo(() => {
     const bull = Number(summary?.winning_trades || 0);
     const bear = Number(summary?.losing_trades || 0);
+    const totalPnl = Number(summary?.total_pnl || 0);
     const knownOutcomes = Math.max(0, bull + bear);
     const totalTrades = Number(summary?.total_trades || 0);
     const bullPct = knownOutcomes > 0 ? (bull / knownOutcomes) * 100 : 50;
     const bearPct = knownOutcomes > 0 ? (bear / knownOutcomes) * 100 : 50;
     const sentiment = knownOutcomes > 0 ? ((bull - bear) / knownOutcomes) * 100 : 0;
     const markerPosition = Math.max(0, Math.min(100, 50 + sentiment / 2));
+    const bullDominant = totalPnl >= 0;
     return {
       bull,
       bear,
@@ -556,6 +594,7 @@ export default function Dashboard() {
       bullPct,
       bearPct,
       markerPosition,
+      bullDominant,
     };
   }, [summary]);
 
@@ -808,8 +847,13 @@ export default function Dashboard() {
 
         <DashboardCard title="Behavioral Bias" borderClass="border-blue-500/25" className="md:col-span-2 xl:col-span-2">
           <div className="space-y-4 rounded-xl border border-blue-500/20 bg-blue-500/5 p-3">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">Bear = negative, Bull = positive</p>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <BiasDuelIcon bullDominant={biasStats.bullDominant} />
+                <p className={`text-sm font-semibold ${biasStats.bullDominant ? 'text-emerald-300' : 'text-red-300'}`}>
+                  {biasStats.bullDominant ? 'Bull Dominates' : 'Bear Dominates'}
+                </p>
+              </div>
               <p className="text-sm text-muted-foreground">Total Trades: <span className="font-mono font-bold text-blue-100">{biasStats.totalTrades}</span></p>
             </div>
 
@@ -819,7 +863,10 @@ export default function Dashboard() {
                 animate={{ boxShadow: ['0 0 0px rgba(239,68,68,0.00)', '0 0 18px rgba(239,68,68,0.30)', '0 0 0px rgba(239,68,68,0.00)'] }}
                 transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
               >
-                <p className="text-xs tracking-wide text-red-200/90">BEAR (Negative)</p>
+                <p className="text-xs tracking-wide text-red-200/90 flex items-center gap-2">
+                  <span className="text-lg leading-none" aria-label="bear icon" role="img">🐻</span>
+                  <span>Negative</span>
+                </p>
                 <p className="text-2xl font-mono font-bold text-red-300 flex items-center gap-2">
                   <TrendingDown className="w-5 h-5" />
                   {biasStats.bear}
@@ -831,7 +878,10 @@ export default function Dashboard() {
                 animate={{ boxShadow: ['0 0 0px rgba(16,185,129,0.00)', '0 0 18px rgba(16,185,129,0.30)', '0 0 0px rgba(16,185,129,0.00)'] }}
                 transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut', delay: 0.2 }}
               >
-                <p className="text-xs tracking-wide text-emerald-200/90">BULL (Positive)</p>
+                <p className="text-xs tracking-wide text-emerald-200/90 flex items-center gap-2">
+                  <span className="text-lg leading-none" aria-label="bull icon" role="img">🐂</span>
+                  <span>Positive</span>
+                </p>
                 <p className="text-2xl font-mono font-bold text-emerald-300 flex items-center gap-2">
                   <TrendingUp className="w-5 h-5" />
                   {biasStats.bull}
