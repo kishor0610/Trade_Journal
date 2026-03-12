@@ -34,6 +34,91 @@ const CHART_SYMBOLS = [
 
 const CHART_INTERVALS = ['1m', '5m', '15m', '1h', '4h', '1d'];
 
+const TV_SYMBOL_MAP = {
+  BTCUSDT: 'BINANCE:BTCUSDT',
+  ETHUSDT: 'BINANCE:ETHUSDT',
+  BNBUSDT: 'BINANCE:BNBUSDT',
+  SOLUSDT: 'BINANCE:SOLUSDT',
+  XAUUSD: 'OANDA:XAUUSD',
+  XAGUSD: 'OANDA:XAGUSD',
+  EURUSD: 'OANDA:EURUSD',
+  GBPUSD: 'OANDA:GBPUSD',
+  USDJPY: 'OANDA:USDJPY',
+  AUDUSD: 'OANDA:AUDUSD',
+  NAS100: 'OANDA:NAS100USD',
+  US30: 'OANDA:US30USD',
+  SPX500: 'OANDA:SPX500USD',
+};
+
+const TV_INTERVAL_MAP = {
+  '1m': '1',
+  '5m': '5',
+  '15m': '15',
+  '1h': '60',
+  '4h': '240',
+  '1d': 'D',
+};
+
+let tvScriptPromise;
+
+const loadTradingViewScript = () => {
+  if (typeof window === 'undefined') return Promise.resolve();
+  if (window.TradingView) return Promise.resolve();
+  if (tvScriptPromise) return tvScriptPromise;
+
+  tvScriptPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://s3.tradingview.com/tv.js';
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Failed to load TradingView script'));
+    document.head.appendChild(script);
+  });
+
+  return tvScriptPromise;
+};
+
+const TradingViewEmbed = ({ symbol, interval }) => {
+  const containerId = useMemo(() => `tv-widget-${Math.random().toString(36).slice(2, 9)}`, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    loadTradingViewScript()
+      .then(() => {
+        if (!isMounted || !window.TradingView) return;
+        // eslint-disable-next-line no-new
+        new window.TradingView.widget({
+          autosize: true,
+          symbol,
+          interval,
+          timezone: 'Etc/UTC',
+          theme: 'dark',
+          style: '1',
+          locale: 'en',
+          hide_top_toolbar: false,
+          hide_legend: false,
+          allow_symbol_change: true,
+          save_image: true,
+          withdateranges: true,
+          studies: [],
+          container_id: containerId,
+        });
+      })
+      .catch(() => {
+        // Keep page usable even if widget script fails.
+      });
+
+    return () => {
+      isMounted = false;
+      const el = document.getElementById(containerId);
+      if (el) el.innerHTML = '';
+    };
+  }, [symbol, interval, containerId]);
+
+  return <div id={containerId} className="w-full h-full" />;
+};
+
 const INTERVAL_SECONDS = {
   '1m': 60,
   '5m': 300,
@@ -312,6 +397,9 @@ export default function Journal() {
   const [fvgLowInput, setFvgLowInput] = useState('');
   const [fvgHighInput, setFvgHighInput] = useState('');
   const [annotations, setAnnotations] = useState({ liquidity: [], fvgs: [] });
+
+  const tvSymbol = TV_SYMBOL_MAP[chartSymbol] || `BINANCE:${chartSymbol}`;
+  const tvInterval = TV_INTERVAL_MAP[chartInterval] || '5';
 
   const chartContainerRef = useRef(null);
   const chartPanelRef = useRef(null);
@@ -1880,239 +1968,44 @@ export default function Journal() {
         </div>
       </div>
 
-      {/* Trade Summary */}
-      <div className="glass-card p-4 space-y-3" data-testid="trade-summary-panel">
+      {/* Live Chart */}
+      <div className="glass-card p-4 space-y-4" data-testid="journal-chart-panel">
         <div>
-          <h3 className="font-heading text-lg">Trade Summary</h3>
-          <p className="text-xs text-muted-foreground">Focused metrics for the selected replay trade</p>
+          <h3 className="font-heading text-lg">TradingView Live Chart</h3>
+          <p className="text-xs text-muted-foreground">Live market view only. Replay features removed.</p>
         </div>
-        {!tradeSummary ? (
-          <p className="text-sm text-muted-foreground">Select a trade to view summary details.</p>
-        ) : (
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-            <div className="glass-card p-3">
-              <p className="text-xs text-muted-foreground">Symbol</p>
-              <p className="font-medium">{tradeSummary.symbol}</p>
-            </div>
-            <div className="glass-card p-3">
-              <p className="text-xs text-muted-foreground">Direction</p>
-              <p className={`font-medium ${tradeSummary.direction === 'SELL' ? 'text-red-400' : 'text-emerald-400'}`}>{tradeSummary.direction}</p>
-            </div>
-            <div className="glass-card p-3">
-              <p className="text-xs text-muted-foreground">Entry</p>
-              <p className="font-mono">{tradeSummary.entry ? formatCurrency(tradeSummary.entry) : '-'}</p>
-            </div>
-            <div className="glass-card p-3">
-              <p className="text-xs text-muted-foreground">Exit</p>
-              <p className="font-mono">{tradeSummary.exit ? formatCurrency(tradeSummary.exit) : '-'}</p>
-            </div>
-            <div className="glass-card p-3">
-              <p className="text-xs text-muted-foreground">PnL</p>
-              <p className={`font-mono ${tradeSummary.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                {tradeSummary.pnl !== null ? formatCurrency(tradeSummary.pnl) : '-'}
-              </p>
-            </div>
-            <div className="glass-card p-3">
-              <p className="text-xs text-muted-foreground">RR</p>
-              <p className="font-medium">{tradeSummary.rr}</p>
-            </div>
-          </div>
-        )}
-      </div>
 
-      {/* Unified Live + Replay Chart */}
-      <div ref={chartPanelRef} className="glass-card p-4 space-y-4" data-testid="journal-chart-panel">
-        <div className="space-y-3">
-          <div>
-            <h3 className="font-heading text-lg">Trade Live + Replay Chart</h3>
-            <p className="text-xs text-muted-foreground">Single chart engine: live stream mode and trade replay mode with the same visual style</p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <div className="w-full">
-              <Select value={chartMode} onValueChange={setChartMode}>
-                <SelectTrigger className="bg-secondary border-white/10 h-9">
-                  <SelectValue placeholder="Mode" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="live">Live</SelectItem>
-                  <SelectItem value="replay">Replay</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="w-full">
-              <Select
-                value={chartSymbol}
-                onValueChange={(value) => {
-                  setChartSymbol(value);
-                  setFocusedInstrumentKey('');
-                  setSelectedReplayTradeId('latest');
-                }}
-              >
-                <SelectTrigger className="bg-secondary border-white/10 h-9">
-                  <SelectValue placeholder="Symbol" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CHART_SYMBOLS.map((s) => (
-                    <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="w-full">
-              <Select value={chartInterval} onValueChange={setChartInterval}>
-                <SelectTrigger className="bg-secondary border-white/10 h-9">
-                  <SelectValue placeholder="TF" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CHART_INTERVALS.map((itv) => (
-                    <SelectItem key={itv} value={itv}>{itv}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="w-full md:col-span-2 glass-card p-2 h-9 flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Focused Trade</span>
-              <span className="text-xs font-medium truncate ml-3">
-                {replayTrade
-                  ? `${replayTrade.instrument} ${replayTrade.position?.toUpperCase()} ${replayTrade.entry_date?.slice(0, 10) || ''}`
-                  : 'Click a trade below to load chart focus'}
-              </span>
-            </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="w-full">
+            <Select value={chartSymbol} onValueChange={setChartSymbol}>
+              <SelectTrigger className="bg-secondary border-white/10 h-9">
+                <SelectValue placeholder="Symbol" />
+              </SelectTrigger>
+              <SelectContent>
+                {CHART_SYMBOLS.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={`text-xs px-2 py-1 rounded border ${
-              candleSource === 'stream'
-                ? 'text-cyan-300 border-cyan-500/40 bg-cyan-500/10'
-                : candleSource === 'live'
-                ? 'text-emerald-300 border-emerald-500/40 bg-emerald-500/10'
-                : candleSource === 'trade'
-                  ? 'text-amber-300 border-amber-500/40 bg-amber-500/10'
-                  : 'text-muted-foreground border-white/10'
-            }`}>
-              {candleSource === 'stream'
-                  ? 'Real-Time Stream'
-                  : candleSource === 'live'
-                    ? 'Live Market'
-                    : candleSource === 'trade'
-                      ? 'Trade Data'
-                      : 'No Data'}
-            </span>
-            <Button variant="outline" size="sm" onClick={fetchCandles} disabled={candlesLoading}>
-              {candlesLoading ? 'Loading...' : 'Refresh Candles'}
-            </Button>
-            {chartMode === 'live' ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setSelectedReplayTradeId('latest');
-                  setReplayIndex(null);
-                  setIsReplayPlaying(false);
-                }}
-              >
-                Go Latest
-              </Button>
-            ) : (
-              <>
-                <Button variant="outline" size="sm" onClick={replayFromStart}>
-                  Start
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => stepReplay(-1, 10)}>
-                  Back 10
-                </Button>
-                <Button variant="outline" size="sm" onClick={replayLatestTrade} disabled={candles.length === 0}>
-                  {isReplayPlaying ? 'Replaying...' : 'Replay'}
-                </Button>
-                <Button variant="outline" size="sm" onClick={toggleReplay} disabled={candles.length === 0}>
-                  {isReplayPlaying ? 'Pause' : 'Play'}
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => stepReplay(1, 10)}>
-                  Forward 10
-                </Button>
-              </>
-            )}
+          <div className="w-full">
+            <Select value={chartInterval} onValueChange={setChartInterval}>
+              <SelectTrigger className="bg-secondary border-white/10 h-9">
+                <SelectValue placeholder="TF" />
+              </SelectTrigger>
+              <SelectContent>
+                {CHART_INTERVALS.map((itv) => (
+                  <SelectItem key={itv} value={itv}>{itv}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
-        <div ref={chartContainerRef} className="w-full rounded-lg overflow-hidden border border-white/10" />
-        {chartError && (
-          <p className="text-sm text-red-400">{chartError}</p>
-        )}
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="glass-card p-3 space-y-2">
-            <Label className="text-xs">Liquidity Price</Label>
-            <div className="flex gap-2">
-              <Input
-                value={liquidityInput}
-                onChange={(e) => setLiquidityInput(e.target.value)}
-                placeholder="e.g. 5088.5"
-                className="bg-secondary border-white/10 h-9"
-              />
-              <Button size="sm" onClick={addLiquidityLevel}>Add</Button>
-            </div>
-          </div>
-
-          <div className="glass-card p-3 space-y-2">
-            <Label className="text-xs">FVG Zone (Low / High)</Label>
-            <div className="flex gap-2">
-              <Input
-                value={fvgLowInput}
-                onChange={(e) => setFvgLowInput(e.target.value)}
-                placeholder="Low"
-                className="bg-secondary border-white/10 h-9"
-              />
-              <Input
-                value={fvgHighInput}
-                onChange={(e) => setFvgHighInput(e.target.value)}
-                placeholder="High"
-                className="bg-secondary border-white/10 h-9"
-              />
-              <Button size="sm" onClick={addFvgZone}>Add</Button>
-            </div>
-          </div>
-
-          <div className="glass-card p-3 flex items-end">
-            <Button variant="outline" size="sm" className="w-full" onClick={clearAnnotations}>
-              Clear Liquidity/FVG
-            </Button>
-          </div>
+        <div className="w-full h-[560px] rounded-lg overflow-hidden border border-white/10" data-testid="tradingview-widget">
+          <TradingViewEmbed symbol={tvSymbol} interval={tvInterval} />
         </div>
-      </div>
-
-      {/* Trade Analysis */}
-      <div className="glass-card p-4 space-y-3" data-testid="trade-analysis-panel">
-        <div>
-          <h3 className="font-heading text-lg">Trade Analysis</h3>
-          <p className="text-xs text-muted-foreground">Review structure, liquidity, execution model, and notes</p>
-        </div>
-        {!tradeSummary ? (
-          <p className="text-sm text-muted-foreground">No trade selected for analysis.</p>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="glass-card p-3">
-              <p className="text-xs text-muted-foreground">Market Structure</p>
-              <p className="text-sm">{tradeSummary.trend}</p>
-            </div>
-            <div className="glass-card p-3">
-              <p className="text-xs text-muted-foreground">Liquidity</p>
-              <p className="text-sm">{tradeSummary.liquidity}</p>
-            </div>
-            <div className="glass-card p-3">
-              <p className="text-xs text-muted-foreground">Entry Model</p>
-              <p className="text-sm">{tradeSummary.model}</p>
-            </div>
-            <div className="glass-card p-3">
-              <p className="text-xs text-muted-foreground">Trade Duration</p>
-              <p className="text-sm">{tradeSummary.duration}</p>
-            </div>
-            <div className="glass-card p-3 md:col-span-2">
-              <p className="text-xs text-muted-foreground">Notes</p>
-              <p className="text-sm whitespace-pre-wrap">{tradeSummary.notes}</p>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Trades List */}
@@ -2148,8 +2041,7 @@ export default function Journal() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.3, delay: index * 0.03 }}
-                className={`glass-card-hover p-4 cursor-pointer ${String(selectedReplayTradeId) === String(trade.id) ? 'ring-1 ring-accent/60' : ''}`}
-                onClick={() => loadTradeToChart(trade)}
+                className="glass-card-hover p-4"
                 data-testid={`trade-item-${trade.id}`}
               >
                 <div className="flex flex-col md:flex-row md:items-center gap-4">
@@ -2214,18 +2106,6 @@ export default function Journal() {
 
                   {/* Actions */}
                   <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        loadTradeToChart(trade, true);
-                      }}
-                      className="h-8"
-                      data-testid={`load-chart-${trade.id}`}
-                    >
-                      Load to Chart
-                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"
