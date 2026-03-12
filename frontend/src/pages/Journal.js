@@ -43,93 +43,6 @@ const INTERVAL_SECONDS = {
   '1d': 86400,
 };
 
-const TV_SYMBOL_MAP = {
-  BTCUSDT: 'BINANCE:BTCUSDT',
-  ETHUSDT: 'BINANCE:ETHUSDT',
-  BNBUSDT: 'BINANCE:BNBUSDT',
-  SOLUSDT: 'BINANCE:SOLUSDT',
-  XAUUSD: 'OANDA:XAUUSD',
-  XAGUSD: 'OANDA:XAGUSD',
-  EURUSD: 'OANDA:EURUSD',
-  GBPUSD: 'OANDA:GBPUSD',
-  USDJPY: 'OANDA:USDJPY',
-  AUDUSD: 'OANDA:AUDUSD',
-  NAS100: 'OANDA:NAS100USD',
-  US30: 'OANDA:US30USD',
-  SPX500: 'OANDA:SPX500USD',
-};
-
-const TV_INTERVAL_MAP = {
-  '1m': '1',
-  '5m': '5',
-  '15m': '15',
-  '1h': '60',
-  '4h': '240',
-  '1d': 'D',
-};
-
-let tvScriptPromise;
-
-const loadTradingViewScript = () => {
-  if (typeof window === 'undefined') return Promise.resolve();
-  if (window.TradingView) return Promise.resolve();
-  if (tvScriptPromise) return tvScriptPromise;
-
-  tvScriptPromise = new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = 'https://s3.tradingview.com/tv.js';
-    script.async = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error('Failed to load TradingView script'));
-    document.head.appendChild(script);
-  });
-
-  return tvScriptPromise;
-};
-
-const TradingViewEmbed = ({ symbol, interval }) => {
-  const containerId = useMemo(() => `tv-widget-${Math.random().toString(36).slice(2, 9)}`, []);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    loadTradingViewScript()
-      .then(() => {
-        if (!isMounted || !window.TradingView) return;
-        // eslint-disable-next-line no-new
-        new window.TradingView.widget({
-          autosize: true,
-          symbol,
-          interval,
-          timezone: 'Etc/UTC',
-          theme: 'dark',
-          style: '1',
-          locale: 'en',
-          hide_top_toolbar: false,
-          hide_legend: false,
-          allow_symbol_change: true,
-          save_image: true,
-          withdateranges: true,
-          studies: [],
-          container_id: containerId,
-        });
-      })
-      .catch(() => {
-        // Keep page functional even if third-party script fails.
-      });
-
-    return () => {
-      isMounted = false;
-      const el = document.getElementById(containerId);
-      if (el) {
-        el.innerHTML = '';
-      }
-    };
-  }, [symbol, interval, containerId]);
-
-  return <div id={containerId} className="w-full h-full" />;
-};
-
 const TradeForm = ({ trade, onSubmit, onClose }) => {
   const [formData, setFormData] = useState({
     instrument: trade?.instrument || 'XAU/USD',
@@ -384,7 +297,7 @@ export default function Journal() {
   const [deleting, setDeleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [chartSymbol, setChartSymbol] = useState('BTCUSDT');
-  const [chartEngine, setChartEngine] = useState('tradingview');
+  const [chartMode, setChartMode] = useState('live');
   const [focusedInstrumentKey, setFocusedInstrumentKey] = useState('');
   const [chartInterval, setChartInterval] = useState('5m');
   const [candles, setCandles] = useState([]);
@@ -417,9 +330,6 @@ export default function Journal() {
   const normalizeSymbol = (value = '') => value.toString().toUpperCase().replace(/[^A-Z0-9]/g, '');
   const isValidNumber = (value) => Number.isFinite(Number(value));
   const annotationStorageKey = `journal_chart_annotations_${chartSymbol}`;
-  const tvSymbol = TV_SYMBOL_MAP[chartSymbol] || `BINANCE:${chartSymbol}`;
-  const tvInterval = TV_INTERVAL_MAP[chartInterval] || '5';
-
   const instrumentToChartSymbol = useCallback((instrument = '') => {
     const key = normalizeSymbol(instrument);
     if (!key) return null;
@@ -439,13 +349,13 @@ export default function Journal() {
     return null;
   }, []);
 
-  const toUnixSeconds = (value) => {
+  const toUnixSeconds = useCallback((value) => {
     const numeric = Number(value);
     if (!Number.isFinite(numeric) || numeric <= 0) return null;
     return numeric > 1e12 ? Math.floor(numeric / 1000) : Math.floor(numeric);
-  };
+  }, []);
 
-  const sanitizeCandles = (source = []) => {
+  const sanitizeCandles = useCallback((source = []) => {
     const normalized = source
       .map((item) => {
         const time = toUnixSeconds(item.time);
@@ -486,9 +396,9 @@ export default function Journal() {
     });
 
     return deduped;
-  };
+  }, [toUnixSeconds]);
 
-  const buildFallbackCandlesFromTrades = () => {
+  const buildFallbackCandlesFromTrades = useCallback(() => {
     const normalizedSymbol = normalizeSymbol(chartSymbol);
     const focusedKey = normalizeSymbol(focusedInstrumentKey);
     const matching = trades
@@ -555,7 +465,7 @@ export default function Journal() {
     });
 
     return smoothed.slice(-500);
-  };
+  }, [chartSymbol, focusedInstrumentKey, trades, instrumentToChartSymbol, chartInterval]);
 
   // Filter trades by search
   const filteredTrades = trades.filter((trade) => {
@@ -650,8 +560,8 @@ export default function Journal() {
         limit: 500,
       };
 
-      // Keep latest mode truly live, but pull historical window when replay focuses an older trade.
-      if (selectedReplayTradeId !== 'latest') {
+      // In replay mode, fetch a wider historical window around the selected trade.
+      if (chartMode === 'replay' && selectedReplayTradeId !== 'latest') {
         const selectedTrade = chartTrades.find((t) => String(t.id) === String(selectedReplayTradeId));
         const entryMs = Date.parse(selectedTrade?.entry_date || '');
         if (Number.isFinite(entryMs)) {
@@ -700,13 +610,12 @@ export default function Journal() {
   };
 
   useEffect(() => {
-    if (chartEngine !== 'lightweight') return;
     fetchCandles();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chartEngine, chartSymbol, chartInterval, focusedInstrumentKey, selectedReplayTradeId, chartTrades]);
+  }, [chartMode, chartSymbol, chartInterval, focusedInstrumentKey, selectedReplayTradeId, chartTrades]);
 
   const upsertLiveCandle = useCallback((incoming, sourceLabel = 'live') => {
-    if (selectedReplayTradeId !== 'latest') return;
+    if (chartMode !== 'live') return;
 
     const intervalSeconds = INTERVAL_SECONDS[chartInterval] || 300;
     const timeSecRaw = toUnixSeconds(incoming?.time);
@@ -761,10 +670,9 @@ export default function Journal() {
     });
 
     setCandleSource(sourceLabel);
-  }, [chartInterval, selectedReplayTradeId]);
+  }, [chartInterval, chartMode, toUnixSeconds]);
 
   useEffect(() => {
-    if (chartEngine !== 'lightweight') return;
     const stopPolling = () => {
       if (livePollTimerRef.current) {
         clearInterval(livePollTimerRef.current);
@@ -812,8 +720,7 @@ export default function Journal() {
       }, 5000);
     };
 
-    const isLatestView = selectedReplayTradeId === 'latest';
-    const canUseLiveFeed = isLatestView && !isReplayPlaying && !candlesLoading && candleSource !== 'trade' && candleSource !== 'none';
+    const canUseLiveFeed = chartMode === 'live' && !isReplayPlaying && !candlesLoading && candleSource !== 'none';
 
     stopPolling();
     stopSocket();
@@ -871,10 +778,9 @@ export default function Journal() {
       stopSocket();
     };
   }, [
-    chartEngine,
+    chartMode,
     chartSymbol,
     chartInterval,
-    selectedReplayTradeId,
     isReplayPlaying,
     candlesLoading,
     candleSource,
@@ -907,26 +813,19 @@ export default function Journal() {
   }, [annotationStorageKey, annotations]);
 
   useEffect(() => {
-    if (chartEngine !== 'lightweight') {
-      if (chartRef.current) {
-        try {
-          chartRef.current.remove();
-        } catch {
-          // Ignore stale chart cleanup errors.
-        }
-      }
-      chartRef.current = null;
-      candleSeriesRef.current = null;
-      replayCursorSeriesRef.current = null;
-      positionSeriesRef.current = null;
-      positionBoxTopRef.current = null;
-      positionBoxBottomRef.current = null;
-      positionBoxLeftRef.current = null;
-      positionBoxRightRef.current = null;
-      priceLinesRef.current = [];
-      return () => {};
+    if (chartMode === 'live') {
+      setSelectedReplayTradeId('latest');
+      setIsReplayPlaying(false);
+      setReplayIndex(null);
+      return;
     }
 
+    if (chartMode === 'replay' && selectedReplayTradeId === 'latest' && chartTrades.length > 0) {
+      setSelectedReplayTradeId(String(chartTrades[0].id));
+    }
+  }, [chartMode, selectedReplayTradeId, chartTrades]);
+
+  useEffect(() => {
     if (!chartContainerRef.current) return () => {};
     let chart;
     try {
@@ -1071,7 +970,7 @@ export default function Journal() {
       positionBoxRightRef.current = null;
       priceLinesRef.current = [];
     };
-  }, [chartEngine]);
+  }, []);
 
   const replayTrade = useMemo(() => {
     if (chartTrades.length === 0) return null;
@@ -1081,6 +980,7 @@ export default function Journal() {
 
   const focusedCandles = useMemo(() => {
     if (!candles.length) return [];
+    if (chartMode === 'live') return candles;
     if (!replayTrade?.entry_date) return candles;
 
     const entryTimeSec = Math.floor(new Date(replayTrade.entry_date).getTime() / 1000);
@@ -1104,13 +1004,14 @@ export default function Journal() {
     const startIndex = Math.max(0, entryIndex - 150);
     const endIndex = Math.min(candles.length, entryIndex + 100);
     return candles.slice(startIndex, endIndex);
-  }, [candles, replayTrade, sanitizeCandles, buildFallbackCandlesFromTrades]);
+  }, [candles, replayTrade, sanitizeCandles, buildFallbackCandlesFromTrades, chartMode]);
 
   const displayedCandles = useMemo(() => {
     if (!focusedCandles.length) return [];
+    if (chartMode === 'live') return focusedCandles;
     if (replayIndex === null) return focusedCandles;
     return focusedCandles.slice(0, Math.max(1, Math.min(replayIndex, focusedCandles.length)));
-  }, [focusedCandles, replayIndex]);
+  }, [focusedCandles, replayIndex, chartMode]);
 
   useEffect(() => {
     if (!candleSeriesRef.current || !chartRef.current) return;
@@ -1128,6 +1029,15 @@ export default function Journal() {
   }, [displayedCandles]);
 
   useEffect(() => {
+    if (chartMode === 'live') {
+      setReplayIndex(null);
+      setIsReplayPlaying(false);
+      if (candles.length > 0) {
+        setReplayCursor(candles[candles.length - 1].time);
+      }
+      return;
+    }
+
     if (focusedCandles.length === 0) {
       setReplayIndex(null);
       setReplayCursor(null);
@@ -1138,10 +1048,10 @@ export default function Journal() {
     setReplayIndex(focusedCandles.length);
     setReplayCursor(focusedCandles[focusedCandles.length - 1].time);
     setIsReplayPlaying(false);
-  }, [focusedCandles]);
+  }, [focusedCandles, chartMode, candles]);
 
   useEffect(() => {
-    if (!isReplayPlaying || focusedCandles.length === 0) return undefined;
+    if (chartMode !== 'replay' || !isReplayPlaying || focusedCandles.length === 0) return undefined;
     const timer = setInterval(() => {
       setReplayIndex((prev) => {
         const current = prev === null ? Math.min(50, focusedCandles.length) : prev;
@@ -1154,7 +1064,7 @@ export default function Journal() {
     }, 400);
 
     return () => clearInterval(timer);
-  }, [isReplayPlaying, focusedCandles]);
+  }, [isReplayPlaying, focusedCandles, chartMode]);
 
   useEffect(() => {
     const visibleLast = displayedCandles[displayedCandles.length - 1];
@@ -1197,7 +1107,7 @@ export default function Journal() {
       if (positionBoxLeftRef.current) positionBoxLeftRef.current.setData([]);
       if (positionBoxRightRef.current) positionBoxRightRef.current.setData([]);
 
-      const trade = replayTrade;
+      const trade = chartMode === 'replay' ? replayTrade : null;
       if (trade) {
         const entryTime = toUnix(trade.entry_date);
         const exitTime = toUnix(trade.exit_date);
@@ -1222,7 +1132,7 @@ export default function Journal() {
             position: 'belowBar',
             color: trade.position === 'sell' || trade.position === 'short' ? '#ef4444' : '#22c55e',
             shape: 'arrowUp',
-            text: trade.position === 'sell' || trade.position === 'short' ? 'SHORT' : 'LONG',
+            text: '',
           });
         }
 
@@ -1243,7 +1153,7 @@ export default function Journal() {
               position: 'aboveBar',
               color: '#F59E0B',
               shape: 'arrowDown',
-              text: 'EXIT',
+                text: '',
             });
           }
         }
@@ -1345,7 +1255,7 @@ export default function Journal() {
       });
 
       if (typeof candleSeriesRef.current.setMarkers === 'function') {
-        if (replayCursor) {
+        if (chartMode === 'replay' && replayCursor) {
           markers.push({
             time: replayCursor,
             position: 'inBar',
@@ -1361,9 +1271,10 @@ export default function Journal() {
       console.error('Chart overlays failed:', err);
       setChartError('Chart overlays failed to render.');
     }
-  }, [replayTrade, annotations, replayCursor]);
+  }, [replayTrade, annotations, replayCursor, chartMode]);
 
   useEffect(() => {
+    if (chartMode !== 'replay') return;
     if (!replayTrade) {
       setSelectedReplayTradeId(chartTrades[0]?.id ? String(chartTrades[0].id) : 'latest');
       return;
@@ -1371,7 +1282,7 @@ export default function Journal() {
     if (selectedReplayTradeId !== 'latest' && !chartTrades.some((t) => String(t.id) === String(selectedReplayTradeId))) {
       setSelectedReplayTradeId(chartTrades[0]?.id ? String(chartTrades[0].id) : 'latest');
     }
-  }, [replayTrade, selectedReplayTradeId, chartTrades]);
+  }, [replayTrade, selectedReplayTradeId, chartTrades, chartMode]);
 
   const setReplayRange = useCallback((cursorTime, focusPrice = null) => {
     if (!chartRef.current || !cursorTime) return;
@@ -1401,6 +1312,7 @@ export default function Journal() {
   }, [chartInterval]);
 
   useEffect(() => {
+    if (chartMode !== 'replay') return;
     if (!replayTrade || !focusedCandles.length) return;
     const entryTimeSec = Math.floor(new Date(replayTrade.entry_date || '').getTime() / 1000);
     const cursor = Number.isFinite(entryTimeSec)
@@ -1410,7 +1322,7 @@ export default function Journal() {
     setReplayCursor(cursor);
     setReplayRange(cursor, replayTrade.entry_price || null);
     setIsReplayPlaying(false);
-  }, [replayTrade, focusedCandles, setReplayRange]);
+  }, [replayTrade, focusedCandles, setReplayRange, chartMode]);
 
   const replayLatestTrade = () => {
     if (!focusedCandles.length) return;
@@ -2008,22 +1920,22 @@ export default function Journal() {
         )}
       </div>
 
-      {/* TradingView-style Journal Chart */}
+      {/* Unified Live + Replay Chart */}
       <div ref={chartPanelRef} className="glass-card p-4 space-y-4" data-testid="journal-chart-panel">
         <div className="space-y-3">
           <div>
-            <h3 className="font-heading text-lg">Trade Replay Chart</h3>
-            <p className="text-xs text-muted-foreground">Candles + overlays for recent entries, exits, stop-loss and take-profit</p>
+            <h3 className="font-heading text-lg">Trade Live + Replay Chart</h3>
+            <p className="text-xs text-muted-foreground">Single chart engine: live stream mode and trade replay mode with the same visual style</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div className="w-full">
-              <Select value={chartEngine} onValueChange={setChartEngine}>
+              <Select value={chartMode} onValueChange={setChartMode}>
                 <SelectTrigger className="bg-secondary border-white/10 h-9">
-                  <SelectValue placeholder="Chart Mode" />
+                  <SelectValue placeholder="Mode" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="tradingview">TradingView Live</SelectItem>
-                  <SelectItem value="lightweight">Journal Replay</SelectItem>
+                  <SelectItem value="live">Live</SelectItem>
+                  <SelectItem value="replay">Replay</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -2078,9 +1990,7 @@ export default function Journal() {
                   ? 'text-amber-300 border-amber-500/40 bg-amber-500/10'
                   : 'text-muted-foreground border-white/10'
             }`}>
-              {chartEngine === 'tradingview'
-                ? 'TradingView Widget'
-                : candleSource === 'stream'
+              {candleSource === 'stream'
                   ? 'Real-Time Stream'
                   : candleSource === 'live'
                     ? 'Live Market'
@@ -2088,11 +1998,23 @@ export default function Journal() {
                       ? 'Trade Data'
                       : 'No Data'}
             </span>
-            {chartEngine === 'lightweight' && (
+            <Button variant="outline" size="sm" onClick={fetchCandles} disabled={candlesLoading}>
+              {candlesLoading ? 'Loading...' : 'Refresh Candles'}
+            </Button>
+            {chartMode === 'live' ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSelectedReplayTradeId('latest');
+                  setReplayIndex(null);
+                  setIsReplayPlaying(false);
+                }}
+              >
+                Go Latest
+              </Button>
+            ) : (
               <>
-                <Button variant="outline" size="sm" onClick={fetchCandles} disabled={candlesLoading}>
-                  {candlesLoading ? 'Loading...' : 'Refresh Candles'}
-                </Button>
                 <Button variant="outline" size="sm" onClick={replayFromStart}>
                   Start
                 </Button>
@@ -2100,7 +2022,7 @@ export default function Journal() {
                   Back 10
                 </Button>
                 <Button variant="outline" size="sm" onClick={replayLatestTrade} disabled={candles.length === 0}>
-                  {isReplayPlaying ? 'Replay...' : 'Replay'}
+                  {isReplayPlaying ? 'Replaying...' : 'Replay'}
                 </Button>
                 <Button variant="outline" size="sm" onClick={toggleReplay} disabled={candles.length === 0}>
                   {isReplayPlaying ? 'Pause' : 'Play'}
@@ -2113,13 +2035,7 @@ export default function Journal() {
           </div>
         </div>
 
-        {chartEngine === 'tradingview' ? (
-          <div className="w-full h-[560px] rounded-lg overflow-hidden border border-white/10" data-testid="tradingview-widget">
-            <TradingViewEmbed symbol={tvSymbol} interval={tvInterval} />
-          </div>
-        ) : (
-          <div ref={chartContainerRef} className="w-full rounded-lg overflow-hidden border border-white/10" />
-        )}
+        <div ref={chartContainerRef} className="w-full rounded-lg overflow-hidden border border-white/10" />
         {chartError && (
           <p className="text-sm text-red-400">{chartError}</p>
         )}
