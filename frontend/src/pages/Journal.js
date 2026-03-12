@@ -778,12 +778,24 @@ export default function Journal() {
     if (!Number.isFinite(entryTimeSec)) return candles;
 
     const entryIndex = candles.findIndex((c) => c.time >= entryTimeSec);
-    if (entryIndex < 0) return candles;
+    if (entryIndex < 0) {
+      // Latest live candles may not include old trades at lower intervals (e.g., 5m, last 500 bars).
+      // Fall back to trade-derived candles so replay stays anchored to the selected trade timeline.
+      const tradeAligned = sanitizeCandles(buildFallbackCandlesFromTrades());
+      if (!tradeAligned.length) return candles;
+
+      const tradeEntryIndex = tradeAligned.findIndex((c) => c.time >= entryTimeSec);
+      if (tradeEntryIndex < 0) return tradeAligned;
+
+      const startIndex = Math.max(0, tradeEntryIndex - 150);
+      const endIndex = Math.min(tradeAligned.length, tradeEntryIndex + 100);
+      return tradeAligned.slice(startIndex, endIndex);
+    }
 
     const startIndex = Math.max(0, entryIndex - 150);
     const endIndex = Math.min(candles.length, entryIndex + 100);
     return candles.slice(startIndex, endIndex);
-  }, [candles, replayTrade]);
+  }, [candles, replayTrade, sanitizeCandles, buildFallbackCandlesFromTrades]);
 
   const displayedCandles = useMemo(() => {
     if (!focusedCandles.length) return [];
