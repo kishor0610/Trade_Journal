@@ -82,81 +82,6 @@ const DashboardCard = ({ title, borderClass = 'border-white/10', className = '',
   </motion.div>
 );
 
-const BiasDuelIcon = ({ duelState }) => {
-  const isProfit = duelState === 'profit';
-  const isLoss = duelState === 'loss';
-
-  const bullAnimation = isProfit
-    ? {
-      scale: [1, 1.08, 1],
-      opacity: [0.75, 1, 0.75],
-      rotate: [0, -6, 0],
-      y: [0, -2, 0],
-    }
-    : isLoss
-      ? {
-        scale: [1, 0.9, 1],
-        opacity: [0.35, 0.3, 0.35],
-        rotate: [0, 4, 0],
-        y: [0, 2, 0],
-      }
-      : { scale: 1, opacity: 0.5, rotate: 0, x: 0, y: 0 };
-
-  const bearAnimation = isLoss
-    ? {
-      scale: [1, 1.08, 1],
-      opacity: [0.75, 1, 0.75],
-      rotate: [0, 6, 0],
-      y: [0, 2, 0],
-    }
-    : isProfit
-      ? {
-        scale: [1, 0.9, 1],
-        opacity: [0.35, 0.3, 0.35],
-        rotate: [0, -4, 0],
-        y: [0, 2, 0],
-      }
-      : { scale: 1, opacity: 0.5, rotate: 0, x: 0, y: 0 };
-
-  return (
-    <div className="relative h-16 w-40 overflow-hidden rounded-lg border border-white/10 bg-slate-950/55">
-      <motion.div
-        className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full"
-        style={{ backgroundColor: isProfit ? '#22C55E' : isLoss ? '#EF4444' : '#94A3B8' }}
-        animate={{ scale: isProfit || isLoss ? [0.8, 2.2, 0.8] : 1, opacity: isProfit || isLoss ? [0.2, 0.95, 0.2] : 0.25 }}
-        transition={{ duration: 0.6, repeat: Infinity, ease: 'easeOut' }}
-      />
-
-      <motion.div
-        className="absolute bottom-1 left-2 h-9 w-12 origin-bottom-left"
-        animate={bullAnimation}
-        transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
-        style={{ filter: `drop-shadow(0 0 10px ${isProfit ? 'rgba(34,197,94,0.65)' : 'rgba(34,197,94,0.3)'})` }}
-        aria-label="bull icon"
-        role="img"
-      >
-        <div className="absolute bottom-0 h-7 w-12 rounded-[10px]" style={{ backgroundColor: '#22C55E' }} />
-        <div className="absolute -top-0.5 left-2 h-0 w-0 border-l-[5px] border-r-[5px] border-b-[9px] border-l-transparent border-r-transparent" style={{ borderBottomColor: '#22C55E' }} />
-        <div className="absolute -top-0.5 right-2 h-0 w-0 border-l-[5px] border-r-[5px] border-b-[9px] border-l-transparent border-r-transparent" style={{ borderBottomColor: '#22C55E' }} />
-      </motion.div>
-
-      <motion.div
-        className="absolute bottom-1 right-2 h-9 w-12 origin-bottom-right"
-        animate={bearAnimation}
-        transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
-        style={{ filter: `drop-shadow(0 0 10px ${isLoss ? 'rgba(239,68,68,0.65)' : 'rgba(239,68,68,0.3)'})` }}
-        aria-label="bear icon"
-        role="img"
-      >
-        <div className="absolute bottom-0 h-7 w-12 rounded-[12px]" style={{ backgroundColor: '#EF4444' }} />
-        <div className="absolute -top-1 left-2 h-6 w-8 rounded-[10px]" style={{ backgroundColor: '#EF4444' }} />
-        <div className="absolute -bottom-0.5 left-1 h-2.5 w-3 rounded-full" style={{ backgroundColor: '#EF4444' }} />
-        <div className="absolute -bottom-0.5 right-1 h-2.5 w-3 rounded-full" style={{ backgroundColor: '#EF4444' }} />
-      </motion.div>
-    </div>
-  );
-};
-
 const getGaugeColor = (value) => {
   if (value < 50) return '#ef4444';
   if (value < 65) return '#f59e0b';
@@ -625,8 +550,10 @@ export default function Dashboard() {
     const totalTrades = Number(summary?.total_trades || 0);
     const bullPct = knownOutcomes > 0 ? (bull / knownOutcomes) * 100 : 50;
     const bearPct = knownOutcomes > 0 ? (bear / knownOutcomes) * 100 : 50;
-    const sentiment = knownOutcomes > 0 ? ((bull - bear) / knownOutcomes) * 100 : 0;
-    const markerPosition = Math.max(0, Math.min(100, 50 + sentiment / 2));
+    // Move marker by net PnL intensity: losses push left, profits push right.
+    const pnlScaleBase = Math.max(500, (Math.abs(avgGain) + Math.abs(avgLoss)) * 2, Math.abs(totalPnl) * 0.35);
+    const pnlTilt = pnlScaleBase > 0 ? Math.tanh(totalPnl / pnlScaleBase) : 0;
+    const markerPosition = Math.max(0, Math.min(100, 50 + pnlTilt * 50));
     const duelState = totalPnl > 0 ? 'profit' : totalPnl < 0 ? 'loss' : 'neutral';
     const confidence = Math.max(bullPct, bearPct);
     const positiveWinRate = knownOutcomes > 0 ? (bull / knownOutcomes) * 100 : 0;
@@ -898,7 +825,6 @@ export default function Dashboard() {
           <div className="space-y-4 rounded-xl border border-blue-500/20 bg-blue-500/5 p-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-3">
-                <BiasDuelIcon duelState={biasStats.duelState} />
                 <motion.div
                   className={`rounded-lg border px-3 py-2 ${biasStats.duelState === 'profit' ? 'border-emerald-400/40 bg-emerald-500/10' : biasStats.duelState === 'loss' ? 'border-red-400/40 bg-red-500/10' : 'border-yellow-400/40 bg-yellow-500/10'}`}
                   animate={{ boxShadow: biasStats.duelState === 'profit' ? ['0 0 0 rgba(34,197,94,0)', '0 0 20px rgba(34,197,94,0.25)', '0 0 0 rgba(34,197,94,0)'] : biasStats.duelState === 'loss' ? ['0 0 0 rgba(239,68,68,0)', '0 0 20px rgba(239,68,68,0.25)', '0 0 0 rgba(239,68,68,0)'] : ['0 0 0 rgba(250,204,21,0)', '0 0 20px rgba(250,204,21,0.22)', '0 0 0 rgba(250,204,21,0)'] }}
@@ -954,17 +880,14 @@ export default function Dashboard() {
                 whileHover={{ scale: 1.02, y: -2 }}
                 transition={{ duration: 0.2, ease: 'easeOut' }}
               >
-                <motion.div
-                  className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-red-500 via-yellow-400 to-emerald-500"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${biasStats.bullPct}%` }}
-                  transition={{ duration: 0.8, ease: 'easeOut' }}
+                <div
+                  className="absolute inset-0 rounded-full bg-gradient-to-r from-red-500 via-yellow-400 to-emerald-500"
                   style={{ boxShadow: biasStats.duelState === 'profit' ? '0 0 18px rgba(34,197,94,0.45)' : biasStats.duelState === 'loss' ? '0 0 18px rgba(239,68,68,0.45)' : '0 0 12px rgba(250,204,21,0.32)' }}
                 />
                 <motion.div
                   className="absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-full border border-white/80 bg-white/90"
                   initial={{ left: '50%' }}
-                  animate={{ left: `calc(${biasStats.bullPct}% - 10px)` }}
+                  animate={{ left: `calc(${biasStats.markerPosition}% - 10px)` }}
                   transition={{ duration: 0.8, ease: 'easeOut' }}
                 />
               </motion.div>
