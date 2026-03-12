@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
-import { Sparkles, Send, TrendingUp, Activity, Target, Loader2, Gauge, AlertTriangle } from 'lucide-react';
+import { Sparkles, Send, TrendingUp, Activity, Target, Loader2, Gauge, AlertTriangle, Bot, ShieldAlert } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
 import { formatCurrency } from '../lib/utils';
@@ -94,6 +94,9 @@ export default function AIInsights() {
 
   const sections = parseInsightSections(insight?.insight);
   const freshness = insight?.summary?.freshness;
+  const insightSource = insight?.source;
+  const modelUsed = insight?.meta?.model_used;
+  const fallbackReason = insight?.meta?.reason;
   const freshnessStyles = {
     high: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
     medium: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
@@ -119,6 +122,27 @@ export default function AIInsights() {
           )}
         </div>
         <p className="text-muted-foreground">Get AI-powered analysis of your trading performance</p>
+        {insightSource && (
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs" data-testid="ai-source-meta">
+            <span className={`px-2 py-1 rounded border ${insightSource === 'llm' ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' : 'bg-amber-500/10 text-amber-300 border-amber-500/30'}`}>
+              {insightSource === 'llm' ? (
+                <span className="inline-flex items-center gap-1"><Bot className="w-3.5 h-3.5" /> GPT Response</span>
+              ) : (
+                <span className="inline-flex items-center gap-1"><ShieldAlert className="w-3.5 h-3.5" /> Rule-Based Fallback</span>
+              )}
+            </span>
+            {modelUsed && (
+              <span className="px-2 py-1 rounded border border-white/15 text-muted-foreground">
+                Model: {modelUsed}
+              </span>
+            )}
+            {fallbackReason && insightSource !== 'llm' && (
+              <span className="px-2 py-1 rounded border border-amber-500/30 text-amber-300">
+                Reason: {fallbackReason}
+              </span>
+            )}
+          </div>
+        )}
         {freshness?.message && (
           <p className="text-xs text-muted-foreground mt-1" data-testid="ai-freshness-message">
             {freshness.message}

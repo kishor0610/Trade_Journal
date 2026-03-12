@@ -42,7 +42,8 @@ JWT_EXPIRATION_HOURS = int(os.environ.get('JWT_EXPIRATION_HOURS', 24))
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '') or EMERGENT_LLM_KEY
 OPENAI_BASE_URL = os.environ.get('OPENAI_BASE_URL', '')
-AI_MODEL = os.environ.get('AI_MODEL', 'gpt-4o-mini')
+AI_MODEL = os.environ.get('AI_MODEL', 'gpt-4.1-mini')
+AI_MODEL_FALLBACKS = os.environ.get('AI_MODEL_FALLBACKS', 'gpt-4.1-mini,gpt-4o-mini')
 METAAPI_TOKEN = os.environ.get('METAAPI_TOKEN', '')
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
 SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev')
@@ -359,6 +360,20 @@ def compute_insight_freshness(total_closed_trades: int) -> Dict[str, Any]:
         "label": "Low confidence",
         "message": "Data is still thin. Aim for at least 40 closed trades for more reliable guidance.",
     }
+
+
+def get_ai_model_candidates() -> List[str]:
+    ordered = [AI_MODEL]
+    ordered.extend([m.strip() for m in AI_MODEL_FALLBACKS.split(',') if m.strip()])
+
+    deduped = []
+    seen = set()
+    for model_name in ordered:
+        if model_name in seen:
+            continue
+        seen.add(model_name)
+        deduped.append(model_name)
+    return deduped
 
 # ============ AUTH HELPERS ============
 
@@ -1800,7 +1815,12 @@ If data is thin, explicitly say what minimum data is needed next."""
                 "expectancy": metrics["expectancy"],
                 "freshness": freshness,
             },
-            "source": "rule_based"
+            "source": "rule_based",
+            "meta": {
+                "reason": "missing_openai_api_key",
+                "model_used": None,
+                "models_tried": [],
+            }
         }
 
     try:
@@ -1809,25 +1829,53 @@ If data is thin, explicitly say what minimum data is needed next."""
             client_kwargs["base_url"] = OPENAI_BASE_URL
 
         client = AsyncOpenAI(**client_kwargs)
-        completion = await client.chat.completions.create(
-            model=AI_MODEL,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a professional trading analyst helping traders improve performance with data-backed, concrete actions."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            temperature=0.55,
-        )
+        model_candidates = get_ai_model_candidates()
+        model_errors = []
 
-        response = (completion.choices[0].message.content or "").strip()
+        for model_name in model_candidates:
+            try:
+                completion = await client.chat.completions.create(
+                    model=model_name,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are a professional trading analyst helping traders improve performance with data-backed, concrete actions."
+                        },
+                        {
+                            "role": "user",
+                            "content": prompt
+                        }
+                    ],
+                    temperature=0.55,
+                )
 
+                response = (completion.choices[0].message.content or "").strip()
+                if response:
+                    return {
+                        "insight": response,
+                        "summary": {
+                            "total_trades": metrics["total_trades"],
+                            "total_pnl": metrics["total_pnl"],
+                            "win_rate": metrics["win_rate"],
+                            "profit_factor": metrics["profit_factor"],
+                            "expectancy": metrics["expectancy"],
+                            "freshness": freshness,
+                        },
+                        "source": "llm",
+                        "meta": {
+                            "reason": None,
+                            "model_used": model_name,
+                            "models_tried": model_candidates,
+                        }
+                    }
+                model_errors.append(f"{model_name}:empty_response")
+            except Exception as model_error:
+                model_errors.append(f"{model_name}:{str(model_error)}")
+
+        logging.error("AI insight model attempts failed: %s", " | ".join(model_errors))
+        fallback = build_rule_based_insight(metrics, user_question)
         return {
-            "insight": response,
+            "insight": fallback,
             "summary": {
                 "total_trades": metrics["total_trades"],
                 "total_pnl": metrics["total_pnl"],
@@ -1836,7 +1884,12 @@ If data is thin, explicitly say what minimum data is needed next."""
                 "expectancy": metrics["expectancy"],
                 "freshness": freshness,
             },
-            "source": "llm"
+            "source": "rule_based",
+            "meta": {
+                "reason": "llm_models_failed",
+                "model_used": None,
+                "models_tried": model_candidates,
+            }
         }
     except Exception as e:
         logging.error(f"AI insight error: {str(e)}")
@@ -1851,7 +1904,12 @@ If data is thin, explicitly say what minimum data is needed next."""
                 "expectancy": metrics["expectancy"],
                 "freshness": freshness,
             },
-            "source": "rule_based"
+            "source": "rule_based",
+            "meta": {
+                "reason": "llm_client_init_failed",
+                "model_used": None,
+                "models_tried": get_ai_model_candidates(),
+            }
         }
 
 # ============ IMPORT ROUTES ============
