@@ -44,84 +44,73 @@ import {
 
 const API_URL = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
-const blocks = ['?', '?', '?', '_', '?', '?', '?'];
-
-const buildMiniTrend = (values = []) => {
-  if (!values.length) return '???????';
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  if (max === min) return '???????';
-  return values
-    .slice(-7)
-    .map((value) => {
-      const idx = Math.max(0, Math.min(blocks.length - 1, Math.round(((value - min) / (max - min)) * (blocks.length - 1))));
-      return blocks[idx];
-    })
-    .join('');
-};
-
-const zoneColor = (value) => {
-  if (value < 50) return '#ef4444';
-  if (value < 65) return '#f59e0b';
-  return '#22c55e';
-};
-
 const AnimatedNumber = ({ value, decimals = 0, prefix = '', suffix = '', className = '' }) => {
-  const motionValue = useMotionValue(value || 0);
-  const spring = useSpring(motionValue, { stiffness: 120, damping: 20, mass: 0.5 });
-  const [display, setDisplay] = useState(value || 0);
+  const motionValue = useMotionValue(0);
+  const spring = useSpring(motionValue, { stiffness: 90, damping: 18, mass: 0.5 });
+  const [display, setDisplay] = useState(0);
 
   useEffect(() => {
-    motionValue.set(value || 0);
+    motionValue.set(Number(value || 0));
   }, [value, motionValue]);
 
   useEffect(() => {
-    const unsubscribe = spring.on('change', (latest) => {
-      setDisplay(latest);
-    });
-    return unsubscribe;
+    const unsub = spring.on('change', (latest) => setDisplay(latest));
+    return unsub;
   }, [spring]);
 
   return <span className={className}>{prefix}{formatNumber(display, decimals)}{suffix}</span>;
 };
 
-const HoverCard = ({ title, colorClass = 'border-white/10', children }) => (
+const cardHover = {
+  whileHover: {
+    y: -4,
+    boxShadow: '0 16px 30px rgba(0,0,0,0.35)',
+  },
+};
+
+const DashboardCard = ({ title, borderClass = 'border-white/10', children }) => (
   <motion.div
     initial={{ opacity: 0, y: 14 }}
     animate={{ opacity: 1, y: 0 }}
-    whileHover={{ y: -4, boxShadow: '0 14px 30px rgba(0,0,0,0.35)' }}
     transition={{ duration: 0.28 }}
-    className={`glass-card p-4 border ${colorClass} transition-all`}
+    {...cardHover}
+    className={`glass-card p-4 border ${borderClass} transition-all`}
   >
     <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">{title}</p>
     {children}
   </motion.div>
 );
 
-const RadialGauge = ({ value, label, trend, accent = '#3b82f6' }) => {
-  const clamped = Math.max(0, Math.min(100, value || 0));
-  const size = 126;
-  const stroke = 12;
+const getGaugeColor = (value) => {
+  if (value < 50) return '#ef4444';
+  if (value < 65) return '#f59e0b';
+  return '#22c55e';
+};
+
+const RadialGauge = ({ value, label, weeklyDelta, accentClass }) => {
+  const target = Math.max(0, Math.min(100, Number(value || 0)));
+  const color = getGaugeColor(target);
+  const size = 118;
+  const stroke = 11;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
-  const progress = useSpring(0, { stiffness: 80, damping: 18 });
-  const [dash, setDash] = useState(circumference);
-  const color = zoneColor(clamped);
+  const progress = useSpring(0, { stiffness: 70, damping: 14 });
+  const [dashOffset, setDashOffset] = useState(circumference);
 
   useEffect(() => {
-    progress.set((clamped / 100) * circumference);
-  }, [clamped, circumference, progress]);
+    progress.set((target / 100) * circumference);
+  }, [target, circumference, progress]);
 
   useEffect(() => {
     const unsub = progress.on('change', (latest) => {
-      setDash(circumference - latest);
+      setDashOffset(circumference - latest);
     });
     return unsub;
   }, [progress, circumference]);
 
   return (
     <div className="flex items-center gap-3">
-      <div className={`relative ${clamped > 70 ? 'animate-pulse' : ''}`}>
+      <div className={`relative ${target > 70 ? 'animate-pulse' : ''}`}>
         <svg width={size} height={size}>
           <circle cx={size / 2} cy={size / 2} r={radius} stroke="rgba(255,255,255,0.12)" strokeWidth={stroke} fill="none" />
           <circle
@@ -133,20 +122,19 @@ const RadialGauge = ({ value, label, trend, accent = '#3b82f6' }) => {
             fill="none"
             strokeLinecap="round"
             strokeDasharray={circumference}
-            strokeDashoffset={dash}
+            strokeDashoffset={dashOffset}
             transform={`rotate(-90 ${size / 2} ${size / 2})`}
-            style={{ filter: clamped > 70 ? `drop-shadow(0 0 6px ${accent})` : 'none' }}
           />
         </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <AnimatedNumber value={clamped} decimals={2} suffix="%" className="text-lg font-mono font-bold" />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <AnimatedNumber value={target} decimals={2} suffix="%" className="text-lg font-mono font-bold" />
         </div>
       </div>
       <div>
-        <p className="text-sm font-semibold" style={{ color: accent }}>{label}</p>
+        <p className={`font-semibold ${accentClass}`}>{label}</p>
         <p className="text-xs text-muted-foreground flex items-center gap-1">
-          {trend >= 0 ? <ArrowUpRight className="w-3 h-3 text-emerald-400" /> : <ArrowDownRight className="w-3 h-3 text-red-400" />}
-          {trend >= 0 ? '+' : ''}{formatNumber(trend, 2)}% this week
+          {weeklyDelta >= 0 ? <ArrowUpRight className="w-3 h-3 text-emerald-400" /> : <ArrowDownRight className="w-3 h-3 text-red-400" />}
+          {weeklyDelta >= 0 ? '+' : ''}{formatNumber(weeklyDelta, 2)}% this week
         </p>
       </div>
     </div>
@@ -162,13 +150,15 @@ const TradingCalendar = ({ year, month, dailyData, onMonthChange }) => {
   for (let i = 0; i < firstDay; i += 1) {
     calendarDays.push(null);
   }
+
   for (let day = 1; day <= daysInMonth; day += 1) {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const dayData = dailyData.find((d) => d.date === dateStr);
     calendarDays.push({
       day,
-      pnl: dayData?.pnl || 0,
-      trades: dayData?.trades || 0,
+      pnl: Number(dayData?.pnl || 0),
+      trades: Number(dayData?.trades || 0),
+      date: dateStr,
     });
   }
 
@@ -183,61 +173,111 @@ const TradingCalendar = ({ year, month, dailyData, onMonthChange }) => {
     }
   });
 
+  const weeklySummary = weeks.map((week, index) => {
+    const points = week.filter(Boolean);
+    const pnl = points.reduce((acc, p) => acc + p.pnl, 0);
+    const tradingDays = points.filter((p) => p.trades > 0).length;
+    const first = points[0]?.date;
+    const last = points[points.length - 1]?.date;
+    return {
+      title: `Week ${index + 1}`,
+      pnl,
+      tradingDays,
+      range: first && last ? `${new Date(first).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${new Date(last).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : '-',
+    };
+  });
+
+  const monthPnl = dailyData.reduce((acc, d) => acc + Number(d.pnl || 0), 0);
+  const monthDays = dailyData.filter((d) => Number(d.trades || 0) > 0).length;
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay: 0.2 }}
-      className="glass-card p-4 md:p-6 border border-white/10"
+      transition={{ duration: 0.35, delay: 0.2 }}
+      className="glass-card p-4 md:p-6 border border-blue-500/20"
     >
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon" onClick={() => onMonthChange(-1)}>
             <ChevronLeft className="w-4 h-4" />
           </Button>
-          <h3 className="text-lg font-heading font-bold">{getMonthName(month)} {year}</h3>
+          <h3 className="text-lg font-heading font-bold min-w-[130px] text-center">{getMonthName(month)} {year}</h3>
           <Button variant="ghost" size="icon" onClick={() => onMonthChange(1)}>
             <ChevronRight className="w-4 h-4" />
           </Button>
+          <Button variant="outline" size="sm" className="gap-1">
+            <Calendar className="w-3 h-3" />
+            Today
+          </Button>
         </div>
-        <p className="text-xs text-muted-foreground">Calendar P&L view restored</p>
+
+        <div className="flex items-center gap-3 text-sm rounded-xl bg-blue-500/10 border border-blue-500/20 px-3 py-2">
+          <span className={monthPnl >= 0 ? 'text-emerald-300 font-mono' : 'text-red-300 font-mono'}>PnL: {formatCurrency(monthPnl)}</span>
+          <span className="text-muted-foreground">|</span>
+          <span className="text-muted-foreground">Days: <span className="text-white font-mono">{monthDays}</span></span>
+        </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[560px]">
-          <thead>
-            <tr>
-              {daysOfWeek.map((day) => (
-                <th key={day} className="text-xs text-muted-foreground py-2 text-center">{day}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {weeks.map((week, i) => (
-              <tr key={`week-${i}`}>
-                {week.map((cell, idx) => (
-                  <td key={`day-${idx}`} className="p-1">
-                    {cell ? (
-                      <div className={`min-h-[74px] rounded-lg p-2 border ${
-                        cell.pnl > 0 ? 'border-emerald-500/30 bg-emerald-900/20' : cell.pnl < 0 ? 'border-red-500/30 bg-red-900/20' : 'border-white/10 bg-secondary/20'
-                      }`}>
-                        <p className="text-xs text-muted-foreground">{cell.day}</p>
-                        {cell.trades > 0 && (
-                          <>
-                            <p className="text-[11px] text-muted-foreground">{cell.trades} trades</p>
-                            <p className={`text-xs font-mono font-bold ${cell.pnl >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
-                              {formatCurrency(cell.pnl)}
-                            </p>
-                          </>
-                        )}
-                      </div>
-                    ) : <div className="min-h-[74px] rounded-lg bg-black/20" />}
-                  </td>
+      <div className="flex flex-col xl:flex-row gap-5">
+        <div className="flex-1 overflow-x-auto">
+          <table className="w-full min-w-[560px]">
+            <thead>
+              <tr>
+                {daysOfWeek.map((day) => (
+                  <th key={day} className="text-xs text-blue-200/80 font-normal py-2 text-center">{day}</th>
                 ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {weeks.map((week, i) => (
+                <tr key={`wk-${i}`}>
+                  {week.map((cell, idx) => (
+                    <td key={`d-${idx}`} className="p-1">
+                      {cell ? (
+                        <div className={`min-h-[92px] rounded-lg p-2 border transition-colors ${
+                          cell.pnl > 0
+                            ? 'border-emerald-500/40 bg-emerald-900/30'
+                            : cell.pnl < 0
+                              ? 'border-red-500/40 bg-red-900/30'
+                              : 'border-white/10 bg-slate-900/50'
+                        }`}>
+                          <p className="text-sm text-slate-300">{cell.day}</p>
+                          {cell.trades > 0 && (
+                            <div className="mt-2">
+                              <p className="text-xs text-slate-200">{cell.trades} trades</p>
+                              <p className={`text-sm font-mono font-bold ${cell.pnl >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                                {formatCurrency(cell.pnl)}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="min-h-[92px] rounded-lg bg-slate-900/35 border border-white/5" />
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="xl:w-72 space-y-2">
+          <p className="text-sm text-blue-200/90">Weekly Summary</p>
+          {weeklySummary.map((week) => (
+            <div key={week.title} className="rounded-lg border border-white/10 bg-slate-900/40 p-3">
+              <div className="flex items-center justify-between">
+                <p className="font-semibold">{week.title}</p>
+                <p className="text-xs text-muted-foreground">{week.range}</p>
+              </div>
+              <p className={`text-sm mt-1 font-mono ${week.pnl > 0 ? 'text-emerald-300' : week.pnl < 0 ? 'text-red-300' : 'text-muted-foreground'}`}>
+                PnL: {week.pnl === 0 ? 'No trades' : formatCurrency(week.pnl)}
+              </p>
+              <p className="text-xs text-muted-foreground">Days: {week.tradingDays}</p>
+            </div>
+          ))}
+        </div>
       </div>
     </motion.div>
   );
@@ -256,12 +296,9 @@ export default function Dashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [calendarDate, setCalendarDate] = useState({ year: new Date().getFullYear(), month: new Date().getMonth() });
 
-  const [livePnl, setLivePnl] = useState(0);
-  const [pnlDelta, setPnlDelta] = useState(0);
-
   const fetchDashboardData = async () => {
     try {
-      const [summaryRes, tradeCountRes, balanceRes, openTradesRes] = await Promise.all([
+      const [summaryRes, tradeCountRes, balanceRes, openRes] = await Promise.all([
         axios.get(`${API_URL}/analytics/summary`),
         axios.get(`${API_URL}/analytics/trade-count?period=${selectedPeriod}`),
         axios.get(`${API_URL}/analytics/balance-history?period=${selectedPeriod}`),
@@ -271,8 +308,7 @@ export default function Dashboard() {
       setSummary(summaryRes.data);
       setTradeCount(tradeCountRes.data || { total: 0, data: [] });
       setBalanceHistory(balanceRes.data || []);
-      setOpenTrades(openTradesRes.data || []);
-      setLivePnl(Number(summaryRes.data?.total_pnl || 0));
+      setOpenTrades(openRes.data || []);
       setLastSyncAt(Date.now());
       setSecondsAgo(0);
     } catch (error) {
@@ -311,149 +347,25 @@ export default function Dashboard() {
     return () => clearInterval(timer);
   }, [lastSyncAt]);
 
-  const lastTradeImpact = useMemo(() => {
-    if (!balanceHistory.length) return 0;
-    return Number(balanceHistory[balanceHistory.length - 1]?.trade_pnl || 0);
-  }, [balanceHistory]);
-
-  useEffect(() => {
-    if (!summary) return;
-
-    const timer = setInterval(() => {
-      const base = Number(summary.total_pnl || 0);
-      const jitter = Math.max(2, Math.abs(lastTradeImpact) * 0.12);
-      const delta = (Math.random() - 0.5) * jitter;
-      setLivePnl((prev) => {
-        const next = prev + delta;
-        setPnlDelta(next - prev);
-        return next;
-      });
-    }, 1700);
-
-    return () => clearInterval(timer);
-  }, [summary, lastTradeImpact]);
-
-  const equitySeries = useMemo(() => {
-    if (!balanceHistory.length) return [];
-    let peak = Number(balanceHistory[0]?.balance || 0);
-
-    return balanceHistory.map((point) => {
-      const balance = Number(point.balance || 0);
-      peak = Math.max(peak, balance);
-      const drawdown = peak > 0 ? ((peak - balance) / peak) * 100 : 0;
-      return {
-        date: (point.date || '').slice(5),
-        balance,
-        drawdown: Number(drawdown.toFixed(2)),
-        trade_pnl: Number(point.trade_pnl || 0),
-      };
-    });
-  }, [balanceHistory]);
-
-  const tradeCountSeries = useMemo(
-    () => (tradeCount.data || []).map((x) => ({ date: (x.date || '').slice(5), count: Number(x.count || 0) })),
-    [tradeCount]
-  );
-
-  const weeklyTradesDelta = useMemo(() => {
-    const list = tradeCountSeries;
-    if (list.length < 8) return 0;
-    const recent = list.slice(-7).reduce((acc, x) => acc + x.count, 0);
-    const previous = list.slice(-14, -7).reduce((acc, x) => acc + x.count, 0);
-    return recent - previous;
-  }, [tradeCountSeries]);
-
-  const pnlMonthChangePct = useMemo(() => {
-    if (equitySeries.length < 2) return 0;
-    const start = equitySeries[0].balance;
-    const end = equitySeries[equitySeries.length - 1].balance;
-    if (!start) return 0;
-    return ((end - start) / Math.abs(start)) * 100;
-  }, [equitySeries]);
-
-  const weekWinrateTrend = useMemo(() => {
-    const dayWin = Number(summary?.daily_win_rate || 0);
-    const totalWin = Number(summary?.win_rate || 0);
-    return dayWin - totalWin;
-  }, [summary]);
-
-  const dailyWinrateTrend = useMemo(() => {
-    const ratio = Number(summary?.day_win_loss_ratio || 0);
-    return (ratio - 1) * 3;
-  }, [summary]);
-
-  const riskMetrics = useMemo(() => {
-    const winning = Number(summary?.winning_trades || 0);
-    const losing = Number(summary?.losing_trades || 0);
-    const avgWin = Number(summary?.avg_win || 0);
-    const avgLoss = Number(summary?.avg_loss || 0);
-    const totalTrades = Number(summary?.total_trades || 0);
-    const totalPnl = Number(summary?.total_pnl || 0);
-
-    const grossProfit = avgWin * winning;
-    const grossLoss = avgLoss * losing;
-    const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : 0;
-    const expectancy = totalTrades > 0 ? totalPnl / totalTrades : 0;
-
-    const returns = equitySeries.map((x) => x.trade_pnl);
-    const mean = returns.length ? returns.reduce((a, b) => a + b, 0) / returns.length : 0;
-    const variance = returns.length ? returns.reduce((acc, item) => acc + (item - mean) ** 2, 0) / returns.length : 0;
-    const std = Math.sqrt(variance);
-    const sharpe = std > 0 ? (mean / std) * Math.sqrt(Math.max(returns.length, 1)) : 0;
-
-    const maxDrawdown = equitySeries.reduce((max, item) => Math.max(max, item.drawdown), 0);
-    const peakBalance = equitySeries.length ? Math.max(...equitySeries.map((x) => x.balance)) : 0;
-    const currentBalance = equitySeries.length ? equitySeries[equitySeries.length - 1].balance : 0;
-
-    return {
-      maxDrawdown,
-      avgRR: Number(summary?.avg_win_loss_ratio || 0),
-      profitFactor,
-      expectancy,
-      sharpe,
-      peakBalance,
-      currentBalance,
-    };
-  }, [summary, equitySeries]);
-
-  const radarData = useMemo(() => {
-    const winrate = Number(summary?.win_rate || 0);
-    const rr = Math.min(100, Number(summary?.avg_win_loss_ratio || 0) * 40);
-    const maxDdPenalty = Math.max(0, 100 - riskMetrics.maxDrawdown * 2);
-    const consistency = Math.min(100, Number(summary?.daily_win_rate || 0));
-    const discipline = Math.min(100, (Number(summary?.win_streak_days || 0) * 10) + 30);
-
-    return [
-      { metric: 'Risk Control', value: Number(formatNumber(maxDdPenalty, 0).replace(',', '')) },
-      { metric: 'Discipline', value: Number(formatNumber(discipline, 0).replace(',', '')) },
-      { metric: 'Winrate', value: Number(formatNumber(winrate, 0).replace(',', '')) },
-      { metric: 'RR Ratio', value: Number(formatNumber(rr, 0).replace(',', '')) },
-      { metric: 'Consistency', value: Number(formatNumber(consistency, 0).replace(',', '')) },
-    ];
-  }, [summary, riskMetrics.maxDrawdown]);
-
-  const winrateMicroTrend = useMemo(() => buildMiniTrend((dailyData.days || []).map((d) => Number(d.wins || 0))), [dailyData]);
-  const pnlMicroTrend = useMemo(() => buildMiniTrend(equitySeries.map((x) => x.balance)), [equitySeries]);
-
-  const handleMonthChange = (delta) => {
-    setCalendarDate((prev) => {
-      let month = prev.month + delta;
-      let year = prev.year;
-      if (month < 0) {
-        month = 11;
-        year -= 1;
-      } else if (month > 11) {
-        month = 0;
-        year += 1;
-      }
-      return { month, year };
-    });
-  };
-
   const handleRefresh = () => {
     setRefreshing(true);
     fetchDashboardData();
     fetchCalendarData();
+  };
+
+  const handleMonthChange = (delta) => {
+    setCalendarDate((prev) => {
+      let m = prev.month + delta;
+      let y = prev.year;
+      if (m < 0) {
+        m = 11;
+        y -= 1;
+      } else if (m > 11) {
+        m = 0;
+        y += 1;
+      }
+      return { year: y, month: m };
+    });
   };
 
   const handleExport = async (format) => {
@@ -472,6 +384,98 @@ export default function Dashboard() {
       toast.error('Failed to export trades');
     }
   };
+
+  const tradeCountSeries = useMemo(
+    () => (tradeCount.data || []).map((x) => ({ date: (x.date || '').slice(5), count: Number(x.count || 0) })),
+    [tradeCount]
+  );
+
+  const equitySeries = useMemo(() => {
+    if (!balanceHistory.length) return [];
+    let peak = Number(balanceHistory[0]?.balance || 0);
+    return balanceHistory.map((point) => {
+      const balance = Number(point.balance || 0);
+      peak = Math.max(peak, balance);
+      const drawdown = peak > 0 ? ((peak - balance) / peak) * 100 : 0;
+      return {
+        date: (point.date || '').slice(5),
+        balance,
+        drawdown,
+        trade_pnl: Number(point.trade_pnl || 0),
+      };
+    });
+  }, [balanceHistory]);
+
+  const weeklyTradesDelta = useMemo(() => {
+    if (tradeCountSeries.length < 8) return 0;
+    const recent = tradeCountSeries.slice(-7).reduce((acc, x) => acc + x.count, 0);
+    const prev = tradeCountSeries.slice(-14, -7).reduce((acc, x) => acc + x.count, 0);
+    return recent - prev;
+  }, [tradeCountSeries]);
+
+  const weekWinrateDelta = useMemo(() => {
+    const wr = Number(summary?.win_rate || 0);
+    const dwr = Number(summary?.daily_win_rate || 0);
+    return dwr - wr;
+  }, [summary]);
+
+  const dailyWinrateDelta = useMemo(() => {
+    const ratio = Number(summary?.day_win_loss_ratio || 0);
+    return (ratio - 1) * 3;
+  }, [summary]);
+
+  const pnlMonthChangePct = useMemo(() => {
+    if (equitySeries.length < 2) return 0;
+    const first = equitySeries[0].balance;
+    const last = equitySeries[equitySeries.length - 1].balance;
+    if (first === 0) return 0;
+    return ((last - first) / Math.abs(first)) * 100;
+  }, [equitySeries]);
+
+  const riskMetrics = useMemo(() => {
+    const wins = Number(summary?.winning_trades || 0);
+    const losses = Number(summary?.losing_trades || 0);
+    const avgWin = Number(summary?.avg_win || 0);
+    const avgLoss = Number(summary?.avg_loss || 0);
+    const totalTrades = Number(summary?.total_trades || 0);
+    const totalPnl = Number(summary?.total_pnl || 0);
+
+    const grossProfit = avgWin * wins;
+    const grossLoss = avgLoss * losses;
+    const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : 0;
+    const expectancy = totalTrades > 0 ? totalPnl / totalTrades : 0;
+
+    const returns = equitySeries.map((x) => x.trade_pnl);
+    const mean = returns.length ? returns.reduce((a, b) => a + b, 0) / returns.length : 0;
+    const variance = returns.length ? returns.reduce((acc, item) => acc + (item - mean) ** 2, 0) / returns.length : 0;
+    const std = Math.sqrt(variance);
+    const sharpe = std > 0 ? (mean / std) * Math.sqrt(Math.max(returns.length, 1)) : 0;
+
+    return {
+      maxDrawdown: equitySeries.reduce((max, x) => Math.max(max, x.drawdown), 0),
+      avgRR: Number(summary?.avg_win_loss_ratio || 0),
+      profitFactor,
+      expectancy,
+      sharpe,
+      peakBalance: equitySeries.length ? Math.max(...equitySeries.map((x) => x.balance)) : 0,
+      currentBalance: equitySeries.length ? equitySeries[equitySeries.length - 1].balance : 0,
+    };
+  }, [summary, equitySeries]);
+
+  const radarData = useMemo(() => {
+    const winrate = Number(summary?.win_rate || 0);
+    const rr = Math.min(100, Number(summary?.avg_win_loss_ratio || 0) * 40);
+    const riskControl = Math.max(0, 100 - riskMetrics.maxDrawdown * 2);
+    const consistency = Math.min(100, Number(summary?.daily_win_rate || 0));
+    const discipline = Math.min(100, 30 + Number(summary?.win_streak_days || 0) * 10);
+    return [
+      { metric: 'Risk Control', value: Math.round(riskControl) },
+      { metric: 'Discipline', value: Math.round(discipline) },
+      { metric: 'Winrate', value: Math.round(winrate) },
+      { metric: 'RR Ratio', value: Math.round(rr) },
+      { metric: 'Consistency', value: Math.round(consistency) },
+    ];
+  }, [summary, riskMetrics.maxDrawdown]);
 
   if (loading) {
     return (
@@ -514,12 +518,12 @@ export default function Dashboard() {
               <motion.button
                 key={period.value}
                 onClick={() => setSelectedPeriod(period.value)}
+                whileTap={{ scale: 0.96 }}
                 className={`px-3 py-1.5 text-sm rounded-lg transition-all ${
                   selectedPeriod === period.value
                     ? 'text-black font-medium bg-accent shadow-[0_0_14px_rgba(16,185,129,0.35)]'
                     : 'text-muted-foreground hover:text-white'
                 }`}
-                whileTap={{ scale: 0.96 }}
               >
                 {period.label}
               </motion.button>
@@ -529,17 +533,15 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        <HoverCard title="Winrate" colorClass="border-blue-500/30">
-          <RadialGauge value={summary?.win_rate || 0} label="Winrate" trend={weekWinrateTrend} accent="#3b82f6" />
-          <p className="text-xs text-blue-300 mt-2">{winrateMicroTrend}</p>
-        </HoverCard>
+        <DashboardCard title="Winrate" borderClass="border-blue-500/30">
+          <RadialGauge value={summary?.win_rate || 0} label="Winrate" weeklyDelta={weekWinrateDelta} accentClass="text-blue-300" />
+        </DashboardCard>
 
-        <HoverCard title="Daily Winrate" colorClass="border-emerald-500/30">
-          <RadialGauge value={summary?.daily_win_rate || 0} label="Daily Winrate" trend={dailyWinrateTrend} accent="#22c55e" />
-          <p className="text-xs text-emerald-300 mt-2">{winrateMicroTrend}</p>
-        </HoverCard>
+        <DashboardCard title="Daily Winrate" borderClass="border-emerald-500/30">
+          <RadialGauge value={summary?.daily_win_rate || 0} label="Daily Winrate" weeklyDelta={dailyWinrateDelta} accentClass="text-emerald-300" />
+        </DashboardCard>
 
-        <HoverCard title="Avg Win / Avg Loss" colorClass="border-blue-500/20">
+        <DashboardCard title="Avg Win / Avg Loss" borderClass="border-blue-500/20">
           <div className="space-y-2" title="Last 30 trades">
             <div>
               <div className="flex justify-between text-xs mb-1">
@@ -569,9 +571,9 @@ export default function Dashboard() {
             </div>
             <p className="text-xs text-muted-foreground">RR Ratio <span className="font-mono text-blue-300">{formatNumber(summary?.avg_win_loss_ratio || 0, 2)}</span></p>
           </div>
-        </HoverCard>
+        </DashboardCard>
 
-        <HoverCard title="Trade Count" colorClass="border-purple-500/30">
+        <DashboardCard title="Trade Count" borderClass="border-purple-500/30">
           <div className="space-y-2">
             <div className="flex items-end justify-between">
               <p className="text-3xl font-mono font-bold text-purple-300">{tradeCount.total || 0}</p>
@@ -580,7 +582,7 @@ export default function Dashboard() {
                 {weeklyTradesDelta >= 0 ? '+' : ''}{weeklyTradesDelta} this week
               </p>
             </div>
-            <ResponsiveContainer width="100%" height={72}>
+            <ResponsiveContainer width="100%" height={74}>
               <AreaChart data={tradeCountSeries}>
                 <defs>
                   <linearGradient id="tradeGlow" x1="0" y1="0" x2="0" y2="1">
@@ -593,7 +595,7 @@ export default function Dashboard() {
                   formatter={(v) => [v, 'Trades']}
                   labelFormatter={(label) => `Day ${label}`}
                 />
-                <Area type="monotone" dataKey="count" stroke="#a855f7" strokeWidth={2.5} fill="url(#tradeGlow)" />
+                <Area type="monotone" dataKey="count" stroke="#a855f7" strokeWidth={2.2} fill="url(#tradeGlow)" />
                 {tradeCountSeries.length > 0 && (
                   <ReferenceDot
                     x={tradeCountSeries[tradeCountSeries.length - 1]?.date}
@@ -607,13 +609,17 @@ export default function Dashboard() {
               </AreaChart>
             </ResponsiveContainer>
           </div>
-        </HoverCard>
+        </DashboardCard>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        <HoverCard title="Win Streak" colorClass="border-orange-500/30">
+        <DashboardCard title="Win Streak" borderClass="border-orange-500/30">
           <div className="space-y-2">
-            <p className="text-orange-300 text-lg tracking-wider">{Array.from({ length: Math.min(10, Math.max(1, Number(summary?.current_win_streak_trades || 0))) }).map(() => '??').join('')}</p>
+            <div className="flex gap-1">
+              {Array.from({ length: 10 }).map((_, i) => (
+                <Flame key={`fl-${i}`} className={`w-4 h-4 ${i < Math.min(10, Number(summary?.current_win_streak_trades || 0)) ? 'text-orange-400' : 'text-white/20'}`} />
+              ))}
+            </div>
             <p className="text-sm">Current streak: <span className="font-mono font-bold text-orange-300">{summary?.current_win_streak_trades || 0}</span></p>
             <p className="text-xs text-muted-foreground">Best streak: <span className="font-mono text-orange-200">{summary?.win_streak_trades || 0}</span></p>
             <div className="h-2 rounded-full bg-white/10 overflow-hidden">
@@ -624,27 +630,37 @@ export default function Dashboard() {
               />
             </div>
           </div>
-        </HoverCard>
+        </DashboardCard>
 
-        <HoverCard title="Total P&L" colorClass="border-emerald-500/20">
+        <DashboardCard title="Total P&L" borderClass="border-emerald-500/30">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <AnimatedNumber
-                value={livePnl}
+                value={summary?.total_pnl || 0}
                 decimals={2}
                 prefix="$"
-                className={`text-2xl font-mono font-bold ${livePnl >= 0 ? 'text-emerald-300' : 'text-red-300'} ${Math.abs(pnlDelta) > 0.8 ? 'animate-pulse' : ''}`}
+                className={`text-3xl font-mono font-bold ${(summary?.total_pnl || 0) >= 0 ? 'text-emerald-300' : 'text-red-300'}`}
               />
-              {pnlDelta >= 0 ? <TrendingUp className="w-4 h-4 text-emerald-400" /> : <TrendingDown className="w-4 h-4 text-red-400" />}
+              {(summary?.total_pnl || 0) >= 0 ? <TrendingUp className="w-4 h-4 text-emerald-400" /> : <TrendingDown className="w-4 h-4 text-red-400" />}
             </div>
             <p className={`text-xs ${pnlMonthChangePct >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
-              {pnlMonthChangePct >= 0 ? '?' : '?'} {formatNumber(Math.abs(pnlMonthChangePct), 2)}% this month
+              {pnlMonthChangePct >= 0 ? 'Up' : 'Down'} {formatNumber(Math.abs(pnlMonthChangePct), 2)}% this month
             </p>
-            <p className="text-xs text-emerald-300">{pnlMicroTrend}</p>
+            <ResponsiveContainer width="100%" height={48}>
+              <AreaChart data={equitySeries.slice(-20)}>
+                <defs>
+                  <linearGradient id="pnlMini" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.45} />
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <Area type="monotone" dataKey="balance" stroke="#10b981" strokeWidth={2} fill="url(#pnlMini)" />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
-        </HoverCard>
+        </DashboardCard>
 
-        <HoverCard title="Open Positions" colorClass="border-red-500/20">
+        <DashboardCard title="Open Positions" borderClass="border-red-500/25">
           {(summary?.open_trades || 0) === 0 ? (
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground">No open trades</p>
@@ -653,34 +669,50 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="space-y-1">
-              <p className="text-lg font-mono font-bold text-blue-300">{openTrades[0]?.instrument || 'OPEN POSITION'}</p>
+              <p className="text-lg font-semibold text-blue-200">{openTrades[0]?.instrument || 'Open Position'}</p>
               <p className="text-xs text-muted-foreground">Entry: {formatCurrency(openTrades[0]?.entry_price || 0)}</p>
               <p className="text-xs text-muted-foreground">Qty: {openTrades[0]?.quantity || '-'}</p>
-              <p className="text-xs text-blue-200">+{summary?.open_trades || 0} open position(s)</p>
+              <p className="text-xs text-blue-200">Total open: {summary?.open_trades || 0}</p>
             </div>
           )}
-        </HoverCard>
+        </DashboardCard>
 
-        <HoverCard title="Micro Trends" colorClass="border-blue-500/20">
-          <div className="space-y-2">
-            <p className="text-xs text-muted-foreground">Winrate</p>
-            <p className="text-blue-300 tracking-wider">{winrateMicroTrend}</p>
-            <p className="text-xs text-muted-foreground">Balance</p>
-            <p className="text-emerald-300 tracking-wider">{pnlMicroTrend}</p>
+        <DashboardCard title="Micro Trends" borderClass="border-blue-500/25">
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs text-muted-foreground">Winrate</p>
+              <div className="h-2 rounded-full bg-white/10 overflow-hidden mt-1">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.min(100, Number(summary?.win_rate || 0))}%` }}
+                  className="h-full bg-gradient-to-r from-blue-500 to-cyan-300"
+                />
+              </div>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Balance</p>
+              <div className="h-2 rounded-full bg-white/10 overflow-hidden mt-1">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.min(100, Math.max(10, Number(summary?.daily_win_rate || 0)))}%` }}
+                  className="h-full bg-gradient-to-r from-emerald-500 to-lime-300"
+                />
+              </div>
+            </div>
           </div>
-        </HoverCard>
+        </DashboardCard>
       </div>
 
       <motion.div
-        initial={{ opacity: 0, y: 18 }}
+        initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.05 }}
+        transition={{ duration: 0.3 }}
         className="glass-card p-5 border border-emerald-500/15"
       >
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div>
             <h3 className="text-lg font-heading font-bold">Equity Curve</h3>
-            <p className="text-xs text-muted-foreground">Account growth, drawdown and recovery</p>
+            <p className="text-xs text-muted-foreground">Account growth, drawdown, and recovery</p>
           </div>
           <div className="flex items-center gap-2 text-xs">
             <span className="px-2 py-1 rounded bg-emerald-500/10 border border-emerald-500/25 text-emerald-300">Peak {formatCurrency(riskMetrics.peakBalance)}</span>
@@ -706,12 +738,7 @@ export default function Dashboard() {
                 <YAxis yAxisId="left" stroke="#A1A1AA" fontSize={11} tickFormatter={(v) => `$${Math.round(v)}`} />
                 <YAxis yAxisId="right" orientation="right" stroke="#A1A1AA" fontSize={11} tickFormatter={(v) => `${Math.round(v)}%`} />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#121212',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    borderRadius: '8px',
-                    color: '#fff',
-                  }}
+                  contentStyle={{ backgroundColor: '#121212', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' }}
                 />
                 <Area yAxisId="left" type="monotone" dataKey="balance" stroke="#22c55e" strokeWidth={2} fill="url(#equityFill)" name="Equity" />
                 <Area yAxisId="right" type="monotone" dataKey="drawdown" stroke="#ef4444" strokeWidth={1.5} fill="url(#ddFill)" name="Drawdown %" />
@@ -725,12 +752,7 @@ export default function Dashboard() {
                   <XAxis dataKey="date" stroke="#A1A1AA" fontSize={10} />
                   <YAxis stroke="#A1A1AA" fontSize={10} />
                   <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#121212',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      borderRadius: '8px',
-                      color: '#fff',
-                    }}
+                    contentStyle={{ backgroundColor: '#121212', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' }}
                     formatter={(v) => [`${formatNumber(v, 2)}%`, 'Drawdown']}
                   />
                   <Bar dataKey="drawdown" fill="#ef4444" radius={[4, 4, 0, 0]} />
@@ -749,7 +771,7 @@ export default function Dashboard() {
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.1 }}
+          transition={{ duration: 0.3 }}
           className="glass-card p-5 border border-blue-500/15"
         >
           <h3 className="text-lg font-heading font-bold mb-1">Performance Radar</h3>
@@ -761,12 +783,7 @@ export default function Dashboard() {
               <PolarAngleAxis dataKey="metric" tick={{ fill: '#d4d4d8', fontSize: 12 }} />
               <Radar dataKey="value" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.35} />
               <Tooltip
-                contentStyle={{
-                  backgroundColor: '#121212',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: '8px',
-                  color: '#fff',
-                }}
+                contentStyle={{ backgroundColor: '#121212', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' }}
                 formatter={(v) => [`${v}/100`, 'Score']}
               />
             </RadarChart>
@@ -776,7 +793,7 @@ export default function Dashboard() {
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.15 }}
+          transition={{ duration: 0.3 }}
           className="glass-card p-5 border border-purple-500/15"
         >
           <h3 className="text-lg font-heading font-bold mb-1">Risk Metrics</h3>
@@ -797,17 +814,13 @@ export default function Dashboard() {
             </div>
             <div className="rounded-lg border border-white/10 p-3 bg-secondary/20">
               <p className="text-xs text-muted-foreground">Expectancy</p>
-              <p className={`text-lg font-mono font-bold ${riskMetrics.expectancy >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                {formatCurrency(riskMetrics.expectancy)}
-              </p>
+              <p className={`text-lg font-mono font-bold ${riskMetrics.expectancy >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{formatCurrency(riskMetrics.expectancy)}</p>
             </div>
             <div className="rounded-lg border border-white/10 p-3 bg-secondary/20 col-span-2">
               <p className="text-xs text-muted-foreground mb-1">Sharpe Ratio</p>
               <div className="flex items-center justify-between">
                 <p className="text-xl font-mono font-bold text-purple-300"><AnimatedNumber value={riskMetrics.sharpe} decimals={2} /></p>
-                <span className="text-xs text-muted-foreground flex items-center gap-1">
-                  <Activity className="w-3 h-3" /> Risk adjusted return score
-                </span>
+                <span className="text-xs text-muted-foreground flex items-center gap-1"><Activity className="w-3 h-3" /> Risk adjusted return score</span>
               </div>
             </div>
           </div>
