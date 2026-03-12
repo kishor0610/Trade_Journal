@@ -88,37 +88,33 @@ const BiasDuelIcon = ({ duelState }) => {
 
   const bullAnimation = isProfit
     ? {
-      scale: [1, 1.2, 1.12, 1.2, 1],
-      opacity: [0.5, 1, 1, 1, 0.5],
-      rotate: [0, -12, -6, -10, 0],
-      x: [0, 10, 14, 8, 0],
-      y: [0, -5, -8, -4, 0],
+      scale: [1, 1.08, 1],
+      opacity: [0.75, 1, 0.75],
+      rotate: [0, -6, 0],
+      y: [0, -2, 0],
     }
     : isLoss
       ? {
-        scale: [1, 0.8, 0.8, 1],
-        opacity: [0.5, 0.3, 0.3, 0.5],
-        rotate: [0, 8, 10, 0],
-        x: [0, -4, -7, 0],
-        y: [0, 4, 6, 0],
+        scale: [1, 0.9, 1],
+        opacity: [0.35, 0.3, 0.35],
+        rotate: [0, 4, 0],
+        y: [0, 2, 0],
       }
       : { scale: 1, opacity: 0.5, rotate: 0, x: 0, y: 0 };
 
   const bearAnimation = isLoss
     ? {
-      scale: [1, 1.2, 1.14, 1.2, 1],
-      opacity: [0.5, 1, 1, 1, 0.5],
-      rotate: [0, 10, 5, 9, 0],
-      x: [0, -9, -13, -8, 0],
-      y: [0, 4, 8, 5, 0],
+      scale: [1, 1.08, 1],
+      opacity: [0.75, 1, 0.75],
+      rotate: [0, 6, 0],
+      y: [0, 2, 0],
     }
     : isProfit
       ? {
-        scale: [1, 0.8, 0.8, 1],
-        opacity: [0.5, 0.3, 0.3, 0.5],
-        rotate: [0, -4, -6, 0],
-        x: [0, 8, 12, 0],
-        y: [0, 3, 5, 0],
+        scale: [1, 0.9, 1],
+        opacity: [0.35, 0.3, 0.35],
+        rotate: [0, -4, 0],
+        y: [0, 2, 0],
       }
       : { scale: 1, opacity: 0.5, rotate: 0, x: 0, y: 0 };
 
@@ -134,7 +130,7 @@ const BiasDuelIcon = ({ duelState }) => {
       <motion.div
         className="absolute bottom-1 left-2 h-9 w-12 origin-bottom-left"
         animate={bullAnimation}
-        transition={{ duration: 1.1, repeat: Infinity, ease: 'easeInOut' }}
+        transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
         style={{ filter: `drop-shadow(0 0 10px ${isProfit ? 'rgba(34,197,94,0.65)' : 'rgba(34,197,94,0.3)'})` }}
         aria-label="bull icon"
         role="img"
@@ -147,7 +143,7 @@ const BiasDuelIcon = ({ duelState }) => {
       <motion.div
         className="absolute bottom-1 right-2 h-9 w-12 origin-bottom-right"
         animate={bearAnimation}
-        transition={{ duration: 1.1, repeat: Infinity, ease: 'easeInOut' }}
+        transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
         style={{ filter: `drop-shadow(0 0 10px ${isLoss ? 'rgba(239,68,68,0.65)' : 'rgba(239,68,68,0.3)'})` }}
         aria-label="bear icon"
         role="img"
@@ -623,6 +619,8 @@ export default function Dashboard() {
     const bull = Number(summary?.winning_trades || 0);
     const bear = Number(summary?.losing_trades || 0);
     const totalPnl = Number(summary?.total_pnl || 0);
+    const avgGain = Number(summary?.avg_win || 0);
+    const avgLoss = Number(summary?.avg_loss || 0);
     const knownOutcomes = Math.max(0, bull + bear);
     const totalTrades = Number(summary?.total_trades || 0);
     const bullPct = knownOutcomes > 0 ? (bull / knownOutcomes) * 100 : 50;
@@ -630,6 +628,9 @@ export default function Dashboard() {
     const sentiment = knownOutcomes > 0 ? ((bull - bear) / knownOutcomes) * 100 : 0;
     const markerPosition = Math.max(0, Math.min(100, 50 + sentiment / 2));
     const duelState = totalPnl > 0 ? 'profit' : totalPnl < 0 ? 'loss' : 'neutral';
+    const confidence = Math.max(bullPct, bearPct);
+    const positiveWinRate = knownOutcomes > 0 ? (bull / knownOutcomes) * 100 : 0;
+    const negativeWinRate = knownOutcomes > 0 ? (bear / knownOutcomes) * 100 : 0;
     return {
       bull,
       bear,
@@ -638,6 +639,11 @@ export default function Dashboard() {
       bearPct,
       markerPosition,
       duelState,
+      confidence,
+      positiveWinRate,
+      negativeWinRate,
+      avgGain,
+      avgLoss,
     };
   }, [summary]);
 
@@ -891,72 +897,81 @@ export default function Dashboard() {
         <DashboardCard title="Behavioral Bias" borderClass="border-blue-500/25" className="md:col-span-2 xl:col-span-2">
           <div className="space-y-4 rounded-xl border border-blue-500/20 bg-blue-500/5 p-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <BiasDuelIcon duelState={biasStats.duelState} />
-                <p className={`text-sm font-semibold ${biasStats.duelState === 'profit' ? 'text-emerald-300' : biasStats.duelState === 'loss' ? 'text-red-300' : 'text-slate-300'}`}>
-                  {biasStats.duelState === 'profit' ? 'Bull Dominates' : biasStats.duelState === 'loss' ? 'Bear Dominates' : 'Neutral Balance'}
-                </p>
+                <motion.div
+                  className={`rounded-lg border px-3 py-2 ${biasStats.duelState === 'profit' ? 'border-emerald-400/40 bg-emerald-500/10' : biasStats.duelState === 'loss' ? 'border-red-400/40 bg-red-500/10' : 'border-yellow-400/40 bg-yellow-500/10'}`}
+                  animate={{ boxShadow: biasStats.duelState === 'profit' ? ['0 0 0 rgba(34,197,94,0)', '0 0 20px rgba(34,197,94,0.25)', '0 0 0 rgba(34,197,94,0)'] : biasStats.duelState === 'loss' ? ['0 0 0 rgba(239,68,68,0)', '0 0 20px rgba(239,68,68,0.25)', '0 0 0 rgba(239,68,68,0)'] : ['0 0 0 rgba(250,204,21,0)', '0 0 20px rgba(250,204,21,0.22)', '0 0 0 rgba(250,204,21,0)'] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                >
+                  <p className="text-[10px] tracking-[0.14em] text-muted-foreground">MARKET SENTIMENT</p>
+                  <p className={`text-sm font-bold ${biasStats.duelState === 'profit' ? 'text-emerald-300' : biasStats.duelState === 'loss' ? 'text-red-300' : 'text-yellow-300'}`}>
+                    {biasStats.duelState === 'profit' ? 'BULLISH' : biasStats.duelState === 'loss' ? 'BEARISH' : 'NEUTRAL'}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Confidence: <span className="font-mono text-blue-100">{formatNumber(biasStats.confidence, 0)}%</span></p>
+                </motion.div>
               </div>
-              <p className="text-sm text-muted-foreground">Total Trades: <span className="font-mono font-bold text-blue-100">{biasStats.totalTrades}</span></p>
+              <p className="text-sm text-muted-foreground">Total Trades: <AnimatedNumber value={biasStats.totalTrades} className="font-mono font-bold text-blue-100" /></p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <motion.div
                 className="rounded-lg border border-red-500/30 bg-red-500/10 p-3"
-                animate={{ boxShadow: ['0 0 0px rgba(239,68,68,0.00)', '0 0 18px rgba(239,68,68,0.30)', '0 0 0px rgba(239,68,68,0.00)'] }}
-                transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+                whileHover={{ scale: 1.02, y: -3, boxShadow: '0 10px 25px rgba(239,68,68,0.2)' }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
               >
-                <p className="text-xs tracking-wide text-red-200/90 flex items-center gap-2">
+                <p className="text-xs tracking-wide text-red-200/90">Negative Trades</p>
+                <p className="mt-1 text-xl font-mono font-bold text-red-300 flex items-center gap-2">
                   <span className="text-lg leading-none" aria-label="bear icon" role="img">🐻</span>
-                  <span>Negative</span>
+                  <AnimatedNumber value={biasStats.bear} className="font-mono" /> Trades
                 </p>
-                <p className="text-2xl font-mono font-bold text-red-300 flex items-center gap-2">
-                  <TrendingDown className="w-5 h-5" />
-                  {biasStats.bear}
-                </p>
+                <p className="text-xs text-muted-foreground mt-1">Win Rate: <span className="font-mono text-red-200">{formatNumber(biasStats.negativeWinRate, 1)}%</span></p>
+                <p className="text-xs text-muted-foreground">Avg Loss: <span className="font-mono text-red-200">${formatNumber(biasStats.avgLoss, 2)}</span></p>
               </motion.div>
 
               <motion.div
                 className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3"
-                animate={{ boxShadow: ['0 0 0px rgba(16,185,129,0.00)', '0 0 18px rgba(16,185,129,0.30)', '0 0 0px rgba(16,185,129,0.00)'] }}
-                transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut', delay: 0.2 }}
+                whileHover={{ scale: 1.02, y: -3, boxShadow: '0 10px 25px rgba(16,185,129,0.2)' }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
               >
-                <p className="text-xs tracking-wide text-emerald-200/90 flex items-center gap-2">
+                <p className="text-xs tracking-wide text-emerald-200/90">Positive Trades</p>
+                <p className="mt-1 text-xl font-mono font-bold text-emerald-300 flex items-center gap-2">
                   <span className="text-lg leading-none" aria-label="bull icon" role="img">🐂</span>
-                  <span>Positive</span>
+                  <AnimatedNumber value={biasStats.bull} className="font-mono" /> Trades
                 </p>
-                <p className="text-2xl font-mono font-bold text-emerald-300 flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5" />
-                  {biasStats.bull}
-                </p>
+                <p className="text-xs text-muted-foreground mt-1">Win Rate: <span className="font-mono text-emerald-200">{formatNumber(biasStats.positiveWinRate, 1)}%</span></p>
+                <p className="text-xs text-muted-foreground">Avg Gain: <span className="font-mono text-emerald-200">+${formatNumber(biasStats.avgGain, 2)}</span></p>
               </motion.div>
             </div>
 
-            <div>
-              <div className="relative h-3 rounded-full overflow-hidden border border-blue-500/20 bg-[repeating-linear-gradient(-45deg,rgba(59,130,246,0.18)_0px,rgba(59,130,246,0.18)_6px,rgba(148,163,184,0.10)_6px,rgba(148,163,184,0.10)_12px)]">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>🐻 Bear Pressure</span>
+                <span>Bull Pressure 🐂</span>
+              </div>
+              <motion.div
+                className="relative h-4 rounded-full overflow-hidden border border-blue-400/20 bg-slate-900/70"
+                whileHover={{ scale: 1.02, y: -2 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+              >
                 <motion.div
-                  className="absolute inset-y-0 left-0 bg-gradient-to-r from-red-600/90 to-red-400/90"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${biasStats.bearPct}%` }}
-                  transition={{ duration: 0.9, ease: 'easeOut' }}
-                />
-                <motion.div
-                  className="absolute inset-y-0 right-0 bg-gradient-to-l from-emerald-600/90 to-emerald-400/90"
+                  className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-red-500 via-yellow-400 to-emerald-500"
                   initial={{ width: 0 }}
                   animate={{ width: `${biasStats.bullPct}%` }}
-                  transition={{ duration: 0.9, ease: 'easeOut' }}
+                  transition={{ duration: 0.8, ease: 'easeOut' }}
+                  style={{ boxShadow: biasStats.duelState === 'profit' ? '0 0 18px rgba(34,197,94,0.45)' : biasStats.duelState === 'loss' ? '0 0 18px rgba(239,68,68,0.45)' : '0 0 12px rgba(250,204,21,0.32)' }}
                 />
                 <motion.div
-                  className="absolute top-1/2 -translate-y-1/2 h-4 w-4 rounded-full border border-cyan-200 bg-blue-500 shadow-[0_0_14px_rgba(56,189,248,0.85)]"
+                  className="absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-full border border-white/80 bg-white/90"
                   initial={{ left: '50%' }}
-                  animate={{ left: `calc(${biasStats.markerPosition}% - 8px)` }}
-                  transition={{ duration: 0.95, ease: 'easeOut' }}
+                  animate={{ left: `calc(${biasStats.bullPct}% - 10px)` }}
+                  transition={{ duration: 0.8, ease: 'easeOut' }}
                 />
-              </div>
+              </motion.div>
 
-              <div className="mt-2 flex items-center justify-between text-sm font-mono">
-                <span className="text-red-300">{formatNumber(biasStats.bearPct, 1)}%</span>
-                <span className="text-emerald-300">{formatNumber(biasStats.bullPct, 1)}%</span>
+              <div className="flex items-center justify-between text-xs font-mono">
+                <span className="text-red-300">0% ({formatNumber(biasStats.bearPct, 1)} bear)</span>
+                <span className="text-emerald-300">100% ({formatNumber(biasStats.bullPct, 1)} bull)</span>
               </div>
             </div>
           </div>
