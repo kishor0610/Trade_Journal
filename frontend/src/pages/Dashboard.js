@@ -82,41 +82,84 @@ const DashboardCard = ({ title, borderClass = 'border-white/10', className = '',
   </motion.div>
 );
 
-const BiasDuelIcon = ({ bullDominant }) => (
-  <div className="relative h-16 w-40 overflow-hidden rounded-lg border border-white/10 bg-slate-950/55">
-    <motion.div
-      className={`absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full ${bullDominant ? 'bg-emerald-300/80' : 'bg-red-300/80'}`}
-      animate={{ scale: [0.7, 1.7, 0.7], opacity: [0.2, 0.95, 0.2] }}
-      transition={{ duration: 0.7, repeat: Infinity, ease: 'easeOut' }}
-    />
+const BiasDuelIcon = ({ duelState }) => {
+  const isProfit = duelState === 'profit';
+  const isLoss = duelState === 'loss';
 
-    <motion.div
-      className="absolute bottom-1 left-2 text-3xl leading-none"
-      animate={bullDominant
-        ? { x: [0, 12, 22, 12, 0], y: [0, -2, -1, -2, 0], scale: [1.12, 1.2, 1.24, 1.2, 1.12], rotate: [0, -3, -2, -3, 0] }
-        : { x: [0, 2, 0], y: [0, -1, 0], scale: [0.96, 0.94, 0.96], rotate: [0, -1, 0] }}
-      transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
-      style={{ filter: `drop-shadow(0 0 10px ${bullDominant ? 'rgba(16,185,129,0.55)' : 'rgba(255,255,255,0.25)'})` }}
-      aria-label="bull icon"
-      role="img"
-    >
-      🐂
-    </motion.div>
+  const bullAnimation = isProfit
+    ? {
+      scale: [1, 1.2, 1.12, 1.2, 1],
+      opacity: [0.5, 1, 1, 1, 0.5],
+      rotate: [0, -12, -6, -10, 0],
+      x: [0, 10, 14, 8, 0],
+      y: [0, -5, -8, -4, 0],
+    }
+    : isLoss
+      ? {
+        scale: [1, 0.8, 0.8, 1],
+        opacity: [0.5, 0.3, 0.3, 0.5],
+        rotate: [0, 8, 10, 0],
+        x: [0, -4, -7, 0],
+        y: [0, 4, 6, 0],
+      }
+      : { scale: 1, opacity: 0.5, rotate: 0, x: 0, y: 0 };
 
-    <motion.div
-      className="absolute bottom-1 right-2 text-3xl leading-none"
-      animate={bullDominant
-        ? { x: [0, 6, 12, 6, 0], y: [0, 2, 4, 2, 0], scale: [0.96, 0.9, 0.86, 0.9, 0.96], rotate: [0, 2, 4, 2, 0] }
-        : { x: [0, -12, -22, -12, 0], y: [0, -2, -1, -2, 0], scale: [1.12, 1.2, 1.24, 1.2, 1.12], rotate: [0, 3, 2, 3, 0] }}
-      transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
-      style={{ filter: `drop-shadow(0 0 10px ${bullDominant ? 'rgba(255,255,255,0.25)' : 'rgba(239,68,68,0.55)'})` }}
-      aria-label="bear icon"
-      role="img"
-    >
-      🐻
-    </motion.div>
-  </div>
-);
+  const bearAnimation = isLoss
+    ? {
+      scale: [1, 1.2, 1.14, 1.2, 1],
+      opacity: [0.5, 1, 1, 1, 0.5],
+      rotate: [0, 10, 5, 9, 0],
+      x: [0, -9, -13, -8, 0],
+      y: [0, 4, 8, 5, 0],
+    }
+    : isProfit
+      ? {
+        scale: [1, 0.8, 0.8, 1],
+        opacity: [0.5, 0.3, 0.3, 0.5],
+        rotate: [0, -4, -6, 0],
+        x: [0, 8, 12, 0],
+        y: [0, 3, 5, 0],
+      }
+      : { scale: 1, opacity: 0.5, rotate: 0, x: 0, y: 0 };
+
+  return (
+    <div className="relative h-16 w-40 overflow-hidden rounded-lg border border-white/10 bg-slate-950/55">
+      <motion.div
+        className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full"
+        style={{ backgroundColor: isProfit ? '#22C55E' : isLoss ? '#EF4444' : '#94A3B8' }}
+        animate={{ scale: isProfit || isLoss ? [0.8, 2.2, 0.8] : 1, opacity: isProfit || isLoss ? [0.2, 0.95, 0.2] : 0.25 }}
+        transition={{ duration: 0.6, repeat: Infinity, ease: 'easeOut' }}
+      />
+
+      <motion.div
+        className="absolute bottom-1 left-2 h-9 w-12 origin-bottom-left"
+        animate={bullAnimation}
+        transition={{ duration: 1.1, repeat: Infinity, ease: 'easeInOut' }}
+        style={{ filter: `drop-shadow(0 0 10px ${isProfit ? 'rgba(34,197,94,0.65)' : 'rgba(34,197,94,0.3)'})` }}
+        aria-label="bull icon"
+        role="img"
+      >
+        <div className="absolute bottom-0 h-7 w-12 rounded-[10px]" style={{ backgroundColor: '#22C55E' }} />
+        <div className="absolute -top-0.5 left-2 h-0 w-0 border-l-[5px] border-r-[5px] border-b-[9px] border-l-transparent border-r-transparent" style={{ borderBottomColor: '#22C55E' }} />
+        <div className="absolute -top-0.5 right-2 h-0 w-0 border-l-[5px] border-r-[5px] border-b-[9px] border-l-transparent border-r-transparent" style={{ borderBottomColor: '#22C55E' }} />
+      </motion.div>
+
+      <motion.div
+        className="absolute bottom-1 right-2 h-9 w-12 origin-bottom-right"
+        animate={bearAnimation}
+        transition={{ duration: 1.1, repeat: Infinity, ease: 'easeInOut' }}
+        style={{ filter: `drop-shadow(0 0 10px ${isLoss ? 'rgba(239,68,68,0.65)' : 'rgba(239,68,68,0.3)'})` }}
+        aria-label="bear icon"
+        role="img"
+      >
+        <div className="absolute bottom-0 h-7 w-12 rounded-[12px]" style={{ backgroundColor: '#EF4444' }} />
+        <div className="absolute -top-1 left-2 h-6 w-8 rounded-[10px]" style={{ backgroundColor: '#EF4444' }} />
+        <div className="absolute -bottom-0.5 left-1 h-2.5 w-3 rounded-full" style={{ backgroundColor: '#EF4444' }} />
+        <div className="absolute -bottom-0.5 right-1 h-2.5 w-3 rounded-full" style={{ backgroundColor: '#EF4444' }} />
+      </motion.div>
+    </div>
+  );
+};
 
 const getGaugeColor = (value) => {
   if (value < 50) return '#ef4444';
@@ -586,7 +629,7 @@ export default function Dashboard() {
     const bearPct = knownOutcomes > 0 ? (bear / knownOutcomes) * 100 : 50;
     const sentiment = knownOutcomes > 0 ? ((bull - bear) / knownOutcomes) * 100 : 0;
     const markerPosition = Math.max(0, Math.min(100, 50 + sentiment / 2));
-    const bullDominant = totalPnl >= 0;
+    const duelState = totalPnl > 0 ? 'profit' : totalPnl < 0 ? 'loss' : 'neutral';
     return {
       bull,
       bear,
@@ -594,7 +637,7 @@ export default function Dashboard() {
       bullPct,
       bearPct,
       markerPosition,
-      bullDominant,
+      duelState,
     };
   }, [summary]);
 
@@ -849,9 +892,9 @@ export default function Dashboard() {
           <div className="space-y-4 rounded-xl border border-blue-500/20 bg-blue-500/5 p-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <BiasDuelIcon bullDominant={biasStats.bullDominant} />
-                <p className={`text-sm font-semibold ${biasStats.bullDominant ? 'text-emerald-300' : 'text-red-300'}`}>
-                  {biasStats.bullDominant ? 'Bull Dominates' : 'Bear Dominates'}
+                <BiasDuelIcon duelState={biasStats.duelState} />
+                <p className={`text-sm font-semibold ${biasStats.duelState === 'profit' ? 'text-emerald-300' : biasStats.duelState === 'loss' ? 'text-red-300' : 'text-slate-300'}`}>
+                  {biasStats.duelState === 'profit' ? 'Bull Dominates' : biasStats.duelState === 'loss' ? 'Bear Dominates' : 'Neutral Balance'}
                 </p>
               </div>
               <p className="text-sm text-muted-foreground">Total Trades: <span className="font-mono font-bold text-blue-100">{biasStats.totalTrades}</span></p>
