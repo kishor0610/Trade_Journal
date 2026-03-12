@@ -43,6 +43,93 @@ const INTERVAL_SECONDS = {
   '1d': 86400,
 };
 
+const TV_SYMBOL_MAP = {
+  BTCUSDT: 'BINANCE:BTCUSDT',
+  ETHUSDT: 'BINANCE:ETHUSDT',
+  BNBUSDT: 'BINANCE:BNBUSDT',
+  SOLUSDT: 'BINANCE:SOLUSDT',
+  XAUUSD: 'OANDA:XAUUSD',
+  XAGUSD: 'OANDA:XAGUSD',
+  EURUSD: 'OANDA:EURUSD',
+  GBPUSD: 'OANDA:GBPUSD',
+  USDJPY: 'OANDA:USDJPY',
+  AUDUSD: 'OANDA:AUDUSD',
+  NAS100: 'OANDA:NAS100USD',
+  US30: 'OANDA:US30USD',
+  SPX500: 'OANDA:SPX500USD',
+};
+
+const TV_INTERVAL_MAP = {
+  '1m': '1',
+  '5m': '5',
+  '15m': '15',
+  '1h': '60',
+  '4h': '240',
+  '1d': 'D',
+};
+
+let tvScriptPromise;
+
+const loadTradingViewScript = () => {
+  if (typeof window === 'undefined') return Promise.resolve();
+  if (window.TradingView) return Promise.resolve();
+  if (tvScriptPromise) return tvScriptPromise;
+
+  tvScriptPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://s3.tradingview.com/tv.js';
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Failed to load TradingView script'));
+    document.head.appendChild(script);
+  });
+
+  return tvScriptPromise;
+};
+
+const TradingViewEmbed = ({ symbol, interval }) => {
+  const containerId = useMemo(() => `tv-widget-${Math.random().toString(36).slice(2, 9)}`, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    loadTradingViewScript()
+      .then(() => {
+        if (!isMounted || !window.TradingView) return;
+        // eslint-disable-next-line no-new
+        new window.TradingView.widget({
+          autosize: true,
+          symbol,
+          interval,
+          timezone: 'Etc/UTC',
+          theme: 'dark',
+          style: '1',
+          locale: 'en',
+          hide_top_toolbar: false,
+          hide_legend: false,
+          allow_symbol_change: true,
+          save_image: true,
+          withdateranges: true,
+          studies: [],
+          container_id: containerId,
+        });
+      })
+      .catch(() => {
+        // Keep page functional even if third-party script fails.
+      });
+
+    return () => {
+      isMounted = false;
+      const el = document.getElementById(containerId);
+      if (el) {
+        el.innerHTML = '';
+      }
+    };
+  }, [symbol, interval, containerId]);
+
+  return <div id={containerId} className="w-full h-full" />;
+};
+
 const TradeForm = ({ trade, onSubmit, onClose }) => {
   const [formData, setFormData] = useState({
     instrument: trade?.instrument || 'XAU/USD',
@@ -297,6 +384,7 @@ export default function Journal() {
   const [deleting, setDeleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [chartSymbol, setChartSymbol] = useState('BTCUSDT');
+  const [chartEngine, setChartEngine] = useState('tradingview');
   const [focusedInstrumentKey, setFocusedInstrumentKey] = useState('');
   const [chartInterval, setChartInterval] = useState('5m');
   const [candles, setCandles] = useState([]);
@@ -329,6 +417,8 @@ export default function Journal() {
   const normalizeSymbol = (value = '') => value.toString().toUpperCase().replace(/[^A-Z0-9]/g, '');
   const isValidNumber = (value) => Number.isFinite(Number(value));
   const annotationStorageKey = `journal_chart_annotations_${chartSymbol}`;
+  const tvSymbol = TV_SYMBOL_MAP[chartSymbol] || `BINANCE:${chartSymbol}`;
+  const tvInterval = TV_INTERVAL_MAP[chartInterval] || '5';
 
   const instrumentToChartSymbol = useCallback((instrument = '') => {
     const key = normalizeSymbol(instrument);
@@ -610,9 +700,10 @@ export default function Journal() {
   };
 
   useEffect(() => {
+    if (chartEngine !== 'lightweight') return;
     fetchCandles();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chartSymbol, chartInterval, focusedInstrumentKey, selectedReplayTradeId, chartTrades]);
+  }, [chartEngine, chartSymbol, chartInterval, focusedInstrumentKey, selectedReplayTradeId, chartTrades]);
 
   const upsertLiveCandle = useCallback((incoming, sourceLabel = 'live') => {
     if (selectedReplayTradeId !== 'latest') return;
@@ -673,6 +764,7 @@ export default function Journal() {
   }, [chartInterval, selectedReplayTradeId]);
 
   useEffect(() => {
+    if (chartEngine !== 'lightweight') return;
     const stopPolling = () => {
       if (livePollTimerRef.current) {
         clearInterval(livePollTimerRef.current);
@@ -775,6 +867,7 @@ export default function Journal() {
       stopSocket();
     };
   }, [
+    chartEngine,
     chartSymbol,
     chartInterval,
     selectedReplayTradeId,
@@ -1900,6 +1993,17 @@ export default function Journal() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div className="w-full">
+              <Select value={chartEngine} onValueChange={setChartEngine}>
+                <SelectTrigger className="bg-secondary border-white/10 h-9">
+                  <SelectValue placeholder="Chart Mode" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="tradingview">TradingView Live</SelectItem>
+                  <SelectItem value="lightweight">Journal Replay</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-full">
               <Select
                 value={chartSymbol}
                 onValueChange={(value) => {
@@ -1950,30 +2054,48 @@ export default function Journal() {
                   ? 'text-amber-300 border-amber-500/40 bg-amber-500/10'
                   : 'text-muted-foreground border-white/10'
             }`}>
-              {candleSource === 'stream' ? 'Real-Time Stream' : candleSource === 'live' ? 'Live Market' : candleSource === 'trade' ? 'Trade Data' : 'No Data'}
+              {chartEngine === 'tradingview'
+                ? 'TradingView Widget'
+                : candleSource === 'stream'
+                  ? 'Real-Time Stream'
+                  : candleSource === 'live'
+                    ? 'Live Market'
+                    : candleSource === 'trade'
+                      ? 'Trade Data'
+                      : 'No Data'}
             </span>
-            <Button variant="outline" size="sm" onClick={fetchCandles} disabled={candlesLoading}>
-              {candlesLoading ? 'Loading...' : 'Refresh Candles'}
-            </Button>
-            <Button variant="outline" size="sm" onClick={replayFromStart}>
-              Start
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => stepReplay(-1, 10)}>
-              Back 10
-            </Button>
-            <Button variant="outline" size="sm" onClick={replayLatestTrade} disabled={candles.length === 0}>
-              {isReplayPlaying ? 'Replay...' : 'Replay'}
-            </Button>
-            <Button variant="outline" size="sm" onClick={toggleReplay} disabled={candles.length === 0}>
-              {isReplayPlaying ? 'Pause' : 'Play'}
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => stepReplay(1, 10)}>
-              Forward 10
-            </Button>
+            {chartEngine === 'lightweight' && (
+              <>
+                <Button variant="outline" size="sm" onClick={fetchCandles} disabled={candlesLoading}>
+                  {candlesLoading ? 'Loading...' : 'Refresh Candles'}
+                </Button>
+                <Button variant="outline" size="sm" onClick={replayFromStart}>
+                  Start
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => stepReplay(-1, 10)}>
+                  Back 10
+                </Button>
+                <Button variant="outline" size="sm" onClick={replayLatestTrade} disabled={candles.length === 0}>
+                  {isReplayPlaying ? 'Replay...' : 'Replay'}
+                </Button>
+                <Button variant="outline" size="sm" onClick={toggleReplay} disabled={candles.length === 0}>
+                  {isReplayPlaying ? 'Pause' : 'Play'}
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => stepReplay(1, 10)}>
+                  Forward 10
+                </Button>
+              </>
+            )}
           </div>
         </div>
 
-        <div ref={chartContainerRef} className="w-full rounded-lg overflow-hidden border border-white/10" />
+        {chartEngine === 'tradingview' ? (
+          <div className="w-full h-[560px] rounded-lg overflow-hidden border border-white/10" data-testid="tradingview-widget">
+            <TradingViewEmbed symbol={tvSymbol} interval={tvInterval} />
+          </div>
+        ) : (
+          <div ref={chartContainerRef} className="w-full rounded-lg overflow-hidden border border-white/10" />
+        )}
         {chartError && (
           <p className="text-sm text-red-400">{chartError}</p>
         )}
