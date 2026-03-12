@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
-import { Sparkles, Send, TrendingUp, Activity, Target, Loader2 } from 'lucide-react';
+import { Sparkles, Send, TrendingUp, Activity, Target, Loader2, Gauge, AlertTriangle } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
 import { formatCurrency } from '../lib/utils';
@@ -16,6 +16,49 @@ const SuggestedQuestion = ({ question, onClick }) => (
     {question}
   </button>
 );
+
+const SECTION_PATTERNS = [
+  { key: 'snapshot', title: 'Snapshot', regex: /(?:^|\n)\s*(?:1\)\s*)?Snapshot\s*:?/i },
+  { key: 'working', title: 'What Is Working', regex: /(?:^|\n)\s*(?:2\)\s*)?What\s+is\s+working\s*:?/i },
+  { key: 'hurting', title: 'What Is Hurting Performance', regex: /(?:^|\n)\s*(?:3\)\s*)?What\s+is\s+hurting\s+performance\s*:?/i },
+  { key: 'plan', title: 'Next 5 Trades Plan', regex: /(?:^|\n)\s*(?:4\)\s*)?Next\s+5\s+trades\s+plan\s*:?/i },
+];
+
+const parseInsightSections = (text = '') => {
+  const normalized = String(text || '').replace(/\r/g, '').trim();
+  if (!normalized) return [];
+
+  const positions = SECTION_PATTERNS.map((pattern) => {
+    const match = pattern.regex.exec(normalized);
+    return match ? { ...pattern, index: match.index, marker: match[0] } : null;
+  }).filter(Boolean).sort((a, b) => a.index - b.index);
+
+  if (positions.length < 2) {
+    return [];
+  }
+
+  const sections = [];
+  for (let i = 0; i < positions.length; i += 1) {
+    const current = positions[i];
+    const start = current.index + current.marker.length;
+    const end = i + 1 < positions.length ? positions[i + 1].index : normalized.length;
+    const content = normalized.slice(start, end).trim();
+    if (!content) continue;
+
+    const lines = content
+      .split('\n')
+      .map((line) => line.replace(/^[-*]\s*/, '').trim())
+      .filter(Boolean);
+
+    sections.push({
+      key: current.key,
+      title: current.title,
+      lines,
+    });
+  }
+
+  return sections;
+};
 
 export default function AIInsights() {
   const [question, setQuestion] = useState('');
@@ -49,15 +92,38 @@ export default function AIInsights() {
     }
   };
 
+  const sections = parseInsightSections(insight?.insight);
+  const freshness = insight?.summary?.freshness;
+  const freshnessStyles = {
+    high: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+    medium: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+    low: 'bg-red-500/20 text-red-300 border-red-500/30',
+  };
+
   return (
     <div className="space-y-6" data-testid="ai-insights-page">
       {/* Header */}
       <div>
-        <h1 className="text-2xl md:text-3xl font-heading font-black flex items-center gap-3">
-          <Sparkles className="w-8 h-8 text-accent" />
-          AI Insights
-        </h1>
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-2xl md:text-3xl font-heading font-black flex items-center gap-3">
+            <Sparkles className="w-8 h-8 text-accent" />
+            AI Insights
+          </h1>
+          {freshness && (
+            <span
+              className={`px-3 py-1 rounded-full text-xs border ${freshnessStyles[freshness.level] || freshnessStyles.medium}`}
+              data-testid="ai-freshness-badge"
+            >
+              {freshness.label}
+            </span>
+          )}
+        </div>
         <p className="text-muted-foreground">Get AI-powered analysis of your trading performance</p>
+        {freshness?.message && (
+          <p className="text-xs text-muted-foreground mt-1" data-testid="ai-freshness-message">
+            {freshness.message}
+          </p>
+        )}
       </div>
 
       {/* Input Section */}
@@ -122,7 +188,7 @@ export default function AIInsights() {
           className="space-y-6"
         >
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <div className="glass-card p-4 flex items-center gap-4">
               <div className="w-12 h-12 rounded-lg bg-accent/20 flex items-center justify-center">
                 <Activity className="w-6 h-6 text-accent" />
@@ -160,28 +226,79 @@ export default function AIInsights() {
                 <p className="text-xl font-mono font-bold">{insight.summary?.win_rate || 0}%</p>
               </div>
             </div>
+
+            <div className="glass-card p-4 flex items-center gap-4">
+              <div className="w-12 h-12 rounded-lg bg-violet-500/20 flex items-center justify-center">
+                <Gauge className="w-6 h-6 text-violet-400" />
+              </div>
+              <div>
+                <p className="text-muted-foreground text-sm">Profit Factor</p>
+                <p className="text-xl font-mono font-bold">{insight.summary?.profit_factor ?? '-'}</p>
+              </div>
+            </div>
+
+            <div className="glass-card p-4 flex items-center gap-4">
+              <div className="w-12 h-12 rounded-lg bg-cyan-500/20 flex items-center justify-center">
+                <Target className="w-6 h-6 text-cyan-400" />
+              </div>
+              <div>
+                <p className="text-muted-foreground text-sm">Expectancy</p>
+                <p className={`text-xl font-mono font-bold ${(insight.summary?.expectancy || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                  {formatCurrency(insight.summary?.expectancy || 0)}
+                </p>
+              </div>
+            </div>
           </div>
 
-          {/* AI Response */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="glass-card p-6"
-          >
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-accent to-emerald-600 flex items-center justify-center">
-                <Sparkles className="w-5 h-5 text-black" />
-              </div>
-              <h3 className="text-lg font-heading font-bold">AI Analysis</h3>
+          {freshness?.level === 'low' && (
+            <div className="glass-card p-4 border border-red-500/20 flex items-start gap-3" data-testid="ai-low-confidence-warning">
+              <AlertTriangle className="w-5 h-5 text-red-300 mt-0.5" />
+              <p className="text-sm text-red-200">
+                Insight quality is limited with small samples. Add more closed trades for stronger and more stable guidance.
+              </p>
             </div>
-            
-            <div className="prose prose-invert max-w-none">
-              <div className="whitespace-pre-wrap text-muted-foreground leading-relaxed">
-                {insight.insight}
-              </div>
+          )}
+
+          {sections.length > 0 ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" data-testid="ai-insight-sections">
+              {sections.map((section, index) => (
+                <motion.div
+                  key={section.key}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 + index * 0.06 }}
+                  className="glass-card p-5"
+                >
+                  <h3 className="text-base font-heading font-bold mb-3">{section.title}</h3>
+                  <ul className="space-y-2 text-sm text-muted-foreground">
+                    {section.lines.map((line, i) => (
+                      <li key={`${section.key}-${i}`} className="leading-relaxed">• {line}</li>
+                    ))}
+                  </ul>
+                </motion.div>
+              ))}
             </div>
-          </motion.div>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="glass-card p-6"
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-accent to-emerald-600 flex items-center justify-center">
+                  <Sparkles className="w-5 h-5 text-black" />
+                </div>
+                <h3 className="text-lg font-heading font-bold">AI Analysis</h3>
+              </div>
+
+              <div className="prose prose-invert max-w-none">
+                <div className="whitespace-pre-wrap text-muted-foreground leading-relaxed">
+                  {insight.insight}
+                </div>
+              </div>
+            </motion.div>
+          )}
         </motion.div>
       )}
 
