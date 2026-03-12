@@ -9,6 +9,7 @@ import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import Journal from './pages/Journal';
+import LiveMarket from './pages/LiveMarket';
 import Analytics from './pages/Analytics';
 import AIInsights from './pages/AIInsights';
 import Accounts from './pages/Accounts';
@@ -84,6 +85,11 @@ function AppRoutes() {
       <Route path="/journal" element={
         <ProtectedRoute>
           <Journal />
+        </ProtectedRoute>
+      } />
+      <Route path="/live-market" element={
+        <ProtectedRoute>
+          <LiveMarket />
         </ProtectedRoute>
       } />
       <Route path="/accounts" element={

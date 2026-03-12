@@ -398,9 +398,6 @@ export default function Journal() {
   const [fvgHighInput, setFvgHighInput] = useState('');
   const [annotations, setAnnotations] = useState({ liquidity: [], fvgs: [] });
 
-  const tvSymbol = TV_SYMBOL_MAP[chartSymbol] || `BINANCE:${chartSymbol}`;
-  const tvInterval = TV_INTERVAL_MAP[chartInterval] || '5';
-
   const chartContainerRef = useRef(null);
   const chartPanelRef = useRef(null);
   const chartRef = useRef(null);
@@ -623,6 +620,13 @@ export default function Journal() {
   const totalPages = Math.max(1, Math.ceil(sortedTrades.length / PAGE_SIZE));
   const pageStart = (currentPage - 1) * PAGE_SIZE;
   const paginatedTrades = sortedTrades.slice(pageStart, pageStart + PAGE_SIZE);
+  const pageChunkSize = 10;
+  const pageChunkStart = Math.floor((currentPage - 1) / pageChunkSize) * pageChunkSize + 1;
+  const pageChunkEnd = Math.min(totalPages, pageChunkStart + pageChunkSize - 1);
+  const visiblePages = Array.from(
+    { length: Math.max(0, pageChunkEnd - pageChunkStart + 1) },
+    (_, idx) => pageChunkStart + idx
+  );
 
   useEffect(() => {
     fetchTrades();
@@ -1968,46 +1972,6 @@ export default function Journal() {
         </div>
       </div>
 
-      {/* Live Chart */}
-      <div className="glass-card p-4 space-y-4" data-testid="journal-chart-panel">
-        <div>
-          <h3 className="font-heading text-lg">TradingView Live Chart</h3>
-          <p className="text-xs text-muted-foreground">Live market view only. Replay features removed.</p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="w-full">
-            <Select value={chartSymbol} onValueChange={setChartSymbol}>
-              <SelectTrigger className="bg-secondary border-white/10 h-9">
-                <SelectValue placeholder="Symbol" />
-              </SelectTrigger>
-              <SelectContent>
-                {CHART_SYMBOLS.map((s) => (
-                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="w-full">
-            <Select value={chartInterval} onValueChange={setChartInterval}>
-              <SelectTrigger className="bg-secondary border-white/10 h-9">
-                <SelectValue placeholder="TF" />
-              </SelectTrigger>
-              <SelectContent>
-                {CHART_INTERVALS.map((itv) => (
-                  <SelectItem key={itv} value={itv}>{itv}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div className="w-full h-[560px] rounded-lg overflow-hidden border border-white/10" data-testid="tradingview-widget">
-          <TradingViewEmbed symbol={tvSymbol} interval={tvInterval} />
-        </div>
-      </div>
-
       {/* Trades List */}
       {loading ? (
         <div className="flex items-center justify-center h-64">
@@ -2150,13 +2114,13 @@ export default function Journal() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(Math.max(1, pageChunkStart - pageChunkSize))}
+                disabled={pageChunkStart === 1}
               >
                 Prev
               </Button>
 
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+              {visiblePages.map((page) => (
                 <Button
                   key={page}
                   variant={page === currentPage ? 'default' : 'outline'}
@@ -2171,8 +2135,8 @@ export default function Journal() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(Math.min(totalPages, pageChunkStart + pageChunkSize))}
+                disabled={pageChunkEnd === totalPages}
               >
                 Next
               </Button>
