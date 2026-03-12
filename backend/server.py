@@ -1199,7 +1199,9 @@ async def get_trade_count_history(
 async def get_market_candles(
     symbol: str = Query(default="BTCUSDT"),
     interval: str = Query(default="5m"),
-    limit: int = Query(default=500, ge=50, le=1000)
+    limit: int = Query(default=500, ge=50, le=1000),
+    from_ts: Optional[int] = Query(default=None, alias="from", ge=0),
+    to_ts: Optional[int] = Query(default=None, alias="to", ge=0),
 ):
     """Fetch OHLCV candles from Twelve Data with Yahoo/Binance fallbacks."""
     interval_map = {
@@ -1212,6 +1214,17 @@ async def get_market_candles(
         "2h": "2h",
         "4h": "4h",
         "1d": "1day",
+    }
+    interval_seconds_map = {
+        "1m": 60,
+        "3m": 180,
+        "5m": 300,
+        "15m": 900,
+        "30m": 1800,
+        "1h": 3600,
+        "2h": 7200,
+        "4h": 14400,
+        "1d": 86400,
     }
     yahoo_interval_map = {
         "1m": "1m",
@@ -1237,6 +1250,18 @@ async def get_market_candles(
     }
     if interval not in interval_map:
         raise HTTPException(status_code=400, detail="Unsupported interval")
+
+    def normalize_epoch(value: Optional[int]) -> Optional[int]:
+        if value is None:
+            return None
+        return int(value // 1000) if value > 10**12 else int(value)
+
+    from_sec = normalize_epoch(from_ts)
+    to_sec = normalize_epoch(to_ts)
+    if from_sec is not None and to_sec is not None and from_sec > to_sec:
+        raise HTTPException(status_code=400, detail="Invalid candle window: 'from' must be <= 'to'")
+
+    interval_seconds = interval_seconds_map[interval]
 
     clean_symbol = symbol.upper().replace("/", "").replace("-", "")
 
@@ -1299,6 +1324,10 @@ async def get_market_candles(
                     "apikey": TWELVE_DATA_API_KEY,
                     "timezone": "UTC",
                 }
+                if from_sec is not None:
+                    params["start_date"] = datetime.fromtimestamp(from_sec, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+                if to_sec is not None:
+                    params["end_date"] = datetime.fromtimestamp(to_sec, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
                 response = await client_http.get(url, params=params)
                 if response.status_code != 200:
                     last_error = f"Twelve Data request failed for {market_symbol}"
@@ -1321,9 +1350,15 @@ async def get_market_candles(
                     except ValueError:
                         continue
 
+                    ts_sec = int(dt.timestamp())
+                    if from_sec is not None and ts_sec < from_sec:
+                        continue
+                    if to_sec is not None and ts_sec > to_sec:
+                        continue
+
                     candles.append(
                         CandleResponse(
-                            time=int(dt.timestamp() * 1000),
+                            time=ts_sec * 1000,
                             open=float(item["open"]),
                             high=float(item["high"]),
                             low=float(item["low"]),
@@ -1333,7 +1368,7 @@ async def get_market_candles(
                     )
 
                 if candles:
-                    return candles
+                    return candles[-limit:]
 
                 last_error = f"No valid candle data returned for {market_symbol}"
 
@@ -1341,17 +1376,23 @@ async def get_market_candles(
 
     async def fetch_from_binance() -> List[CandleResponse]:
         url = "https://api.binance.com/api/v3/klines"
+        params: Dict[str, Any] = {"symbol": clean_symbol, "interval": interval, "limit": limit}
+        if from_sec is not None:
+            params["startTime"] = from_sec * 1000
+        if to_sec is not None:
+            params["endTime"] = to_sec * 1000
+
         async with httpx.AsyncClient(timeout=15.0) as client_http:
             response = await client_http.get(
                 url,
-                params={"symbol": clean_symbol, "interval": interval, "limit": limit},
+                params=params,
             )
 
         if response.status_code != 200:
             raise HTTPException(status_code=400, detail="Failed to fetch candles for symbol")
 
         raw = response.json()
-        return [
+        candles = [
             CandleResponse(
                 time=int(item[0]),
                 open=float(item[1]),
@@ -1362,6 +1403,11 @@ async def get_market_candles(
             )
             for item in raw
         ]
+        if from_sec is not None:
+            candles = [c for c in candles if (c.time // 1000) >= from_sec]
+        if to_sec is not None:
+            candles = [c for c in candles if (c.time // 1000) <= to_sec]
+        return candles[-limit:]
 
     async def fetch_from_yahoo() -> List[CandleResponse]:
         yahoo_symbol = yahoo_symbol_map.get(clean_symbol)
@@ -1369,18 +1415,27 @@ async def get_market_candles(
             raise HTTPException(status_code=400, detail=f"No Yahoo symbol mapping for {clean_symbol}")
 
         interval_value = yahoo_interval_map[interval]
-        range_value = yahoo_range_map[interval]
         url = f"https://query1.finance.yahoo.com/v8/finance/chart/{yahoo_symbol}"
+
+        params: Dict[str, Any] = {
+            "interval": interval_value,
+            "includePrePost": "false",
+            "events": "div,splits",
+        }
+
+        if from_sec is not None or to_sec is not None:
+            effective_to = to_sec or int(datetime.now(timezone.utc).timestamp())
+            lookback_bars = max(limit * 3, 900)
+            effective_from = from_sec or max(0, effective_to - (interval_seconds * lookback_bars))
+            params["period1"] = effective_from
+            params["period2"] = max(effective_to, effective_from + interval_seconds)
+        else:
+            params["range"] = yahoo_range_map[interval]
 
         async with httpx.AsyncClient(timeout=20.0) as client_http:
             response = await client_http.get(
                 url,
-                params={
-                    "interval": interval_value,
-                    "range": range_value,
-                    "includePrePost": "false",
-                    "events": "div,splits",
-                },
+                params=params,
             )
 
         if response.status_code != 200:
@@ -1433,6 +1488,13 @@ async def get_market_candles(
 
         if not candles:
             raise HTTPException(status_code=400, detail=f"No valid Yahoo candles for {yahoo_symbol}")
+
+        if from_sec is not None:
+            candles = [c for c in candles if (c.time // 1000) >= from_sec]
+        if to_sec is not None:
+            candles = [c for c in candles if (c.time // 1000) <= to_sec]
+        if not candles:
+            raise HTTPException(status_code=400, detail=f"No Yahoo candles in requested window for {yahoo_symbol}")
 
         return candles[-limit:]
 

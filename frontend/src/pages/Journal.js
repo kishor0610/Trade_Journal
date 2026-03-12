@@ -550,9 +550,27 @@ export default function Journal() {
   const fetchCandles = async () => {
     setCandlesLoading(true);
     try {
-      const response = await axios.get(
-        `${API_URL}/market/candles?symbol=${chartSymbol}&interval=${chartInterval}&limit=500`
-      );
+      const requestParams = {
+        symbol: chartSymbol,
+        interval: chartInterval,
+        limit: 500,
+      };
+
+      // Keep latest mode truly live, but pull historical window when replay focuses an older trade.
+      if (selectedReplayTradeId !== 'latest') {
+        const selectedTrade = chartTrades.find((t) => String(t.id) === String(selectedReplayTradeId));
+        const entryMs = Date.parse(selectedTrade?.entry_date || '');
+        if (Number.isFinite(entryMs)) {
+          const step = INTERVAL_SECONDS[chartInterval] || 300;
+          const beforeBars = 320;
+          const afterBars = 220;
+          requestParams.limit = 900;
+          requestParams.from = Math.floor(entryMs / 1000) - beforeBars * step;
+          requestParams.to = Math.floor(entryMs / 1000) + afterBars * step;
+        }
+      }
+
+      const response = await axios.get(`${API_URL}/market/candles`, { params: requestParams });
       let series = response.data.map((c) => ({
         time: c.time,
         open: Number(c.open),
@@ -590,7 +608,7 @@ export default function Journal() {
   useEffect(() => {
     fetchCandles();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chartSymbol, chartInterval, focusedInstrumentKey]);
+  }, [chartSymbol, chartInterval, focusedInstrumentKey, selectedReplayTradeId, chartTrades]);
 
   useEffect(() => {
     try {
