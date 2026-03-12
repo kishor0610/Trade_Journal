@@ -12,7 +12,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { toast } from 'sonner';
 import { formatCurrency, formatDate, INSTRUMENTS, POSITIONS, STATUSES, getInstrumentColor } from '../lib/utils';
 
-const API_URL = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const BACKEND_URL = (process.env.REACT_APP_BACKEND_URL || '').replace(/\/$/, '');
+const API_URL = `${BACKEND_URL}/api`;
+const LIVE_STREAM_WS_URL = BACKEND_URL.replace(/^http/i, 'ws');
 
 const CHART_SYMBOLS = [
   { label: 'BTC/USDT', value: 'BTCUSDT' },
@@ -31,8 +33,6 @@ const CHART_SYMBOLS = [
 ];
 
 const CHART_INTERVALS = ['1m', '5m', '15m', '1h', '4h', '1d'];
-
-const CRYPTO_STREAM_SYMBOLS = new Set(['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT']);
 
 const INTERVAL_SECONDS = {
   '1m': 60,
@@ -825,24 +825,28 @@ export default function Journal() {
       };
     }
 
-    if (CRYPTO_STREAM_SYMBOLS.has(chartSymbol)) {
-      const streamName = `${chartSymbol.toLowerCase()}@kline_${chartInterval}`;
-      const ws = new WebSocket(`wss://stream.binance.com:9443/ws/${streamName}`);
+    if (LIVE_STREAM_WS_URL) {
+      const ws = new WebSocket(
+        `${LIVE_STREAM_WS_URL}/api/market/live-candles/ws?symbol=${encodeURIComponent(chartSymbol)}&interval=${encodeURIComponent(chartInterval)}`
+      );
       liveSocketRef.current = ws;
 
       ws.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
-          const kline = payload?.k;
-          if (!kline) return;
+          const candle = payload?.type === 'candle' ? payload.data : payload;
+          if (!candle) return;
 
-          upsertLiveCandle({
-            time: kline.t,
-            open: kline.o,
-            high: kline.h,
-            low: kline.l,
-            close: kline.c,
-          }, 'stream');
+          upsertLiveCandle(
+            {
+              time: candle.time,
+              open: candle.open,
+              high: candle.high,
+              low: candle.low,
+              close: candle.close,
+            },
+            'stream'
+          );
         } catch (error) {
           console.debug('Live stream parse failed:', error?.message || 'invalid payload');
         }

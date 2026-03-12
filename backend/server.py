@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, Query, UploadFile, File
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, Query, UploadFile, File, WebSocket, WebSocketDisconnect
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -1518,6 +1518,64 @@ async def get_market_candles(
     except Exception as e:
         logging.error(f"Candle API error: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to fetch market candles")
+
+
+@api_router.websocket("/market/live-candles/ws")
+async def market_live_candles_ws(
+    websocket: WebSocket,
+    symbol: str = "BTCUSDT",
+    interval: str = "5m",
+):
+    """Stream the latest candle updates through backend websocket.
+
+    This keeps live chart updates under backend control and lets frontend
+    reuse the same transport for all supported symbols.
+    """
+    await websocket.accept()
+
+    poll_map = {
+        "1m": 2.0,
+        "5m": 3.0,
+        "15m": 4.0,
+        "1h": 6.0,
+        "4h": 8.0,
+        "1d": 12.0,
+    }
+    poll_seconds = poll_map.get(interval, 3.0)
+
+    last_signature = None
+
+    try:
+        while True:
+            try:
+                candles = await get_market_candles(
+                    symbol=symbol,
+                    interval=interval,
+                    limit=2,
+                    from_ts=None,
+                    to_ts=None,
+                )
+            except HTTPException as e:
+                await websocket.send_json({"type": "error", "detail": str(e.detail)})
+                await asyncio.sleep(poll_seconds)
+                continue
+
+            if candles:
+                latest = candles[-1]
+                signature = (latest.time, latest.close)
+                if signature != last_signature:
+                    await websocket.send_json({"type": "candle", "data": latest.model_dump()})
+                    last_signature = signature
+
+            await asyncio.sleep(poll_seconds)
+    except WebSocketDisconnect:
+        return
+    except Exception as e:
+        logging.error(f"Live candle websocket error: {str(e)}")
+        try:
+            await websocket.close()
+        except Exception:
+            pass
 
 # ============ AI INSIGHTS ============
 
