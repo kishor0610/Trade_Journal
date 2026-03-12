@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion, useMotionValue, useSpring } from 'framer-motion';
+import { animate, AnimatePresence, motion, useMotionValue, useSpring } from 'framer-motion';
 import axios from 'axios';
 import {
   Area,
@@ -96,13 +96,9 @@ const RadialGauge = ({ value, label, weeklyDelta, accentClass }) => {
   const stroke = 11;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
-  const progress = useSpring(0, { stiffness: 70, damping: 14 });
+  const progress = useMotionValue(0);
   const [dashOffset, setDashOffset] = useState(circumference);
   const [settledPulse, setSettledPulse] = useState(false);
-
-  useEffect(() => {
-    progress.set((target / 100) * circumference);
-  }, [target, circumference, progress]);
 
   useEffect(() => {
     const unsub = progress.on('change', (latest) => {
@@ -112,17 +108,28 @@ const RadialGauge = ({ value, label, weeklyDelta, accentClass }) => {
   }, [progress, circumference]);
 
   useEffect(() => {
+    // Always restart from empty so users see the arc sweep on load/switch.
+    progress.set(0);
+    const targetLen = (target / 100) * circumference;
+    const controls = animate(progress, targetLen, {
+      duration: 1.15,
+      ease: [0.22, 1, 0.36, 1],
+    });
+
     setSettledPulse(false);
-    const timer = setTimeout(() => setSettledPulse(true), 850);
-    return () => clearTimeout(timer);
-  }, [target]);
+    const timer = setTimeout(() => setSettledPulse(true), 1180);
+    return () => {
+      controls.stop();
+      clearTimeout(timer);
+    };
+  }, [target, circumference, progress]);
 
   return (
     <div className="flex items-center gap-3">
       <motion.div
         className="relative"
-        animate={settledPulse ? { scale: [1, 1.02, 1] } : { scale: 1 }}
-        transition={{ duration: 0.42, ease: 'easeOut' }}
+        animate={settledPulse ? { scale: [1, 1.03, 1], filter: ['drop-shadow(0 0 0px transparent)', `drop-shadow(0 0 8px ${color})`, 'drop-shadow(0 0 0px transparent)'] } : { scale: 1, filter: 'drop-shadow(0 0 0px transparent)' }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}
       >
         <svg width={size} height={size}>
           <circle cx={size / 2} cy={size / 2} r={radius} stroke="rgba(255,255,255,0.12)" strokeWidth={stroke} fill="none" />
