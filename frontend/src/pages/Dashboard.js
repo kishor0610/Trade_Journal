@@ -551,9 +551,10 @@ export default function Dashboard() {
     const bullPct = knownOutcomes > 0 ? (bull / knownOutcomes) * 100 : 50;
     const bearPct = knownOutcomes > 0 ? (bear / knownOutcomes) * 100 : 50;
     // Move marker by net PnL intensity: losses push left, profits push right.
-    const pnlScaleBase = Math.max(500, (Math.abs(avgGain) + Math.abs(avgLoss)) * 2, Math.abs(totalPnl) * 0.35);
+    // Lower base scale makes movement visibly responsive for typical journal PnL values.
+    const pnlScaleBase = Math.max(250, (Math.abs(avgGain) + Math.abs(avgLoss)) * 0.6);
     const pnlTilt = pnlScaleBase > 0 ? Math.tanh(totalPnl / pnlScaleBase) : 0;
-    const markerPosition = Math.max(0, Math.min(100, 50 + pnlTilt * 50));
+    const markerPosition = Math.max(4, Math.min(96, 50 + pnlTilt * 46));
     const duelState = totalPnl > 0 ? 'profit' : totalPnl < 0 ? 'loss' : 'neutral';
     const confidence = Math.max(bullPct, bearPct);
     const positiveWinRate = knownOutcomes > 0 ? (bull / knownOutcomes) * 100 : 0;
@@ -885,10 +886,11 @@ export default function Dashboard() {
                   style={{ boxShadow: biasStats.duelState === 'profit' ? '0 0 18px rgba(34,197,94,0.45)' : biasStats.duelState === 'loss' ? '0 0 18px rgba(239,68,68,0.45)' : '0 0 12px rgba(250,204,21,0.32)' }}
                 />
                 <motion.div
-                  className="absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-full border border-white/80 bg-white/90"
+                  className="absolute top-1/2 h-6 w-6 -translate-y-1/2 rounded-full border border-white/90 bg-white"
                   initial={{ left: '50%' }}
                   animate={{ left: `calc(${biasStats.markerPosition}% - 10px)` }}
                   transition={{ duration: 0.8, ease: 'easeOut' }}
+                  style={{ boxShadow: '0 0 10px rgba(255,255,255,0.8)' }}
                 />
               </motion.div>
 
