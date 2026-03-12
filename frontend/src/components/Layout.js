@@ -7,7 +7,6 @@ import {
   BookOpen, 
   BarChart3, 
   Sparkles, 
-  Activity,
   LogOut, 
   TrendingUp,
   User,
@@ -22,7 +21,6 @@ import { Toaster } from '../components/ui/sonner';
 const navItems = [
   { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/journal', icon: BookOpen, label: 'Journal' },
-  { path: '/live-market', icon: Activity, label: 'Live Market' },
   { path: '/accounts', icon: Wallet, label: 'Accounts' },
   { path: '/analytics', icon: BarChart3, label: 'Analytics' },
   { path: '/insights', icon: Sparkles, label: 'AI Insights' },

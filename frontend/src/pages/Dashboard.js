@@ -63,8 +63,9 @@ const AnimatedNumber = ({ value, decimals = 0, prefix = '', suffix = '', classNa
 
 const cardHover = {
   whileHover: {
-    y: -5,
-    boxShadow: '0 20px 38px rgba(0,0,0,0.38), 0 0 0 1px rgba(56,189,248,0.28)',
+    y: -4,
+    scale: 1.01,
+    transition: { type: 'spring', stiffness: 320, damping: 26, mass: 0.4 },
   },
 };
 
@@ -74,7 +75,7 @@ const DashboardCard = ({ title, borderClass = 'border-white/10', children }) => 
     animate={{ opacity: 1, y: 0 }}
     transition={{ duration: 0.28 }}
     {...cardHover}
-    className={`glass-card p-4 border ${borderClass} transition-all duration-200 will-change-transform`}
+    className={`glass-card p-4 border ${borderClass} transition-transform duration-200 will-change-transform transform-gpu shadow-[0_10px_20px_rgba(0,0,0,0.22)]`}
   >
     <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">{title}</p>
     {children}
@@ -548,23 +549,32 @@ export default function Dashboard() {
       <div className="pointer-events-none absolute inset-0 -z-10">
         <motion.div
           className="absolute -top-24 -left-16 h-72 w-72 rounded-full bg-cyan-500/10 blur-3xl"
-          animate={{ x: [0, 18, 0], y: [0, 10, 0], opacity: [0.18, 0.3, 0.18] }}
-          transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
+          animate={{ x: [0, 14, 0], y: [0, 8, 0], opacity: [0.1, 0.16, 0.1] }}
+          transition={{ duration: 24, repeat: Infinity, ease: 'easeInOut' }}
         />
         <motion.div
           className="absolute bottom-0 right-0 h-72 w-72 rounded-full bg-emerald-500/10 blur-3xl"
-          animate={{ x: [0, -20, 0], y: [0, -12, 0], opacity: [0.14, 0.24, 0.14] }}
-          transition={{ duration: 14, repeat: Infinity, ease: 'easeInOut' }}
+          animate={{ x: [0, -14, 0], y: [0, -8, 0], opacity: [0.08, 0.14, 0.08] }}
+          transition={{ duration: 28, repeat: Infinity, ease: 'easeInOut' }}
         />
         <motion.div
           className="absolute inset-0"
           animate={{ backgroundPosition: ['0% 0%', '100% 100%', '0% 0%'] }}
-          transition={{ duration: 24, repeat: Infinity, ease: 'linear' }}
+          transition={{ duration: 48, repeat: Infinity, ease: 'linear' }}
           style={{
-            backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(148,163,184,0.08) 1px, transparent 0)',
-            backgroundSize: '28px 28px',
+            backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(148,163,184,0.05) 1px, transparent 0)',
+            backgroundSize: '30px 30px',
           }}
         />
+        {Array.from({ length: 6 }).map((_, i) => (
+          <motion.span
+            key={`particle-${i}`}
+            className="absolute h-[2px] w-[2px] rounded-full bg-slate-300/30"
+            style={{ left: `${12 + i * 15}%`, top: `${18 + (i % 3) * 24}%` }}
+            animate={{ opacity: [0.08, 0.35, 0.08], y: [0, -3, 0] }}
+            transition={{ duration: 6 + i, repeat: Infinity, ease: 'easeInOut' }}
+          />
+        ))}
       </div>
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -574,11 +584,7 @@ export default function Dashboard() {
             <span className="inline-flex items-center gap-1 text-emerald-400"><span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> Live synced</span>
             <span>Updated {secondsAgo}s ago</span>
             <button onClick={handleRefresh} className="hover:text-accent transition-colors" aria-label="refresh dashboard">
-              <motion.span
-                className="inline-flex"
-                animate={refreshing ? { rotate: 360, scale: [1, 1.1, 1] } : { rotate: 0, scale: [1, 1.05, 1] }}
-                transition={{ duration: refreshing ? 0.9 : 1.8, repeat: Infinity, ease: 'linear' }}
-              >
+              <motion.span className="inline-flex" animate={refreshing ? { rotate: 360, scale: [1, 1.06, 1] } : { rotate: 0, scale: 1 }} transition={{ duration: 0.9, repeat: refreshing ? Infinity : 0, ease: 'linear' }}>
                 <RefreshCw className={`w-4 h-4 ${refreshing ? 'text-accent' : ''}`} />
               </motion.span>
             </button>
@@ -725,13 +731,10 @@ export default function Dashboard() {
           <div className="space-y-2">
             <div className="flex gap-1">
               {Array.from({ length: 10 }).map((_, i) => (
-                <motion.span
+                <Flame
                   key={`fl-${i}`}
-                  animate={i < Math.min(10, Number(summary?.current_win_streak_trades || 0)) ? { opacity: [0.75, 1, 0.85], y: [0, -1, 0] } : { opacity: 0.25, y: 0 }}
-                  transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut', delay: i * 0.03 }}
-                >
-                  <Flame className={`w-4 h-4 ${i < Math.min(10, Number(summary?.current_win_streak_trades || 0)) ? 'text-orange-400' : 'text-white/20'}`} />
-                </motion.span>
+                  className={`w-4 h-4 ${i < Math.min(10, Number(summary?.current_win_streak_trades || 0)) ? 'text-orange-400' : 'text-white/20'} ${i === 0 && Number(summary?.current_win_streak_trades || 0) > 0 ? 'animate-pulse' : ''}`}
+                />
               ))}
             </div>
             <p className="text-sm">Current streak: <span className={`font-mono font-bold text-orange-300 ${streakGlow ? 'drop-shadow-[0_0_8px_rgba(251,146,60,0.9)]' : ''}`}>{summary?.current_win_streak_trades || 0}</span></p>
