@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { motion, useMotionValue, useSpring } from 'framer-motion';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, motion, useMotionValue, useSpring } from 'framer-motion';
 import axios from 'axios';
 import {
   Area,
@@ -46,7 +46,7 @@ const API_URL = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const AnimatedNumber = ({ value, decimals = 0, prefix = '', suffix = '', className = '' }) => {
   const motionValue = useMotionValue(0);
-  const spring = useSpring(motionValue, { stiffness: 90, damping: 18, mass: 0.5 });
+  const spring = useSpring(motionValue, { stiffness: 88, damping: 20, mass: 0.6 });
   const [display, setDisplay] = useState(0);
 
   useEffect(() => {
@@ -63,8 +63,8 @@ const AnimatedNumber = ({ value, decimals = 0, prefix = '', suffix = '', classNa
 
 const cardHover = {
   whileHover: {
-    y: -4,
-    boxShadow: '0 16px 30px rgba(0,0,0,0.35)',
+    y: -5,
+    boxShadow: '0 20px 38px rgba(0,0,0,0.38), 0 0 0 1px rgba(56,189,248,0.28)',
   },
 };
 
@@ -74,7 +74,7 @@ const DashboardCard = ({ title, borderClass = 'border-white/10', children }) => 
     animate={{ opacity: 1, y: 0 }}
     transition={{ duration: 0.28 }}
     {...cardHover}
-    className={`glass-card p-4 border ${borderClass} transition-all`}
+    className={`glass-card p-4 border ${borderClass} transition-all duration-200 will-change-transform`}
   >
     <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">{title}</p>
     {children}
@@ -96,6 +96,7 @@ const RadialGauge = ({ value, label, weeklyDelta, accentClass }) => {
   const circumference = 2 * Math.PI * radius;
   const progress = useSpring(0, { stiffness: 70, damping: 14 });
   const [dashOffset, setDashOffset] = useState(circumference);
+  const [settledPulse, setSettledPulse] = useState(false);
 
   useEffect(() => {
     progress.set((target / 100) * circumference);
@@ -108,9 +109,19 @@ const RadialGauge = ({ value, label, weeklyDelta, accentClass }) => {
     return unsub;
   }, [progress, circumference]);
 
+  useEffect(() => {
+    setSettledPulse(false);
+    const timer = setTimeout(() => setSettledPulse(true), 850);
+    return () => clearTimeout(timer);
+  }, [target]);
+
   return (
     <div className="flex items-center gap-3">
-      <div className={`relative ${target > 70 ? 'animate-pulse' : ''}`}>
+      <motion.div
+        className="relative"
+        animate={settledPulse ? { scale: [1, 1.03, 1], filter: ['drop-shadow(0 0 0px transparent)', `drop-shadow(0 0 8px ${color})`, 'drop-shadow(0 0 0px transparent)'] } : { scale: 1 }}
+        transition={{ duration: 0.55, ease: 'easeOut' }}
+      >
         <svg width={size} height={size}>
           <circle cx={size / 2} cy={size / 2} r={radius} stroke="rgba(255,255,255,0.12)" strokeWidth={stroke} fill="none" />
           <circle
@@ -129,7 +140,7 @@ const RadialGauge = ({ value, label, weeklyDelta, accentClass }) => {
         <div className="absolute inset-0 flex items-center justify-center">
           <AnimatedNumber value={target} decimals={2} suffix="%" className="text-lg font-mono font-bold" />
         </div>
-      </div>
+      </motion.div>
       <div>
         <p className={`font-semibold ${accentClass}`}>{label}</p>
         <p className="text-xs text-muted-foreground flex items-center gap-1">
@@ -202,7 +213,7 @@ const TradingCalendar = ({ year, month, dailyData, onMonthChange }) => {
           <Button variant="ghost" size="icon" onClick={() => onMonthChange(-1)}>
             <ChevronLeft className="w-4 h-4" />
           </Button>
-          <h3 className="text-lg font-heading font-bold min-w-[130px] text-center">{getMonthName(month)} {year}</h3>
+          <h3 className="text-[31px] leading-none font-heading font-bold min-w-[190px] text-center">{getMonthName(month)} {year}</h3>
           <Button variant="ghost" size="icon" onClick={() => onMonthChange(1)}>
             <ChevronRight className="w-4 h-4" />
           </Button>
@@ -212,7 +223,7 @@ const TradingCalendar = ({ year, month, dailyData, onMonthChange }) => {
           </Button>
         </div>
 
-        <div className="flex items-center gap-3 text-sm rounded-xl bg-blue-500/10 border border-blue-500/20 px-3 py-2">
+        <div className="flex items-center gap-3 text-sm rounded-xl bg-blue-500/10 border border-blue-500/25 px-3 py-2">
           <span className={monthPnl >= 0 ? 'text-emerald-300 font-mono' : 'text-red-300 font-mono'}>PnL: {formatCurrency(monthPnl)}</span>
           <span className="text-muted-foreground">|</span>
           <span className="text-muted-foreground">Days: <span className="text-white font-mono">{monthDays}</span></span>
@@ -221,7 +232,7 @@ const TradingCalendar = ({ year, month, dailyData, onMonthChange }) => {
 
       <div className="flex flex-col xl:flex-row gap-5">
         <div className="flex-1 overflow-x-auto">
-          <table className="w-full min-w-[560px]">
+          <table className="w-full min-w-[560px] table-fixed">
             <thead>
               <tr>
                 {daysOfWeek.map((day) => (
@@ -233,9 +244,9 @@ const TradingCalendar = ({ year, month, dailyData, onMonthChange }) => {
               {weeks.map((week, i) => (
                 <tr key={`wk-${i}`}>
                   {week.map((cell, idx) => (
-                    <td key={`d-${idx}`} className="p-1">
+                    <td key={`d-${idx}`} className="p-1 align-top">
                       {cell ? (
-                        <div className={`min-h-[92px] rounded-lg p-2 border transition-colors ${
+                        <div className={`h-[104px] rounded-xl p-2 border transition-colors flex flex-col justify-start ${
                           cell.pnl > 0
                             ? 'border-emerald-500/40 bg-emerald-900/30'
                             : cell.pnl < 0
@@ -243,17 +254,19 @@ const TradingCalendar = ({ year, month, dailyData, onMonthChange }) => {
                               : 'border-white/10 bg-slate-900/50'
                         }`}>
                           <p className="text-sm text-slate-300">{cell.day}</p>
-                          {cell.trades > 0 && (
-                            <div className="mt-2">
+                          {cell.trades > 0 ? (
+                            <div className="mt-2 min-h-[38px]">
                               <p className="text-xs text-slate-200">{cell.trades} trades</p>
                               <p className={`text-sm font-mono font-bold ${cell.pnl >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
                                 {formatCurrency(cell.pnl)}
                               </p>
                             </div>
+                          ) : (
+                            <div className="mt-2 min-h-[38px]" />
                           )}
                         </div>
                       ) : (
-                        <div className="min-h-[92px] rounded-lg bg-slate-900/35 border border-white/5" />
+                        <div className="h-[104px] rounded-xl bg-slate-900/35 border border-white/5" />
                       )}
                     </td>
                   ))}
@@ -266,7 +279,7 @@ const TradingCalendar = ({ year, month, dailyData, onMonthChange }) => {
         <div className="xl:w-72 space-y-2">
           <p className="text-sm text-blue-200/90">Weekly Summary</p>
           {weeklySummary.map((week) => (
-            <div key={week.title} className="rounded-lg border border-white/10 bg-slate-900/40 p-3">
+            <div key={week.title} className="rounded-xl border border-white/10 bg-slate-900/40 p-3 min-h-[96px] flex flex-col justify-between">
               <div className="flex items-center justify-between">
                 <p className="font-semibold">{week.title}</p>
                 <p className="text-xs text-muted-foreground">{week.range}</p>
@@ -294,9 +307,15 @@ export default function Dashboard() {
   const [lastSyncAt, setLastSyncAt] = useState(Date.now());
   const [secondsAgo, setSecondsAgo] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [periodTransition, setPeriodTransition] = useState(false);
+  const [pnlFlash, setPnlFlash] = useState(null);
+  const [streakGlow, setStreakGlow] = useState(false);
   const [calendarDate, setCalendarDate] = useState({ year: new Date().getFullYear(), month: new Date().getMonth() });
+  const firstLoadRef = useRef(true);
+  const prevTotalPnl = useRef(null);
+  const prevStreak = useRef(0);
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (mode = 'normal') => {
     try {
       const [summaryRes, tradeCountRes, balanceRes, openRes] = await Promise.all([
         axios.get(`${API_URL}/analytics/summary`),
@@ -315,7 +334,12 @@ export default function Dashboard() {
       console.error('Failed to fetch dashboard data:', error);
       toast.error('Failed to load dashboard data');
     } finally {
-      setLoading(false);
+      if (mode === 'initial') {
+        setLoading(false);
+      }
+      if (mode === 'period') {
+        setPeriodTransition(false);
+      }
       setRefreshing(false);
     }
   };
@@ -330,8 +354,14 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    setLoading(true);
-    fetchDashboardData();
+    if (firstLoadRef.current) {
+      setLoading(true);
+      fetchDashboardData('initial');
+      firstLoadRef.current = false;
+    } else {
+      setPeriodTransition(true);
+      fetchDashboardData('period');
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPeriod]);
 
@@ -349,7 +379,7 @@ export default function Dashboard() {
 
   const handleRefresh = () => {
     setRefreshing(true);
-    fetchDashboardData();
+    fetchDashboardData('refresh');
     fetchCalendarData();
   };
 
@@ -462,6 +492,34 @@ export default function Dashboard() {
     };
   }, [summary, equitySeries]);
 
+  const streakGoal = 30;
+
+  useEffect(() => {
+    if (!summary) return undefined;
+    const nextPnl = Number(summary.total_pnl || 0);
+    if (prevTotalPnl.current !== null && nextPnl !== prevTotalPnl.current) {
+      setPnlFlash(nextPnl > prevTotalPnl.current ? 'up' : 'down');
+      const timer = setTimeout(() => setPnlFlash(null), 520);
+      prevTotalPnl.current = nextPnl;
+      return () => clearTimeout(timer);
+    }
+    prevTotalPnl.current = nextPnl;
+    return undefined;
+  }, [summary]);
+
+  useEffect(() => {
+    if (!summary) return undefined;
+    const curr = Number(summary.current_win_streak_trades || 0);
+    if (curr > prevStreak.current) {
+      setStreakGlow(true);
+      const timer = setTimeout(() => setStreakGlow(false), 800);
+      prevStreak.current = curr;
+      return () => clearTimeout(timer);
+    }
+    prevStreak.current = curr;
+    return undefined;
+  }, [summary]);
+
   const radarData = useMemo(() => {
     const winrate = Number(summary?.win_rate || 0);
     const rr = Math.min(100, Number(summary?.avg_win_loss_ratio || 0) * 40);
@@ -486,7 +544,29 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="space-y-6" data-testid="dashboard-page">
+    <div className="space-y-6 relative overflow-hidden" data-testid="dashboard-page">
+      <div className="pointer-events-none absolute inset-0 -z-10">
+        <motion.div
+          className="absolute -top-24 -left-16 h-72 w-72 rounded-full bg-cyan-500/10 blur-3xl"
+          animate={{ x: [0, 18, 0], y: [0, 10, 0], opacity: [0.18, 0.3, 0.18] }}
+          transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
+        />
+        <motion.div
+          className="absolute bottom-0 right-0 h-72 w-72 rounded-full bg-emerald-500/10 blur-3xl"
+          animate={{ x: [0, -20, 0], y: [0, -12, 0], opacity: [0.14, 0.24, 0.14] }}
+          transition={{ duration: 14, repeat: Infinity, ease: 'easeInOut' }}
+        />
+        <motion.div
+          className="absolute inset-0"
+          animate={{ backgroundPosition: ['0% 0%', '100% 100%', '0% 0%'] }}
+          transition={{ duration: 24, repeat: Infinity, ease: 'linear' }}
+          style={{
+            backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(148,163,184,0.08) 1px, transparent 0)',
+            backgroundSize: '28px 28px',
+          }}
+        />
+      </div>
+
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-heading font-black">Dashboard</h1>
@@ -494,7 +574,13 @@ export default function Dashboard() {
             <span className="inline-flex items-center gap-1 text-emerald-400"><span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> Live synced</span>
             <span>Updated {secondsAgo}s ago</span>
             <button onClick={handleRefresh} className="hover:text-accent transition-colors" aria-label="refresh dashboard">
-              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-accent' : ''}`} />
+              <motion.span
+                className="inline-flex"
+                animate={refreshing ? { rotate: 360, scale: [1, 1.1, 1] } : { rotate: 0, scale: [1, 1.05, 1] }}
+                transition={{ duration: refreshing ? 0.9 : 1.8, repeat: Infinity, ease: 'linear' }}
+              >
+                <RefreshCw className={`w-4 h-4 ${refreshing ? 'text-accent' : ''}`} />
+              </motion.span>
             </button>
           </div>
         </div>
@@ -519,9 +605,11 @@ export default function Dashboard() {
                 key={period.value}
                 onClick={() => setSelectedPeriod(period.value)}
                 whileTap={{ scale: 0.96 }}
+                animate={selectedPeriod === period.value ? { scale: 1.04 } : { scale: 1 }}
+                transition={{ duration: 0.16, ease: 'easeOut' }}
                 className={`px-3 py-1.5 text-sm rounded-lg transition-all ${
                   selectedPeriod === period.value
-                    ? 'text-black font-medium bg-accent shadow-[0_0_14px_rgba(16,185,129,0.35)]'
+                    ? 'text-black font-medium bg-accent shadow-[0_0_18px_rgba(16,185,129,0.45)]'
                     : 'text-muted-foreground hover:text-white'
                 }`}
               >
@@ -532,6 +620,15 @@ export default function Dashboard() {
         </div>
       </div>
 
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={selectedPeriod}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: periodTransition ? 0.65 : 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ duration: 0.35 }}
+          className="space-y-6"
+        >
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <DashboardCard title="Winrate" borderClass="border-blue-500/30">
           <RadialGauge value={summary?.win_rate || 0} label="Winrate" weeklyDelta={weekWinrateDelta} accentClass="text-blue-300" />
@@ -552,6 +649,7 @@ export default function Dashboard() {
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: `${Math.min(100, (Number(summary?.avg_win || 0) / Math.max(1, Number(summary?.avg_win || 0) + Number(summary?.avg_loss || 0))) * 100)}%` }}
+                  transition={{ duration: 1.05, ease: 'easeOut' }}
                   className="h-full bg-gradient-to-r from-blue-500 to-emerald-400"
                 />
               </div>
@@ -565,6 +663,7 @@ export default function Dashboard() {
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: `${Math.min(100, (Number(summary?.avg_loss || 0) / Math.max(1, Number(summary?.avg_win || 0) + Number(summary?.avg_loss || 0))) * 100)}%` }}
+                  transition={{ duration: 1.05, ease: 'easeOut' }}
                   className="h-full bg-gradient-to-r from-red-500 to-orange-400"
                 />
               </div>
@@ -576,7 +675,7 @@ export default function Dashboard() {
         <DashboardCard title="Trade Count" borderClass="border-purple-500/30">
           <div className="space-y-2">
             <div className="flex items-end justify-between">
-              <p className="text-3xl font-mono font-bold text-purple-300">{tradeCount.total || 0}</p>
+              <p className="text-3xl font-mono font-bold text-purple-300"><AnimatedNumber value={tradeCount.total || 0} /></p>
               <p className={`text-xs flex items-center gap-1 ${weeklyTradesDelta >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
                 {weeklyTradesDelta >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
                 {weeklyTradesDelta >= 0 ? '+' : ''}{weeklyTradesDelta} this week
@@ -595,7 +694,16 @@ export default function Dashboard() {
                   formatter={(v) => [v, 'Trades']}
                   labelFormatter={(label) => `Day ${label}`}
                 />
-                <Area type="monotone" dataKey="count" stroke="#a855f7" strokeWidth={2.2} fill="url(#tradeGlow)" />
+                <Area
+                  type="monotone"
+                  dataKey="count"
+                  stroke="#a855f7"
+                  strokeWidth={2.2}
+                  fill="url(#tradeGlow)"
+                  isAnimationActive
+                  animationDuration={1200}
+                  animationEasing="ease-out"
+                />
                 {tradeCountSeries.length > 0 && (
                   <ReferenceDot
                     x={tradeCountSeries[tradeCountSeries.length - 1]?.date}
@@ -617,23 +725,35 @@ export default function Dashboard() {
           <div className="space-y-2">
             <div className="flex gap-1">
               {Array.from({ length: 10 }).map((_, i) => (
-                <Flame key={`fl-${i}`} className={`w-4 h-4 ${i < Math.min(10, Number(summary?.current_win_streak_trades || 0)) ? 'text-orange-400' : 'text-white/20'}`} />
+                <motion.span
+                  key={`fl-${i}`}
+                  animate={i < Math.min(10, Number(summary?.current_win_streak_trades || 0)) ? { opacity: [0.75, 1, 0.85], y: [0, -1, 0] } : { opacity: 0.25, y: 0 }}
+                  transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut', delay: i * 0.03 }}
+                >
+                  <Flame className={`w-4 h-4 ${i < Math.min(10, Number(summary?.current_win_streak_trades || 0)) ? 'text-orange-400' : 'text-white/20'}`} />
+                </motion.span>
               ))}
             </div>
-            <p className="text-sm">Current streak: <span className="font-mono font-bold text-orange-300">{summary?.current_win_streak_trades || 0}</span></p>
+            <p className="text-sm">Current streak: <span className={`font-mono font-bold text-orange-300 ${streakGlow ? 'drop-shadow-[0_0_8px_rgba(251,146,60,0.9)]' : ''}`}>{summary?.current_win_streak_trades || 0}</span></p>
             <p className="text-xs text-muted-foreground">Best streak: <span className="font-mono text-orange-200">{summary?.win_streak_trades || 0}</span></p>
             <div className="h-2 rounded-full bg-white/10 overflow-hidden">
               <motion.div
                 initial={{ width: 0 }}
-                animate={{ width: `${Math.min(100, ((summary?.current_win_streak_trades || 0) / Math.max(1, summary?.win_streak_trades || 1)) * 100)}%` }}
+                animate={{ width: `${Math.min(100, ((summary?.current_win_streak_trades || 0) / streakGoal) * 100)}%` }}
+                transition={{ duration: 1.1, ease: 'easeOut' }}
                 className="h-full bg-gradient-to-r from-orange-500 to-amber-300"
               />
             </div>
+            <p className="text-[11px] text-muted-foreground">Goal: {streakGoal} trades</p>
           </div>
         </DashboardCard>
 
         <DashboardCard title="Total P&L" borderClass="border-emerald-500/30">
-          <div className="space-y-2">
+          <motion.div
+            className={`space-y-2 rounded-lg p-1 ${pnlFlash === 'up' ? 'bg-emerald-500/10' : pnlFlash === 'down' ? 'bg-red-500/10' : ''}`}
+            animate={pnlFlash ? { scale: [1, 1.02, 1] } : { scale: 1 }}
+            transition={{ duration: 0.45, ease: 'easeOut' }}
+          >
             <div className="flex items-center gap-2">
               <AnimatedNumber
                 value={summary?.total_pnl || 0}
@@ -654,10 +774,10 @@ export default function Dashboard() {
                     <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <Area type="monotone" dataKey="balance" stroke="#10b981" strokeWidth={2} fill="url(#pnlMini)" />
+                <Area type="monotone" dataKey="balance" stroke="#10b981" strokeWidth={2} fill="url(#pnlMini)" isAnimationActive animationDuration={1000} />
               </AreaChart>
             </ResponsiveContainer>
-          </div>
+          </motion.div>
         </DashboardCard>
 
         <DashboardCard title="Open Positions" borderClass="border-red-500/25">
@@ -685,6 +805,7 @@ export default function Dashboard() {
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: `${Math.min(100, Number(summary?.win_rate || 0))}%` }}
+                  transition={{ duration: 0.95, ease: 'easeOut' }}
                   className="h-full bg-gradient-to-r from-blue-500 to-cyan-300"
                 />
               </div>
@@ -695,6 +816,7 @@ export default function Dashboard() {
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: `${Math.min(100, Math.max(10, Number(summary?.daily_win_rate || 0)))}%` }}
+                  transition={{ duration: 0.95, ease: 'easeOut' }}
                   className="h-full bg-gradient-to-r from-emerald-500 to-lime-300"
                 />
               </div>
@@ -833,6 +955,8 @@ export default function Dashboard() {
         dailyData={dailyData.days || []}
         onMonthChange={handleMonthChange}
       />
+        </motion.div>
+      </AnimatePresence>
     </div>
   );
 }
