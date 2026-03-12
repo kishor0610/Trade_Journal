@@ -903,7 +903,27 @@ export default function Journal() {
   }, [annotationStorageKey, annotations]);
 
   useEffect(() => {
-    if (!chartContainerRef.current) return;
+    if (chartEngine !== 'lightweight') {
+      if (chartRef.current) {
+        try {
+          chartRef.current.remove();
+        } catch {
+          // Ignore stale chart cleanup errors.
+        }
+      }
+      chartRef.current = null;
+      candleSeriesRef.current = null;
+      replayCursorSeriesRef.current = null;
+      positionSeriesRef.current = null;
+      positionBoxTopRef.current = null;
+      positionBoxBottomRef.current = null;
+      positionBoxLeftRef.current = null;
+      positionBoxRightRef.current = null;
+      priceLinesRef.current = [];
+      return () => {};
+    }
+
+    if (!chartContainerRef.current) return () => {};
     let chart;
     try {
       chart = createChart(chartContainerRef.current, {
@@ -1047,7 +1067,7 @@ export default function Journal() {
       positionBoxRightRef.current = null;
       priceLinesRef.current = [];
     };
-  }, []);
+  }, [chartEngine]);
 
   const replayTrade = useMemo(() => {
     if (chartTrades.length === 0) return null;
