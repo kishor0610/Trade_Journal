@@ -26,7 +26,6 @@ import {
   Download,
   Flame,
   RefreshCw,
-  Target,
   TrendingDown,
   TrendingUp,
 } from 'lucide-react';
@@ -69,13 +68,13 @@ const cardHover = {
   },
 };
 
-const DashboardCard = ({ title, borderClass = 'border-white/10', children }) => (
+const DashboardCard = ({ title, borderClass = 'border-white/10', className = '', children }) => (
   <motion.div
     initial={{ opacity: 0, y: 14 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ duration: 0.28 }}
     {...cardHover}
-    className={`glass-card p-4 border ${borderClass} transition-transform duration-200 will-change-transform transform-gpu shadow-[0_8px_16px_rgba(0,0,0,0.18)]`}
+    className={`glass-card p-4 border ${borderClass} ${className} transition-transform duration-200 will-change-transform transform-gpu shadow-[0_8px_16px_rgba(0,0,0,0.18)]`}
     style={{ backfaceVisibility: 'hidden' }}
   >
     <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">{title}</p>
@@ -309,7 +308,6 @@ export default function Dashboard() {
   const [summary, setSummary] = useState(null);
   const [tradeCount, setTradeCount] = useState({ total: 0, data: [] });
   const [balanceHistory, setBalanceHistory] = useState([]);
-  const [openTrades, setOpenTrades] = useState([]);
   const [dailyData, setDailyData] = useState({ days: [] });
   const [loading, setLoading] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState('1M');
@@ -326,17 +324,15 @@ export default function Dashboard() {
 
   const fetchDashboardData = async (mode = 'normal') => {
     try {
-      const [summaryRes, tradeCountRes, balanceRes, openRes] = await Promise.all([
+      const [summaryRes, tradeCountRes, balanceRes] = await Promise.all([
         axios.get(`${API_URL}/analytics/summary`),
         axios.get(`${API_URL}/analytics/trade-count?period=${selectedPeriod}`),
         axios.get(`${API_URL}/analytics/balance-history?period=${selectedPeriod}`),
-        axios.get(`${API_URL}/trades?status=open`),
       ]);
 
       setSummary(summaryRes.data);
       setTradeCount(tradeCountRes.data || { total: 0, data: [] });
       setBalanceHistory(balanceRes.data || []);
-      setOpenTrades(openRes.data || []);
       setLastSyncAt(Date.now());
       setSecondsAgo(0);
     } catch (error) {
@@ -543,6 +539,25 @@ export default function Dashboard() {
       { metric: 'Consistency', value: Math.round(consistency) },
     ];
   }, [summary, riskMetrics.maxDrawdown]);
+
+  const biasStats = useMemo(() => {
+    const bull = Number(summary?.winning_trades || 0);
+    const bear = Number(summary?.losing_trades || 0);
+    const knownOutcomes = Math.max(0, bull + bear);
+    const totalTrades = Number(summary?.total_trades || 0);
+    const bullPct = knownOutcomes > 0 ? (bull / knownOutcomes) * 100 : 50;
+    const bearPct = knownOutcomes > 0 ? (bear / knownOutcomes) * 100 : 50;
+    const sentiment = knownOutcomes > 0 ? ((bull - bear) / knownOutcomes) * 100 : 0;
+    const markerPosition = Math.max(0, Math.min(100, 50 + sentiment / 2));
+    return {
+      bull,
+      bear,
+      totalTrades,
+      bullPct,
+      bearPct,
+      markerPosition,
+    };
+  }, [summary]);
 
   if (loading) {
     return (
@@ -791,45 +806,64 @@ export default function Dashboard() {
           </motion.div>
         </DashboardCard>
 
-        <DashboardCard title="Open Positions" borderClass="border-red-500/25">
-          {(summary?.open_trades || 0) === 0 ? (
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">No open trades</p>
-              <p className="text-xs text-muted-foreground">Market waiting...</p>
-              <Target className="w-5 h-5 text-blue-300 animate-pulse" />
+        <DashboardCard title="Behavioral Bias" borderClass="border-blue-500/25" className="md:col-span-2 xl:col-span-2">
+          <div className="space-y-4 rounded-xl border border-blue-500/20 bg-blue-500/5 p-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">Bear = negative, Bull = positive</p>
+              <p className="text-sm text-muted-foreground">Total Trades: <span className="font-mono font-bold text-blue-100">{biasStats.totalTrades}</span></p>
             </div>
-          ) : (
-            <div className="space-y-1">
-              <p className="text-lg font-semibold text-blue-200">{openTrades[0]?.instrument || 'Open Position'}</p>
-              <p className="text-xs text-muted-foreground">Entry: {formatCurrency(openTrades[0]?.entry_price || 0)}</p>
-              <p className="text-xs text-muted-foreground">Qty: {openTrades[0]?.quantity || '-'}</p>
-              <p className="text-xs text-blue-200">Total open: {summary?.open_trades || 0}</p>
-            </div>
-          )}
-        </DashboardCard>
 
-        <DashboardCard title="Micro Trends" borderClass="border-blue-500/25">
-          <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <motion.div
+                className="rounded-lg border border-red-500/30 bg-red-500/10 p-3"
+                animate={{ boxShadow: ['0 0 0px rgba(239,68,68,0.00)', '0 0 18px rgba(239,68,68,0.30)', '0 0 0px rgba(239,68,68,0.00)'] }}
+                transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+              >
+                <p className="text-xs tracking-wide text-red-200/90">BEAR (Negative)</p>
+                <p className="text-2xl font-mono font-bold text-red-300 flex items-center gap-2">
+                  <TrendingDown className="w-5 h-5" />
+                  {biasStats.bear}
+                </p>
+              </motion.div>
+
+              <motion.div
+                className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3"
+                animate={{ boxShadow: ['0 0 0px rgba(16,185,129,0.00)', '0 0 18px rgba(16,185,129,0.30)', '0 0 0px rgba(16,185,129,0.00)'] }}
+                transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut', delay: 0.2 }}
+              >
+                <p className="text-xs tracking-wide text-emerald-200/90">BULL (Positive)</p>
+                <p className="text-2xl font-mono font-bold text-emerald-300 flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5" />
+                  {biasStats.bull}
+                </p>
+              </motion.div>
+            </div>
+
             <div>
-              <p className="text-xs text-muted-foreground">Winrate</p>
-              <div className="h-2 rounded-full bg-white/10 overflow-hidden mt-1">
+              <div className="relative h-3 rounded-full overflow-hidden border border-blue-500/20 bg-[repeating-linear-gradient(-45deg,rgba(59,130,246,0.18)_0px,rgba(59,130,246,0.18)_6px,rgba(148,163,184,0.10)_6px,rgba(148,163,184,0.10)_12px)]">
                 <motion.div
+                  className="absolute inset-y-0 left-0 bg-gradient-to-r from-red-600/90 to-red-400/90"
                   initial={{ width: 0 }}
-                  animate={{ width: `${Math.min(100, Number(summary?.win_rate || 0))}%` }}
+                  animate={{ width: `${biasStats.bearPct}%` }}
+                  transition={{ duration: 0.9, ease: 'easeOut' }}
+                />
+                <motion.div
+                  className="absolute inset-y-0 right-0 bg-gradient-to-l from-emerald-600/90 to-emerald-400/90"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${biasStats.bullPct}%` }}
+                  transition={{ duration: 0.9, ease: 'easeOut' }}
+                />
+                <motion.div
+                  className="absolute top-1/2 -translate-y-1/2 h-4 w-4 rounded-full border border-cyan-200 bg-blue-500 shadow-[0_0_14px_rgba(56,189,248,0.85)]"
+                  initial={{ left: '50%' }}
+                  animate={{ left: `calc(${biasStats.markerPosition}% - 8px)` }}
                   transition={{ duration: 0.95, ease: 'easeOut' }}
-                  className="h-full bg-gradient-to-r from-blue-500 to-cyan-300"
                 />
               </div>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Balance</p>
-              <div className="h-2 rounded-full bg-white/10 overflow-hidden mt-1">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${Math.min(100, Math.max(10, Number(summary?.daily_win_rate || 0)))}%` }}
-                  transition={{ duration: 0.95, ease: 'easeOut' }}
-                  className="h-full bg-gradient-to-r from-emerald-500 to-lime-300"
-                />
+
+              <div className="mt-2 flex items-center justify-between text-sm font-mono">
+                <span className="text-red-300">{formatNumber(biasStats.bearPct, 1)}%</span>
+                <span className="text-emerald-300">{formatNumber(biasStats.bullPct, 1)}%</span>
               </div>
             </div>
           </div>
