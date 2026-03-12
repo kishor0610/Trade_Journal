@@ -32,6 +32,8 @@ const CHART_SYMBOLS = [
 
 const CHART_INTERVALS = ['1m', '5m', '15m', '1h', '4h', '1d'];
 
+const CRYPTO_STREAM_SYMBOLS = new Set(['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT']);
+
 const INTERVAL_SECONDS = {
   '1m': 60,
   '5m': 300,
@@ -321,6 +323,8 @@ export default function Journal() {
   const positionBoxLeftRef = useRef(null);
   const positionBoxRightRef = useRef(null);
   const priceLinesRef = useRef([]);
+  const liveSocketRef = useRef(null);
+  const livePollTimerRef = useRef(null);
 
   const normalizeSymbol = (value = '') => value.toString().toUpperCase().replace(/[^A-Z0-9]/g, '');
   const isValidNumber = (value) => Number.isFinite(Number(value));
@@ -609,6 +613,176 @@ export default function Journal() {
     fetchCandles();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chartSymbol, chartInterval, focusedInstrumentKey, selectedReplayTradeId, chartTrades]);
+
+  const upsertLiveCandle = useCallback((incoming, sourceLabel = 'live') => {
+    if (selectedReplayTradeId !== 'latest') return;
+
+    const intervalSeconds = INTERVAL_SECONDS[chartInterval] || 300;
+    const timeSecRaw = toUnixSeconds(incoming?.time);
+    const open = Number(incoming?.open);
+    const high = Number(incoming?.high);
+    const low = Number(incoming?.low);
+    const close = Number(incoming?.close);
+
+    if (!timeSecRaw || ![open, high, low, close].every(Number.isFinite)) return;
+
+    const bucketTime = Math.floor(timeSecRaw / intervalSeconds) * intervalSeconds;
+
+    setCandles((prev) => {
+      if (!Array.isArray(prev) || prev.length === 0) {
+        return [{
+          time: bucketTime,
+          open,
+          high: Math.max(high, open, close),
+          low: Math.min(low, open, close),
+          close,
+        }];
+      }
+
+      const next = [...prev];
+      const last = next[next.length - 1];
+      if (!last) return prev;
+
+      if (bucketTime === last.time) {
+        next[next.length - 1] = {
+          time: bucketTime,
+          open: Number.isFinite(last.open) ? last.open : open,
+          high: Math.max(last.high, high, close),
+          low: Math.min(last.low, low, close),
+          close,
+        };
+        return next;
+      }
+
+      if (bucketTime > last.time) {
+        const nextOpen = Number.isFinite(open) ? open : last.close;
+        next.push({
+          time: bucketTime,
+          open: nextOpen,
+          high: Math.max(high, nextOpen, close),
+          low: Math.min(low, nextOpen, close),
+          close,
+        });
+        return next.slice(-1000);
+      }
+
+      return prev;
+    });
+
+    setCandleSource(sourceLabel);
+  }, [chartInterval, selectedReplayTradeId]);
+
+  useEffect(() => {
+    const stopPolling = () => {
+      if (livePollTimerRef.current) {
+        clearInterval(livePollTimerRef.current);
+        livePollTimerRef.current = null;
+      }
+    };
+
+    const stopSocket = () => {
+      if (liveSocketRef.current) {
+        try {
+          liveSocketRef.current.close();
+        } catch {
+          // Ignore close errors for stale sockets.
+        }
+        liveSocketRef.current = null;
+      }
+    };
+
+    const startPolling = () => {
+      stopPolling();
+      livePollTimerRef.current = setInterval(async () => {
+        try {
+          const response = await axios.get(`${API_URL}/market/candles`, {
+            params: {
+              symbol: chartSymbol,
+              interval: chartInterval,
+              limit: 2,
+            },
+          });
+
+          const rawLatest = Array.isArray(response.data) ? response.data[response.data.length - 1] : null;
+          if (!rawLatest) return;
+
+          upsertLiveCandle({
+            time: rawLatest.time,
+            open: rawLatest.open,
+            high: rawLatest.high,
+            low: rawLatest.low,
+            close: rawLatest.close,
+          }, 'live');
+        } catch (error) {
+          // Keep chart usable even if a polling tick fails.
+          console.debug('Live candle poll failed:', error?.response?.data?.detail || error?.message || 'unknown');
+        }
+      }, 5000);
+    };
+
+    const isLatestView = selectedReplayTradeId === 'latest';
+    const canUseLiveFeed = isLatestView && !isReplayPlaying && !candlesLoading && candleSource !== 'trade' && candleSource !== 'none';
+
+    stopPolling();
+    stopSocket();
+
+    if (!canUseLiveFeed) {
+      return () => {
+        stopPolling();
+        stopSocket();
+      };
+    }
+
+    if (CRYPTO_STREAM_SYMBOLS.has(chartSymbol)) {
+      const streamName = `${chartSymbol.toLowerCase()}@kline_${chartInterval}`;
+      const ws = new WebSocket(`wss://stream.binance.com:9443/ws/${streamName}`);
+      liveSocketRef.current = ws;
+
+      ws.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          const kline = payload?.k;
+          if (!kline) return;
+
+          upsertLiveCandle({
+            time: kline.t,
+            open: kline.o,
+            high: kline.h,
+            low: kline.l,
+            close: kline.c,
+          }, 'stream');
+        } catch (error) {
+          console.debug('Live stream parse failed:', error?.message || 'invalid payload');
+        }
+      };
+
+      ws.onerror = () => {
+        stopSocket();
+        startPolling();
+      };
+
+      ws.onclose = () => {
+        if (!livePollTimerRef.current) {
+          startPolling();
+        }
+      };
+    } else {
+      startPolling();
+    }
+
+    return () => {
+      stopPolling();
+      stopSocket();
+    };
+  }, [
+    chartSymbol,
+    chartInterval,
+    selectedReplayTradeId,
+    isReplayPlaying,
+    candlesLoading,
+    candleSource,
+    upsertLiveCandle,
+  ]);
 
   useEffect(() => {
     try {
@@ -1768,13 +1942,15 @@ export default function Journal() {
 
           <div className="flex flex-wrap items-center gap-2">
             <span className={`text-xs px-2 py-1 rounded border ${
-              candleSource === 'live'
+              candleSource === 'stream'
+                ? 'text-cyan-300 border-cyan-500/40 bg-cyan-500/10'
+                : candleSource === 'live'
                 ? 'text-emerald-300 border-emerald-500/40 bg-emerald-500/10'
                 : candleSource === 'trade'
                   ? 'text-amber-300 border-amber-500/40 bg-amber-500/10'
                   : 'text-muted-foreground border-white/10'
             }`}>
-              {candleSource === 'live' ? 'Live Market' : candleSource === 'trade' ? 'Trade Data' : 'No Data'}
+              {candleSource === 'stream' ? 'Real-Time Stream' : candleSource === 'live' ? 'Live Market' : candleSource === 'trade' ? 'Trade Data' : 'No Data'}
             </span>
             <Button variant="outline" size="sm" onClick={fetchCandles} disabled={candlesLoading}>
               {candlesLoading ? 'Loading...' : 'Refresh Candles'}
