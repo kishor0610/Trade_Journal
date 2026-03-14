@@ -2215,7 +2215,6 @@ async def import_trades_csv(
                 trades_to_insert.append(trade_doc)
                 if ticket:
                     existing_tickets.add(ticket)
-                existing_fingerprints.add(fingerprint)
                 imported_count += 1
                 
             except Exception as e:
