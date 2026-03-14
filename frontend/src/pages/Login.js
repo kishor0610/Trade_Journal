@@ -174,6 +174,12 @@ export default function Login() {
     pandaRef.current?.passwordBlur();
   };
 
+  const handlePasswordChange = (event) => {
+    const value = event.target.value;
+    setPassword(value);
+    pandaRef.current?.passwordType(value);
+  };
+
   return (
     <div className="auth-chroma-shell relative min-h-screen overflow-hidden bg-[#020a10]">
       <div className="auth-chroma-base absolute inset-0" />
@@ -185,8 +191,8 @@ export default function Login() {
         aria-hidden="true"
       />
 
-      <div className="relative z-10 flex min-h-screen items-center justify-center p-4 sm:p-8">
-        <PandaLogin ref={pandaRef} className="panda-floating" />
+      <div className="relative z-10 flex min-h-screen flex-col items-center justify-center gap-2 p-4 sm:p-8">
+        <PandaLogin ref={pandaRef} className="panda-above-login" />
 
         <motion.div
           initial={{ opacity: 0, y: 14, scale: 0.98 }}
@@ -241,7 +247,7 @@ export default function Login() {
                   type={showPassword ? "text" : "password"}
                   placeholder="Enter your password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={handlePasswordChange}
                   onFocus={handlePasswordFocus}
                   onBlur={handlePasswordBlur}
                   className="h-12 border-white/10 bg-black/30 pl-12 pr-12 focus:border-[#1affda]"

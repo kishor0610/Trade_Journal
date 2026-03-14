@@ -162,10 +162,20 @@ const PandaLogin = forwardRef(function PandaLogin({ className = '' }, ref) {
     },
     passwordFocus() {
       if (!hasInteractiveInputs) {
-        playFallback('hideEyes', 3);
+        playFallback('idle', 0);
         return;
       }
-      setBoolInput(getInput('isPassword'), true);
+      setBoolInput(getInput('isPassword'), false);
+      setBoolInput(getInput('isLooking'), false);
+      setBoolInput(getInput('isTracking'), false);
+    },
+    passwordType(value) {
+      const hasText = String(value || '').length > 0;
+      if (!hasInteractiveInputs) {
+        playFallback(hasText ? 'hideEyes' : 'idle', hasText ? 3 : 0);
+        return;
+      }
+      setBoolInput(getInput('isPassword'), hasText);
       setBoolInput(getInput('isLooking'), false);
       setBoolInput(getInput('isTracking'), false);
     },
