@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Chivo:wght@700;900&family=JetBrains+Mono:wght@400;700&family=Manrope:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Chivo:wght@700;900&family=JetBrains+Mono:wght@400;700&family=Manrope:wght@400;500;700&family=Space+Grotesk:wght@700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -104,6 +104,51 @@
     .page-container {
         @apply min-h-screen pb-20 md:pb-0;
     }
+
+    .login-glass-panel {
+        position: relative;
+        border: 1px solid rgba(24, 216, 194, 0.35);
+        background: linear-gradient(140deg, rgba(8, 31, 43, 0.65), rgba(3, 18, 28, 0.76));
+        box-shadow:
+            0 0 0 1px rgba(25, 214, 188, 0.12),
+            0 24px 65px rgba(2, 17, 26, 0.72),
+            inset 0 1px 0 rgba(178, 255, 243, 0.14),
+            inset 0 -1px 0 rgba(10, 92, 116, 0.24);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        overflow: hidden;
+    }
+
+    .login-glass-panel::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background: radial-gradient(circle at 16% 8%, rgba(80, 255, 229, 0.18), transparent 42%);
+    }
+
+    .brand-logo-text {
+        position: relative;
+        font-family: 'Space Grotesk', 'Chivo', sans-serif;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: #d8fffb;
+        text-shadow: 0 0 12px rgba(48, 245, 220, 0.24), 0 0 30px rgba(27, 164, 157, 0.22);
+        animation: logoFloat 4.8s ease-in-out infinite;
+    }
+
+    .brand-logo-text::after {
+        content: '';
+        position: absolute;
+        left: -18%;
+        top: 0;
+        width: 26%;
+        height: 100%;
+        transform: skewX(-22deg);
+        background: linear-gradient(90deg, transparent, rgba(190, 255, 249, 0.45), transparent);
+        animation: logoSweep 4.5s ease-in-out infinite;
+        pointer-events: none;
+    }
 }
 
 @layer utilities {
@@ -149,6 +194,42 @@
     to {
         opacity: 1;
         transform: translateY(0);
+    }
+}
+
+@keyframes logoFloat {
+    0%, 100% {
+        transform: translateY(0);
+        text-shadow: 0 0 12px rgba(48, 245, 220, 0.24), 0 0 30px rgba(27, 164, 157, 0.22);
+    }
+    50% {
+        transform: translateY(-2px);
+        text-shadow: 0 0 16px rgba(88, 255, 236, 0.34), 0 0 36px rgba(37, 198, 181, 0.28);
+    }
+}
+
+@keyframes logoSweep {
+    0%, 15% {
+        left: -28%;
+        opacity: 0;
+    }
+    28% {
+        opacity: 1;
+    }
+    45% {
+        left: 116%;
+        opacity: 0;
+    }
+    100% {
+        left: 116%;
+        opacity: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .brand-logo-text,
+    .brand-logo-text::after {
+        animation: none;
     }
 }
 
