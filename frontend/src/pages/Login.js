@@ -191,15 +191,15 @@ export default function Login() {
         aria-hidden="true"
       />
 
-      <div className="relative z-10 flex min-h-screen flex-col items-center justify-center gap-0 p-4 sm:p-8">
-        <PandaLogin ref={pandaRef} className="panda-above-login" />
-
+      <div className="relative z-10 flex min-h-screen items-center justify-center p-4 sm:p-8">
         <motion.div
           initial={{ opacity: 0, y: 14, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.55, ease: 'easeOut' }}
           className="login-glass-panel w-full max-w-md rounded-2xl p-6 sm:p-8"
         >
+          <PandaLogin ref={pandaRef} className="panda-card-corner" />
+
           {/* Logo */}
           <div className="mb-10 flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl shadow-[0_0_25px_rgba(18,183,162,0.35)]" style={{ backgroundColor: 'color-mix(in srgb, var(--auth-accent) 24%, transparent)' }}>
@@ -208,8 +208,10 @@ export default function Login() {
             <span className="brand-logo-text text-[1.8rem] leading-none">TradeLedger</span>
           </div>
 
-          <h1 className="mb-2 text-4xl font-heading font-black">Welcome back</h1>
-          <p className="mb-8 text-[#9ec7cc]">Sign in to continue tracking your trades</p>
+          <div className="pr-32">
+            <h1 className="mb-2 text-4xl font-heading font-black">Welcome back</h1>
+            <p className="mb-8 text-[#9ec7cc]">Sign in to continue tracking your trades</p>
+          </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="panda-login-stack">
@@ -248,6 +250,7 @@ export default function Login() {
                   placeholder="Enter your password"
                   value={password}
                   onChange={handlePasswordChange}
+                  onInput={handlePasswordChange}
                   onFocus={handlePasswordFocus}
                   onBlur={handlePasswordBlur}
                   className="h-12 border-white/10 bg-black/30 pl-12 pr-12 focus:border-[#1affda]"

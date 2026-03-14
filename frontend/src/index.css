@@ -262,15 +262,18 @@
 
     .panda {
         width: 100%;
-        height: 188px;
+        height: 148px;
         display: block;
     }
 
-    .panda-above-login {
-        width: min(30vw, 214px);
-        margin-bottom: -2px;
+    .panda-card-corner {
+        position: absolute;
+        top: 52px;
+        right: 14px;
+        width: 142px;
         pointer-events: none;
         opacity: 0.96;
+        z-index: 2;
     }
 
     .panda-rive-note {
@@ -282,25 +285,28 @@
     }
 
     @media (max-width: 1024px) {
-        .panda-above-login {
-            width: min(40vw, 194px);
-            margin-bottom: -2px;
+        .panda-card-corner {
+            top: 54px;
+            right: 12px;
+            width: 122px;
             opacity: 0.94;
         }
 
         .panda {
-            height: 168px;
+            height: 126px;
         }
     }
 
     @media (max-width: 640px) {
-        .panda-above-login {
-            width: min(60vw, 152px);
-            margin-bottom: -2px;
+        .panda-card-corner {
+            top: 60px;
+            right: 10px;
+            width: 96px;
+            opacity: 0.92;
         }
 
         .panda {
-            height: 136px;
+            height: 92px;
         }
     }
 }

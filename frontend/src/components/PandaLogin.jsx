@@ -4,6 +4,15 @@ import { useRive } from '@rive-app/react-canvas';
 const MACHINE_CANDIDATES = ['LoginMachine', 'State Machine 1', 'PandaLoginMachine'];
 const MAX_CURSOR = 100;
 
+const INPUT_ALIASES = {
+  isLooking: ['isLooking', 'look', 'isFocus'],
+  isTracking: ['isTracking', 'isTyping', 'track'],
+  isPassword: ['isPassword', 'isHandsUp', 'hands_up', 'handsUp', 'password'],
+  loginError: ['loginError', 'error', 'fail', 'triggerError'],
+  loginSuccess: ['loginSuccess', 'success', 'triggerSuccess'],
+  cursorX: ['cursorX', 'lookX', 'numLook'],
+};
+
 const ANIMATION_ALIASES = {
   idle: ['idle', 'Idle'],
   look: ['look', 'Look'],
@@ -61,9 +70,11 @@ const PandaLogin = forwardRef(function PandaLogin({ className = '' }, ref) {
         return;
       }
 
-      const inputNames = (rive.stateMachineInputs(preferred) || []).map((input) => input.name);
-      const required = ['isLooking', 'isTracking', 'isPassword', 'loginError', 'loginSuccess', 'cursorX'];
-      setHasInteractiveInputs(required.every((name) => inputNames.includes(name)));
+      const inputNames = (rive.stateMachineInputs(preferred) || []).map((input) => input.name.toLowerCase());
+      const hasAnyUsefulInput = Object.values(INPUT_ALIASES)
+        .flat()
+        .some((name) => inputNames.includes(name.toLowerCase()));
+      setHasInteractiveInputs(hasAnyUsefulInput);
     };
 
     resolveMachine();
@@ -77,7 +88,10 @@ const PandaLogin = forwardRef(function PandaLogin({ className = '' }, ref) {
   const getInput = useCallback((name) => {
     if (!rive || !resolvedMachine) return null;
     const inputs = rive.stateMachineInputs(resolvedMachine) || [];
-    return inputs.find((input) => input.name === name) || null;
+    const aliases = INPUT_ALIASES[name] || [name];
+    return (
+      inputs.find((input) => aliases.some((alias) => alias.toLowerCase() === input.name.toLowerCase())) || null
+    );
   }, [rive, resolvedMachine]);
 
   const pickAnimation = useCallback((key) => {
@@ -122,7 +136,10 @@ const PandaLogin = forwardRef(function PandaLogin({ className = '' }, ref) {
     if (!hasInteractiveInputs) return;
 
     // Enforce open-eyes state by default so panda does not start in password mode.
-    setBoolInput(getInput('isPassword'), false);
+    const passwordInput = getInput('isPassword');
+    if (passwordInput) {
+      setBoolInput(passwordInput, false);
+    }
     setBoolInput(getInput('isLooking'), false);
     setBoolInput(getInput('isTracking'), false);
   }, [getInput, hasInteractiveInputs]);
@@ -166,30 +183,33 @@ const PandaLogin = forwardRef(function PandaLogin({ className = '' }, ref) {
       setBoolInput(getInput('isTracking'), false);
     },
     passwordFocus() {
-      if (!hasInteractiveInputs) {
+      const passwordInput = getInput('isPassword');
+      if (!passwordInput) {
         playFallback('idle');
         return;
       }
-      setBoolInput(getInput('isPassword'), false);
+      setBoolInput(passwordInput, false);
       setBoolInput(getInput('isLooking'), false);
       setBoolInput(getInput('isTracking'), false);
     },
     passwordType(value) {
       const hasText = String(value || '').length > 0;
-      if (!hasInteractiveInputs) {
+      const passwordInput = getInput('isPassword');
+      if (!passwordInput) {
         playFallback(hasText ? 'hideEyes' : 'idle');
         return;
       }
-      setBoolInput(getInput('isPassword'), hasText);
+      setBoolInput(passwordInput, hasText);
       setBoolInput(getInput('isLooking'), false);
       setBoolInput(getInput('isTracking'), false);
     },
     passwordBlur() {
-      if (!hasInteractiveInputs) {
+      const passwordInput = getInput('isPassword');
+      if (!passwordInput) {
         playFallback('idle');
         return;
       }
-      setBoolInput(getInput('isPassword'), false);
+      setBoolInput(passwordInput, false);
     },
     loginError() {
       if (!hasInteractiveInputs) {
