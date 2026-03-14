@@ -12,12 +12,37 @@ import { toast } from 'sonner';
 export default function Login() {
   const canvasRef = useRef(null);
   const pandaRef = useRef(null);
+  const authErrorAudioRef = useRef(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const audio = new Audio('/sounds/auth-error.mp3');
+    audio.preload = 'auto';
+    authErrorAudioRef.current = audio;
+
+    return () => {
+      authErrorAudioRef.current = null;
+    };
+  }, []);
+
+  const playAuthErrorSound = () => {
+    const audio = authErrorAudioRef.current;
+    if (!audio) return;
+    try {
+      audio.currentTime = 0;
+      const playPromise = audio.play();
+      if (playPromise && typeof playPromise.catch === 'function') {
+        playPromise.catch(() => {});
+      }
+    } catch {
+      // Sound should never block auth feedback.
+    }
+  };
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -142,6 +167,7 @@ export default function Login() {
       navigate('/dashboard');
     } catch (error) {
       pandaRef.current?.loginError();
+      playAuthErrorSound();
       toast.error(error.response?.data?.detail || 'Login failed');
     } finally {
       setLoading(false);
@@ -228,6 +254,10 @@ export default function Login() {
                   onFocus={handleEmailFocus}
                   onBlur={handleEmailBlur}
                   onChange={handleEmailChange}
+                  onInvalid={() => {
+                    pandaRef.current?.loginError();
+                    playAuthErrorSound();
+                  }}
                   className="h-12 border-white/10 bg-black/30 pl-12 focus:border-[#1affda]"
                   data-testid="login-email-input"
                   required
@@ -253,6 +283,10 @@ export default function Login() {
                   onInput={handlePasswordChange}
                   onFocus={handlePasswordFocus}
                   onBlur={handlePasswordBlur}
+                  onInvalid={() => {
+                    pandaRef.current?.loginError();
+                    playAuthErrorSound();
+                  }}
                   className="h-12 border-white/10 bg-black/30 pl-12 pr-12 focus:border-[#1affda]"
                   data-testid="login-password-input"
                   required
