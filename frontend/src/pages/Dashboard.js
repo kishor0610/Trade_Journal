@@ -74,7 +74,7 @@ const DashboardCard = ({ title, borderClass = 'border-white/10', className = '',
     animate={{ opacity: 1, y: 0 }}
     transition={{ duration: 0.28 }}
     {...cardHover}
-    className={`glass-card p-4 border ${borderClass} ${className} transition-transform duration-200 will-change-transform transform-gpu shadow-[0_8px_16px_rgba(0,0,0,0.18)]`}
+    className={`glass-card p-4 border ${borderClass} ${className} transition-transform duration-200 shadow-[0_8px_16px_rgba(0,0,0,0.18)]`}
     style={{ backfaceVisibility: 'hidden' }}
   >
     <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">{title}</p>
@@ -831,14 +831,14 @@ export default function Dashboard() {
                   animate={{ boxShadow: biasStats.duelState === 'profit' ? ['0 0 0 rgba(34,197,94,0)', '0 0 20px rgba(34,197,94,0.25)', '0 0 0 rgba(34,197,94,0)'] : biasStats.duelState === 'loss' ? ['0 0 0 rgba(239,68,68,0)', '0 0 20px rgba(239,68,68,0.25)', '0 0 0 rgba(239,68,68,0)'] : ['0 0 0 rgba(250,204,21,0)', '0 0 20px rgba(250,204,21,0.22)', '0 0 0 rgba(250,204,21,0)'] }}
                   transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
                 >
-                  <p className="text-[10px] tracking-[0.14em] text-muted-foreground">MARKET SENTIMENT</p>
+                  <p className="text-xs tracking-[0.12em] text-slate-300">MARKET SENTIMENT</p>
                   <p className={`text-sm font-bold ${biasStats.duelState === 'profit' ? 'text-emerald-300' : biasStats.duelState === 'loss' ? 'text-red-300' : 'text-yellow-300'}`}>
                     {biasStats.duelState === 'profit' ? 'BULLISH' : biasStats.duelState === 'loss' ? 'BEARISH' : 'NEUTRAL'}
                   </p>
-                  <p className="text-xs text-muted-foreground">Confidence: <span className="font-mono text-blue-100">{formatNumber(biasStats.confidence, 0)}%</span></p>
+                  <p className="text-sm text-slate-300">Confidence: <span className="font-mono text-blue-100">{formatNumber(biasStats.confidence, 0)}%</span></p>
                 </motion.div>
               </div>
-              <p className="text-sm text-muted-foreground">Total Trades: <AnimatedNumber value={biasStats.totalTrades} className="font-mono font-bold text-blue-100" /></p>
+              <p className="text-sm text-slate-300">Total Trades: <AnimatedNumber value={biasStats.totalTrades} className="font-mono font-bold text-blue-100" /></p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -847,13 +847,13 @@ export default function Dashboard() {
                 whileHover={{ scale: 1.02, y: -3, boxShadow: '0 10px 25px rgba(239,68,68,0.2)' }}
                 transition={{ duration: 0.2, ease: 'easeOut' }}
               >
-                <p className="text-xs tracking-wide text-red-200/90">Negative Trades</p>
+                <p className="text-sm tracking-wide text-red-200">Negative Trades</p>
                 <p className="mt-1 text-xl font-mono font-bold text-red-300 flex items-center gap-2">
                   <span className="text-lg leading-none" aria-label="bear icon" role="img">🐻</span>
                   <AnimatedNumber value={biasStats.bear} className="font-mono" /> Trades
                 </p>
-                <p className="text-xs text-muted-foreground mt-1">Win Rate: <span className="font-mono text-red-200">{formatNumber(biasStats.negativeWinRate, 1)}%</span></p>
-                <p className="text-xs text-muted-foreground">Avg Loss: <span className="font-mono text-red-200">${formatNumber(biasStats.avgLoss, 2)}</span></p>
+                <p className="text-sm text-slate-300 mt-1">Win Rate: <span className="font-mono text-red-200">{formatNumber(biasStats.negativeWinRate, 1)}%</span></p>
+                <p className="text-sm text-slate-300">Avg Loss: <span className="font-mono text-red-200">${formatNumber(biasStats.avgLoss, 2)}</span></p>
               </motion.div>
 
               <motion.div
@@ -861,18 +861,18 @@ export default function Dashboard() {
                 whileHover={{ scale: 1.02, y: -3, boxShadow: '0 10px 25px rgba(16,185,129,0.2)' }}
                 transition={{ duration: 0.2, ease: 'easeOut' }}
               >
-                <p className="text-xs tracking-wide text-emerald-200/90">Positive Trades</p>
+                <p className="text-sm tracking-wide text-emerald-200">Positive Trades</p>
                 <p className="mt-1 text-xl font-mono font-bold text-emerald-300 flex items-center gap-2">
                   <span className="text-lg leading-none" aria-label="bull icon" role="img">🐂</span>
                   <AnimatedNumber value={biasStats.bull} className="font-mono" /> Trades
                 </p>
-                <p className="text-xs text-muted-foreground mt-1">Win Rate: <span className="font-mono text-emerald-200">{formatNumber(biasStats.positiveWinRate, 1)}%</span></p>
-                <p className="text-xs text-muted-foreground">Avg Gain: <span className="font-mono text-emerald-200">+${formatNumber(biasStats.avgGain, 2)}</span></p>
+                <p className="text-sm text-slate-300 mt-1">Win Rate: <span className="font-mono text-emerald-200">{formatNumber(biasStats.positiveWinRate, 1)}%</span></p>
+                <p className="text-sm text-slate-300">Avg Gain: <span className="font-mono text-emerald-200">+${formatNumber(biasStats.avgGain, 2)}</span></p>
               </motion.div>
             </div>
 
             <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <div className="flex items-center justify-between text-sm text-slate-300">
                 <span>🐻 Bear Pressure</span>
                 <span>Bull Pressure 🐂</span>
               </div>
