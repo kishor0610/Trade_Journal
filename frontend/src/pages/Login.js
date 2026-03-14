@@ -191,7 +191,7 @@ export default function Login() {
         aria-hidden="true"
       />
 
-      <div className="relative z-10 flex min-h-screen flex-col items-center justify-center gap-2 p-4 sm:p-8">
+      <div className="relative z-10 flex min-h-screen flex-col items-center justify-center gap-0 p-4 sm:p-8">
         <PandaLogin ref={pandaRef} className="panda-above-login" />
 
         <motion.div

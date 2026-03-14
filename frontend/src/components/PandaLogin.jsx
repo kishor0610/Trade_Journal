@@ -1,4 +1,4 @@
-import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useState } from 'react';
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useState } from 'react';
 import { useRive } from '@rive-app/react-canvas';
 
 const MACHINE_CANDIDATES = ['LoginMachine', 'State Machine 1', 'PandaLoginMachine'];
@@ -85,19 +85,15 @@ const PandaLogin = forwardRef(function PandaLogin({ className = '' }, ref) {
     return aliases.find((name) => availableAnimations.includes(name)) || null;
   }, [availableAnimations]);
 
-  const playFallback = useCallback((key, fallbackIndex = 0) => {
+  const playFallback = useCallback((key) => {
     if (!rive) return;
-    const animation = pickAnimation(key) || availableAnimations[fallbackIndex] || availableAnimations[0] || null;
+    const animation = pickAnimation(key);
     if (!animation) return;
 
     // Drive behavior from named timeline animations when state inputs are unavailable.
     rive.stop(rive.animationNames);
     rive.play(animation);
-  }, [rive, pickAnimation, availableAnimations]);
-
-  const canUseFallbackAnimations = useMemo(() => {
-    return ['idle', 'look', 'track', 'hideEyes', 'shock', 'jump'].some((key) => pickAnimation(key));
-  }, [pickAnimation]);
+  }, [rive, pickAnimation]);
 
   const setCursorPercent = useCallback((rawValue) => {
     const safeValue = Number.isFinite(rawValue) ? rawValue : 0;
@@ -119,13 +115,22 @@ const PandaLogin = forwardRef(function PandaLogin({ className = '' }, ref) {
 
   useEffect(() => {
     if (!rive || hasInteractiveInputs) return;
-    playFallback('idle', 0);
+    playFallback('idle');
   }, [rive, hasInteractiveInputs, playFallback]);
+
+  useEffect(() => {
+    if (!hasInteractiveInputs) return;
+
+    // Enforce open-eyes state by default so panda does not start in password mode.
+    setBoolInput(getInput('isPassword'), false);
+    setBoolInput(getInput('isLooking'), false);
+    setBoolInput(getInput('isTracking'), false);
+  }, [getInput, hasInteractiveInputs]);
 
   useImperativeHandle(ref, () => ({
     emailHover() {
       if (!hasInteractiveInputs) {
-        playFallback('look', 1);
+        playFallback('look');
         return;
       }
       setBoolInput(getInput('isLooking'), true);
@@ -134,7 +139,7 @@ const PandaLogin = forwardRef(function PandaLogin({ className = '' }, ref) {
     },
     emailFocus() {
       if (!hasInteractiveInputs) {
-        playFallback('look', 1);
+        playFallback('look');
         return;
       }
       setBoolInput(getInput('isLooking'), true);
@@ -143,7 +148,7 @@ const PandaLogin = forwardRef(function PandaLogin({ className = '' }, ref) {
     },
     emailType(value) {
       if (!hasInteractiveInputs) {
-        playFallback('track', 2);
+        playFallback('track');
         return;
       }
       setBoolInput(getInput('isLooking'), false);
@@ -154,7 +159,7 @@ const PandaLogin = forwardRef(function PandaLogin({ className = '' }, ref) {
     },
     emailBlur() {
       if (!hasInteractiveInputs) {
-        playFallback('idle', 0);
+        playFallback('idle');
         return;
       }
       setBoolInput(getInput('isLooking'), false);
@@ -162,7 +167,7 @@ const PandaLogin = forwardRef(function PandaLogin({ className = '' }, ref) {
     },
     passwordFocus() {
       if (!hasInteractiveInputs) {
-        playFallback('idle', 0);
+        playFallback('idle');
         return;
       }
       setBoolInput(getInput('isPassword'), false);
@@ -172,7 +177,7 @@ const PandaLogin = forwardRef(function PandaLogin({ className = '' }, ref) {
     passwordType(value) {
       const hasText = String(value || '').length > 0;
       if (!hasInteractiveInputs) {
-        playFallback(hasText ? 'hideEyes' : 'idle', hasText ? 3 : 0);
+        playFallback(hasText ? 'hideEyes' : 'idle');
         return;
       }
       setBoolInput(getInput('isPassword'), hasText);
@@ -181,21 +186,21 @@ const PandaLogin = forwardRef(function PandaLogin({ className = '' }, ref) {
     },
     passwordBlur() {
       if (!hasInteractiveInputs) {
-        playFallback('idle', 0);
+        playFallback('idle');
         return;
       }
       setBoolInput(getInput('isPassword'), false);
     },
     loginError() {
       if (!hasInteractiveInputs) {
-        playFallback('shock', 4);
+        playFallback('shock');
         return;
       }
       fireTrigger(getInput('loginError'));
     },
     loginSuccess() {
       if (!hasInteractiveInputs) {
-        playFallback('jump', 5);
+        playFallback('jump');
         return;
       }
       fireTrigger(getInput('loginSuccess'));
