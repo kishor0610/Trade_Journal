@@ -2082,7 +2082,8 @@ async def import_trades_csv(
                     skipped_count += 1
                     continue
                 
-                trade_type = get_row_value(row, ['type', 'position', 'Position']).lower()
+                raw_trade_type = get_row_value(row, ['type', 'position', 'Position']).lower()
+                trade_type = {'long': 'buy', 'short': 'sell'}.get(raw_trade_type, raw_trade_type)
                 if trade_type not in ['buy', 'sell']:
                     errors.append(f"Row {row_num}: Invalid trade type '{trade_type}'")
                     error_count += 1

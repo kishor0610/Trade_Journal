@@ -1636,6 +1636,36 @@ export default function Journal() {
     }
   };
 
+  const handleExportTrades = async (format) => {
+    try {
+      const endpoint = format === 'xlsx' ? 'xlsx' : 'csv';
+      const response = await axios.get(`${API_URL}/export/trades/${endpoint}`, {
+        responseType: 'blob'
+      });
+
+      const contentDisposition = response.headers?.['content-disposition'] || '';
+      const filenameMatch = contentDisposition.match(/filename=([^;]+)/i);
+      const fallback = `trades_export.${endpoint === 'xlsx' ? 'xlsx' : 'csv'}`;
+      const filename = filenameMatch
+        ? filenameMatch[1].replace(/['\"]/g, '').trim()
+        : fallback;
+
+      const blob = new Blob([response.data]);
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = downloadUrl;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+
+      toast.success(`Exported ${endpoint.toUpperCase()} successfully`);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to export trades');
+    }
+  };
+
   useEffect(() => {
     setCurrentPage(1);
   }, [filters.status, filters.instrument, filters.search, sortBy, sortOrder]);
@@ -1876,16 +1906,10 @@ export default function Journal() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => {
-                const url = `${API_URL}/export/trades/csv`;
-                window.open(url, '_blank');
-              }}>
+              <DropdownMenuItem onClick={() => handleExportTrades('csv')}>
                 Export as CSV
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => {
-                const url = `${API_URL}/export/trades/xlsx`;
-                window.open(url, '_blank');
-              }}>
+              <DropdownMenuItem onClick={() => handleExportTrades('xlsx')}>
                 Export as Excel (XLSX)
               </DropdownMenuItem>
             </DropdownMenuContent>
