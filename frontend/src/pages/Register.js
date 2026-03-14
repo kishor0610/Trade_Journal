@@ -150,7 +150,7 @@ export default function Register() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#020a10]">
+    <div className="auth-chroma-shell relative min-h-screen overflow-hidden bg-[#020a10]">
       <canvas
         id="bg"
         ref={canvasRef}
@@ -158,8 +158,8 @@ export default function Register() {
         aria-hidden="true"
       />
 
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_25%,rgba(23,196,170,0.12),transparent_45%),radial-gradient(circle_at_80%_75%,rgba(17,111,144,0.18),transparent_40%)]" />
-      <div className="absolute inset-0 bg-gradient-to-br from-[#020a10]/95 via-[#031520]/78 to-[#041825]/92" />
+      <div className="auth-chroma-aurora pointer-events-none absolute inset-0" />
+      <div className="auth-chroma-base absolute inset-0" />
 
       <div className="relative z-10 flex min-h-screen items-center justify-center p-4 sm:p-8">
         <motion.div
@@ -170,8 +170,8 @@ export default function Register() {
         >
           {/* Logo */}
           <div className="mb-10 flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#12b7a2]/20 shadow-[0_0_25px_rgba(18,183,162,0.35)]">
-              <TrendingUp className="h-6 w-6 text-[#1affda]" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl shadow-[0_0_25px_rgba(18,183,162,0.35)]" style={{ backgroundColor: 'color-mix(in srgb, var(--auth-accent) 24%, transparent)' }}>
+              <TrendingUp className="h-6 w-6" style={{ color: 'var(--auth-accent)' }} />
             </div>
             <span className="brand-logo-text text-[1.8rem] leading-none">TradeLedger</span>
           </div>
@@ -243,7 +243,8 @@ export default function Register() {
             <Button
               type="submit"
               disabled={loading}
-              className="h-12 w-full rounded-lg bg-[#1affda] font-bold text-[#012228] shadow-[0_0_24px_rgba(26,255,218,0.4)] hover:bg-[#62ffe6]"
+              className="h-12 w-full rounded-lg font-bold text-[#012228] shadow-[0_0_24px_rgba(26,255,218,0.4)]"
+              style={{ backgroundColor: 'var(--auth-accent)' }}
               data-testid="register-submit-btn"
             >
               {loading ? (
@@ -261,7 +262,7 @@ export default function Register() {
 
           <p className="mt-8 text-center text-[#9ec7cc]">
             Already have an account?{' '}
-            <Link to="/login" className="font-medium text-[#1affda] hover:underline" data-testid="login-link">
+            <Link to="/login" className="font-medium hover:underline" style={{ color: 'var(--auth-accent)' }} data-testid="login-link">
               Sign in
             </Link>
           </p>

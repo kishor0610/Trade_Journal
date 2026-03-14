@@ -96,14 +96,20 @@
     
     body {
         @apply bg-background text-foreground font-sans antialiased;
-        font-family: 'Manrope', sans-serif;
         background-color: #0A0A0A;
     }
-    
+
+    /* Apply the selected font across the application text surface. */
+    html,
+    body,
+    #root,
+    #root * {
+        font-family: 'DancingScript-Variable', 'DancingScript-Regular', 'Dancing Script', cursive;
+    }
+
     h1, h2, h3, h4, h5, h6 {
-        font-family: 'Chivo', sans-serif;
         font-weight: 700;
-        letter-spacing: -0.02em;
+        letter-spacing: -0.01em;
     }
     
     .font-mono, .font-number {
@@ -154,10 +160,10 @@
 
     .login-glass-panel {
         position: relative;
-        border: 1px solid rgba(24, 216, 194, 0.35);
+        border: 1px solid color-mix(in srgb, var(--auth-accent, #18d8c2) 42%, transparent);
         background: linear-gradient(140deg, rgba(8, 31, 43, 0.65), rgba(3, 18, 28, 0.76));
         box-shadow:
-            0 0 0 1px rgba(25, 214, 188, 0.12),
+            0 0 0 1px color-mix(in srgb, var(--auth-accent, #19d6bc) 14%, transparent),
             0 24px 65px rgba(2, 17, 26, 0.72),
             inset 0 1px 0 rgba(178, 255, 243, 0.14),
             inset 0 -1px 0 rgba(10, 92, 116, 0.24);
@@ -181,21 +187,45 @@
         letter-spacing: 0.01em;
         font-variation-settings: 'wght' 700;
         color: #d8fffb;
-        text-shadow: 0 0 12px rgba(48, 245, 220, 0.24), 0 0 30px rgba(27, 164, 157, 0.22);
-        animation: logoFloat 4.8s ease-in-out infinite;
+        text-shadow: 0 0 12px rgba(48, 245, 220, 0.22), 0 0 28px rgba(27, 164, 157, 0.2);
+        animation: logoFade 3s ease-in-out infinite;
     }
 
     .brand-logo-text::after {
-        content: '';
-        position: absolute;
-        left: -18%;
-        top: 0;
-        width: 26%;
-        height: 100%;
-        transform: skewX(-22deg);
-        background: linear-gradient(90deg, transparent, rgba(190, 255, 249, 0.45), transparent);
-        animation: logoSweep 4.5s ease-in-out infinite;
-        pointer-events: none;
+        content: none;
+    }
+
+    .auth-chroma-shell {
+        --auth-color-1: #00c2ff;
+        --auth-color-2: #00d18f;
+        --auth-color-3: #ffd166;
+        --auth-color-4: #ff6b6b;
+        --auth-color-5: #8a7dff;
+        --auth-accent: var(--auth-color-1);
+        animation: authAccentCycle 15s linear infinite;
+    }
+
+    .auth-chroma-base {
+        background:
+            radial-gradient(circle at 18% 20%, color-mix(in srgb, var(--auth-color-1) 40%, transparent), transparent 38%),
+            radial-gradient(circle at 84% 76%, color-mix(in srgb, var(--auth-color-3) 32%, transparent), transparent 41%),
+            linear-gradient(130deg, #020a10 0%, #061825 45%, #0a2530 100%);
+        transition: background 3s ease-in-out;
+    }
+
+    .auth-chroma-aurora {
+        background:
+            linear-gradient(110deg,
+                color-mix(in srgb, var(--auth-color-1) 22%, transparent),
+                color-mix(in srgb, var(--auth-color-2) 18%, transparent),
+                color-mix(in srgb, var(--auth-color-3) 18%, transparent),
+                color-mix(in srgb, var(--auth-color-4) 20%, transparent),
+                color-mix(in srgb, var(--auth-color-5) 20%, transparent)
+            );
+        filter: saturate(125%);
+        mix-blend-mode: screen;
+        opacity: 0.72;
+        transition: opacity 3s ease-in-out, background 3s ease-in-out;
     }
 }
 
@@ -245,39 +275,68 @@
     }
 }
 
-@keyframes logoFloat {
+@keyframes logoFade {
     0%, 100% {
-        transform: translateY(0);
-        text-shadow: 0 0 12px rgba(48, 245, 220, 0.24), 0 0 30px rgba(27, 164, 157, 0.22);
+        opacity: 0.68;
+        text-shadow: 0 0 10px rgba(48, 245, 220, 0.18), 0 0 24px rgba(27, 164, 157, 0.16);
     }
     50% {
-        transform: translateY(-2px);
-        text-shadow: 0 0 16px rgba(88, 255, 236, 0.34), 0 0 36px rgba(37, 198, 181, 0.28);
+        opacity: 1;
+        text-shadow: 0 0 16px rgba(88, 255, 236, 0.32), 0 0 32px rgba(37, 198, 181, 0.26);
     }
 }
 
-@keyframes logoSweep {
-    0%, 15% {
-        left: -28%;
-        opacity: 0;
+@keyframes authAccentCycle {
+    0%, 20% {
+        --auth-accent: #00c2ff;
+        --auth-color-1: #00c2ff;
+        --auth-color-2: #00d18f;
+        --auth-color-3: #ffd166;
+        --auth-color-4: #ff6b6b;
+        --auth-color-5: #8a7dff;
     }
-    28% {
-        opacity: 1;
+    20%, 40% {
+        --auth-accent: #00d18f;
+        --auth-color-1: #00d18f;
+        --auth-color-2: #ffd166;
+        --auth-color-3: #ff6b6b;
+        --auth-color-4: #8a7dff;
+        --auth-color-5: #00c2ff;
     }
-    45% {
-        left: 116%;
-        opacity: 0;
+    40%, 60% {
+        --auth-accent: #ffd166;
+        --auth-color-1: #ffd166;
+        --auth-color-2: #ff6b6b;
+        --auth-color-3: #8a7dff;
+        --auth-color-4: #00c2ff;
+        --auth-color-5: #00d18f;
     }
-    100% {
-        left: 116%;
-        opacity: 0;
+    60%, 80% {
+        --auth-accent: #ff6b6b;
+        --auth-color-1: #ff6b6b;
+        --auth-color-2: #8a7dff;
+        --auth-color-3: #00c2ff;
+        --auth-color-4: #00d18f;
+        --auth-color-5: #ffd166;
+    }
+    80%, 100% {
+        --auth-accent: #8a7dff;
+        --auth-color-1: #8a7dff;
+        --auth-color-2: #00c2ff;
+        --auth-color-3: #00d18f;
+        --auth-color-4: #ffd166;
+        --auth-color-5: #ff6b6b;
     }
 }
 
 @media (prefers-reduced-motion: reduce) {
     .brand-logo-text,
-    .brand-logo-text::after {
+    .auth-chroma-shell {
         animation: none;
+    }
+
+    .auth-chroma-aurora {
+        opacity: 0.48;
     }
 }
 
