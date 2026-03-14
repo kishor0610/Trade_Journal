@@ -1605,7 +1605,11 @@ export default function Journal() {
         toast.success(`Successfully imported ${response.data.imported_count} trades!`);
         fetchTrades();
       } else if (response.data.skipped_count > 0) {
-        toast.warning('No new trades imported. All entries were duplicates or had errors.');
+        if (Array.isArray(response.data.errors) && response.data.errors.length > 0) {
+          toast.warning('No new trades imported due to row errors. Check the import details.');
+        } else {
+          toast.info('No new trades imported. This file was already imported (duplicates skipped).');
+        }
       }
     } catch (error) {
       const errorMsg = error.response?.data?.detail || 'Failed to import CSV';

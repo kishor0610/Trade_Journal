@@ -2016,6 +2016,8 @@ async def import_trades_csv(
         
         imported_count = 0
         skipped_count = 0
+        duplicate_count = 0
+        error_count = 0
         errors = []
         
         # Get existing tickets to avoid duplicates
@@ -2068,6 +2070,7 @@ async def import_trades_csv(
 
                 # Skip ticket duplicates for MT5 files.
                 if ticket and ticket in existing_tickets:
+                    duplicate_count += 1
                     skipped_count += 1
                     continue
                 
@@ -2075,12 +2078,14 @@ async def import_trades_csv(
                 symbol = get_row_value(row, ['symbol', 'instrument', 'Instrument'])
                 if not symbol:
                     errors.append(f"Row {row_num}: Missing symbol")
+                    error_count += 1
                     skipped_count += 1
                     continue
                 
                 trade_type = get_row_value(row, ['type', 'position', 'Position']).lower()
                 if trade_type not in ['buy', 'sell']:
                     errors.append(f"Row {row_num}: Invalid trade type '{trade_type}'")
+                    error_count += 1
                     skipped_count += 1
                     continue
                 
@@ -2100,6 +2105,7 @@ async def import_trades_csv(
                     )
                 except ValueError as e:
                     errors.append(str(e))
+                    error_count += 1
                     skipped_count += 1
                     continue
                 
@@ -2115,6 +2121,7 @@ async def import_trades_csv(
                         raise ValueError(f"Row {row_num}: Invalid lot size")
                 except ValueError as e:
                     errors.append(str(e))
+                    error_count += 1
                     skipped_count += 1
                     continue
                 
@@ -2189,6 +2196,7 @@ async def import_trades_csv(
                 # Skip duplicates for non-ticket imports.
                 fingerprint = build_trade_fingerprint(trade_doc)
                 if not ticket and fingerprint in existing_fingerprints:
+                    duplicate_count += 1
                     skipped_count += 1
                     continue
                 
@@ -2212,6 +2220,7 @@ async def import_trades_csv(
                 
             except Exception as e:
                 errors.append(f"Row {row_num}: {str(e)}")
+                error_count += 1
                 skipped_count += 1
         
         # Bulk insert trades
@@ -2222,12 +2231,27 @@ async def import_trades_csv(
         if len(errors) > 10:
             errors = errors[:10] + [f"... and {len(errors) - 10} more errors"]
         
+        if imported_count > 0:
+            message = (
+                f"Successfully imported {imported_count} trades. "
+                f"{duplicate_count} duplicates skipped, {error_count} rows had errors."
+            )
+        elif skipped_count > 0 and error_count == 0:
+            message = "No new trades imported. All rows are duplicates of existing entries."
+        elif skipped_count > 0:
+            message = (
+                f"No new trades imported. {error_count} rows had errors "
+                f"and {duplicate_count} rows were duplicates."
+            )
+        else:
+            message = "No trade rows found in the uploaded CSV."
+
         return CSVImportResponse(
             success=True,
             imported_count=imported_count,
             skipped_count=skipped_count,
             errors=errors,
-            message=f"Successfully imported {imported_count} trades. {skipped_count} skipped (duplicates or errors)."
+            message=message
         )
         
     except Exception as e:
