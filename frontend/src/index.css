@@ -252,6 +252,31 @@
         gap: 16px;
     }
 
+    .login-shell {
+        display: flex;
+        align-items: stretch;
+        justify-content: center;
+        gap: 18px;
+        flex-direction: column;
+    }
+
+    .panda-side-panel {
+        border: 1px solid color-mix(in srgb, var(--auth-accent, #18d8c2) 22%, rgba(255, 255, 255, 0.12));
+        background: linear-gradient(145deg, rgba(7, 26, 39, 0.55), rgba(4, 16, 28, 0.52));
+        border-radius: 16px;
+        padding: 14px;
+        backdrop-filter: blur(12px) saturate(115%);
+        -webkit-backdrop-filter: blur(12px) saturate(115%);
+        box-shadow: 0 16px 40px rgba(1, 10, 18, 0.38);
+    }
+
+    .panda-side-copy {
+        margin-top: 10px;
+        text-align: center;
+        font-size: 13px;
+        color: #bde7e3;
+    }
+
     .panda-rive-wrapper {
         width: 100%;
         border-radius: 14px;
@@ -278,6 +303,12 @@
         border-radius: 8px;
         border: 1px solid rgba(221, 221, 221, 0.35);
         font-size: 16px;
+    }
+
+    @media (min-width: 640px) {
+        .login-shell {
+            flex-direction: row;
+        }
     }
 }
 

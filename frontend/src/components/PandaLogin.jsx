@@ -1,7 +1,7 @@
-import React, { forwardRef, useCallback, useEffect, useImperativeHandle } from 'react';
-import { useRive, useStateMachineInput } from '@rive-app/react-canvas';
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useState } from 'react';
+import { useRive } from '@rive-app/react-canvas';
 
-const MACHINE_NAME = 'LoginMachine';
+const MACHINE_CANDIDATES = ['LoginMachine', 'State Machine 1', 'PandaLoginMachine'];
 const MAX_CURSOR = 100;
 
 function clamp(value, min, max) {
@@ -24,23 +24,53 @@ function fireTrigger(input) {
 }
 
 const PandaLogin = forwardRef(function PandaLogin(_props, ref) {
+  const [resolvedMachine, setResolvedMachine] = useState('');
+  const [hasInteractiveInputs, setHasInteractiveInputs] = useState(false);
+
   const { rive, RiveComponent } = useRive({
     src: '/panda_login.riv',
-    stateMachines: MACHINE_NAME,
+    // Try common machine names so externally authored .riv files can still work.
+    stateMachines: MACHINE_CANDIDATES,
+    animations: 'idle',
     autoplay: true,
   });
 
-  const lookInput = useStateMachineInput(rive, MACHINE_NAME, 'isLooking');
-  const trackInput = useStateMachineInput(rive, MACHINE_NAME, 'isTracking');
-  const passwordInput = useStateMachineInput(rive, MACHINE_NAME, 'isPassword');
-  const errorInput = useStateMachineInput(rive, MACHINE_NAME, 'loginError');
-  const successInput = useStateMachineInput(rive, MACHINE_NAME, 'loginSuccess');
-  const cursorXInput = useStateMachineInput(rive, MACHINE_NAME, 'cursorX');
+  useEffect(() => {
+    if (!rive) return;
+
+    const resolveMachine = () => {
+      const names = Array.isArray(rive.stateMachineNames) ? rive.stateMachineNames : [];
+      const preferred = MACHINE_CANDIDATES.find((name) => names.includes(name)) || names[0] || '';
+      setResolvedMachine(preferred);
+
+      if (!preferred) {
+        setHasInteractiveInputs(false);
+        return;
+      }
+
+      const inputNames = (rive.stateMachineInputs(preferred) || []).map((input) => input.name);
+      const required = ['isLooking', 'isTracking', 'isPassword', 'loginError', 'loginSuccess', 'cursorX'];
+      setHasInteractiveInputs(required.every((name) => inputNames.includes(name)));
+    };
+
+    resolveMachine();
+    rive.on('load', resolveMachine);
+
+    return () => {
+      rive.off('load', resolveMachine);
+    };
+  }, [rive]);
+
+  const getInput = useCallback((name) => {
+    if (!rive || !resolvedMachine) return null;
+    const inputs = rive.stateMachineInputs(resolvedMachine) || [];
+    return inputs.find((input) => input.name === name) || null;
+  }, [rive, resolvedMachine]);
 
   const setCursorPercent = useCallback((rawValue) => {
     const safeValue = Number.isFinite(rawValue) ? rawValue : 0;
-    setNumberInput(cursorXInput, clamp(safeValue, 0, MAX_CURSOR));
-  }, [cursorXInput]);
+    setNumberInput(getInput('cursorX'), clamp(safeValue, 0, MAX_CURSOR));
+  }, [getInput]);
 
   useEffect(() => {
     const handleMouseMove = (event) => {
@@ -55,47 +85,53 @@ const PandaLogin = forwardRef(function PandaLogin(_props, ref) {
 
   useImperativeHandle(ref, () => ({
     emailHover() {
-      setBoolInput(lookInput, true);
-      setBoolInput(trackInput, false);
-      setBoolInput(passwordInput, false);
+      setBoolInput(getInput('isLooking'), true);
+      setBoolInput(getInput('isTracking'), false);
+      setBoolInput(getInput('isPassword'), false);
     },
     emailFocus() {
-      setBoolInput(lookInput, true);
-      setBoolInput(trackInput, false);
-      setBoolInput(passwordInput, false);
+      setBoolInput(getInput('isLooking'), true);
+      setBoolInput(getInput('isTracking'), false);
+      setBoolInput(getInput('isPassword'), false);
     },
     emailType(value) {
-      setBoolInput(lookInput, false);
-      setBoolInput(trackInput, true);
-      setBoolInput(passwordInput, false);
+      setBoolInput(getInput('isLooking'), false);
+      setBoolInput(getInput('isTracking'), true);
+      setBoolInput(getInput('isPassword'), false);
       const lengthPercent = clamp((String(value || '').length / 30) * 100, 0, MAX_CURSOR);
       setCursorPercent(lengthPercent);
     },
     emailBlur() {
-      setBoolInput(lookInput, false);
-      setBoolInput(trackInput, false);
+      setBoolInput(getInput('isLooking'), false);
+      setBoolInput(getInput('isTracking'), false);
     },
     passwordFocus() {
-      setBoolInput(passwordInput, true);
-      setBoolInput(lookInput, false);
-      setBoolInput(trackInput, false);
+      setBoolInput(getInput('isPassword'), true);
+      setBoolInput(getInput('isLooking'), false);
+      setBoolInput(getInput('isTracking'), false);
     },
     passwordBlur() {
-      setBoolInput(passwordInput, false);
+      setBoolInput(getInput('isPassword'), false);
     },
     loginError() {
-      fireTrigger(errorInput);
+      fireTrigger(getInput('loginError'));
     },
     loginSuccess() {
-      fireTrigger(successInput);
+      fireTrigger(getInput('loginSuccess'));
     },
-  }), [lookInput, trackInput, passwordInput, errorInput, successInput, setCursorPercent]);
+  }), [getInput, setCursorPercent]);
 
   return (
     <div className="panda-rive-wrapper">
       <RiveComponent className="panda" aria-label="Animated panda login assistant" />
       {!rive ? (
         <p className="panda-rive-note">Place <code>panda_login.riv</code> in <code>frontend/public</code>.</p>
+      ) : null}
+      {rive && !resolvedMachine ? (
+        <p className="panda-rive-note">No state machine found in this file.</p>
+      ) : null}
+      {rive && resolvedMachine && !hasInteractiveInputs ? (
+        <p className="panda-rive-note">State machine <code>{resolvedMachine}</code> is loaded, but required inputs are missing.</p>
       ) : null}
     </div>
   );

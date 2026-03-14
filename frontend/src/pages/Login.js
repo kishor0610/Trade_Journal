@@ -190,8 +190,9 @@ export default function Login() {
           initial={{ opacity: 0, y: 14, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.55, ease: 'easeOut' }}
-          className="login-glass-panel w-full max-w-md rounded-2xl p-6 sm:p-8"
+          className="login-shell w-full max-w-6xl"
         >
+          <div className="login-glass-panel order-2 w-full max-w-md rounded-2xl p-6 sm:order-1 sm:p-8">
           {/* Logo */}
           <div className="mb-10 flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl shadow-[0_0_25px_rgba(18,183,162,0.35)]" style={{ backgroundColor: 'color-mix(in srgb, var(--auth-accent) 24%, transparent)' }}>
@@ -204,8 +205,6 @@ export default function Login() {
           <p className="mb-8 text-[#9ec7cc]">Sign in to continue tracking your trades</p>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            <PandaLogin ref={pandaRef} />
-
             <div className="panda-login-stack">
             <div className="space-y-2">
               <Label htmlFor="email" className="text-sm font-medium">Email</Label>
@@ -286,6 +285,12 @@ export default function Login() {
               Create one
             </Link>
           </p>
+          </div>
+
+          <div className="panda-side-panel order-1 w-full sm:order-2 sm:w-[420px]">
+            <PandaLogin ref={pandaRef} />
+            <p className="panda-side-copy">Panda reacts to your email, password focus, and login result.</p>
+          </div>
         </motion.div>
       </div>
     </div>
