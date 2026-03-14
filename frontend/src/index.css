@@ -1,44 +1,43 @@
-@import url('https://fonts.googleapis.com/css2?family=Chivo:wght@700;900&family=JetBrains+Mono:wght@400;700&family=Manrope:wght@400;500;700&display=swap');
-@import url('https://api.fontshare.com/v2/css?f[]=bespoke-stencil@300,500,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Chivo:wght@700;900&family=JetBrains+Mono:wght@400;700&family=Kalam:wght@300;400;700&family=Manrope:wght@400;500;700&display=swap');
 
 /**
 * @license
 *
-* Font Family: Bespoke Stencil
-* Designed by: Jeremie Hornus, Theo Guillard, Morgane Pambrun, Alisa Nowak, Joachim Vu
-* URL: https://www.fontshare.com/fonts/bespoke-stencil
+* Font Family: Kalam
+* Designed by: Indian Type Foundry
+* URL: https://www.fontshare.com/fonts/kalam
 * Copyright 2026 Indian Type Foundry
 *
-* Bespoke Stencil LightItalic
-* Bespoke Stencil MediumItalic
-* Bespoke Stencil BoldItalic
+* Kalam Light
+* Kalam Regular
+* Kalam Bold
 *
 */
 @font-face {
-    font-family: 'BespokeStencil-LightItalic';
-    src: local('Bespoke Stencil Light Italic'),
-        local('BespokeStencil-LightItalic');
+    font-family: 'Kalam-Light';
+    src: local('Kalam Light'),
+        local('Kalam');
     font-weight: 300;
     font-display: swap;
-    font-style: italic;
+    font-style: normal;
 }
 
 @font-face {
-    font-family: 'BespokeStencil-MediumItalic';
-    src: local('Bespoke Stencil Medium Italic'),
-        local('BespokeStencil-MediumItalic');
-    font-weight: 500;
+    font-family: 'Kalam-Regular';
+    src: local('Kalam Regular'),
+        local('Kalam');
+    font-weight: 400;
     font-display: swap;
-    font-style: italic;
+    font-style: normal;
 }
 
 @font-face {
-    font-family: 'BespokeStencil-BoldItalic';
-    src: local('Bespoke Stencil Bold Italic'),
-        local('BespokeStencil-BoldItalic');
+    font-family: 'Kalam-Bold';
+    src: local('Kalam Bold'),
+        local('Kalam');
     font-weight: 700;
     font-display: swap;
-    font-style: italic;
+    font-style: normal;
 }
 
 @tailwind base;
@@ -98,8 +97,8 @@
     body,
     #root,
     #root * {
-        font-family: 'Bespoke Stencil', 'BespokeStencil-MediumItalic', 'Manrope', sans-serif;
-        font-weight: 500;
+        font-family: 'Kalam-Regular', 'Kalam', cursive;
+        font-weight: 400;
     }
 
     p,
@@ -108,12 +107,12 @@
     .text-xs,
     .text-sm,
     .text-muted-foreground {
-        font-family: 'Bespoke Stencil', 'BespokeStencil-LightItalic', 'Manrope', sans-serif;
+        font-family: 'Kalam-Light', 'Kalam', cursive;
         font-weight: 300;
     }
 
     h1, h2, h3, h4, h5, h6 {
-        font-family: 'Bespoke Stencil', 'BespokeStencil-BoldItalic', 'Manrope', sans-serif;
+        font-family: 'Kalam-Bold', 'Kalam', cursive;
         font-weight: 700;
         letter-spacing: -0.01em;
     }
@@ -190,7 +189,7 @@
 
     .brand-logo-text {
         position: relative;
-        font-family: 'Bespoke Stencil', 'BespokeStencil-BoldItalic', 'Manrope', sans-serif;
+        font-family: 'Kalam-Bold', 'Kalam', cursive;
         font-weight: 700;
         letter-spacing: 0.01em;
         color: #d8fffb;
@@ -255,7 +254,7 @@
 
     .eyes-login-mascot {
         width: 100%;
-        height: 90px;
+        height: 74px;
         position: relative;
         pointer-events: none;
         transition: transform 180ms ease;
@@ -263,9 +262,9 @@
 
     .panda-card-corner {
         position: absolute;
-        top: 66px;
+        top: 74px;
         right: 14px;
-        width: 168px;
+        width: 132px;
         z-index: 2;
     }
 
@@ -276,25 +275,25 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 4px;
+        gap: 3px;
         background: transparent;
     }
 
     .eyes-orb {
-        width: 78px;
-        height: 78px;
+        width: 62px;
+        height: 62px;
         border-radius: 50%;
         position: relative;
         background: radial-gradient(circle at 30% 25%, #ffffff, #f2f2f2 64%, #d9d9d9 100%);
         overflow: hidden;
-        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.28);
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.24);
     }
 
     .eyes-brow {
         position: absolute;
-        top: 2px;
-        width: 52px;
-        height: 10px;
+        top: -8px;
+        width: 42px;
+        height: 8px;
         border-radius: 999px;
         background: linear-gradient(180deg, #ffffff, #e9efff);
         box-shadow: 0 1px 4px rgba(255, 255, 255, 0.24);
@@ -317,13 +316,13 @@
 
     .eyes-pupil {
         position: absolute;
-        width: 30px;
-        height: 30px;
+        width: 24px;
+        height: 24px;
         border-radius: 50%;
         left: 50%;
         top: 50%;
-        margin-left: -15px;
-        margin-top: -15px;
+        margin-left: -12px;
+        margin-top: -12px;
         background: #06070a;
         transition: transform 95ms linear, opacity 120ms ease;
     }
@@ -364,63 +363,63 @@
 
     @media (max-width: 1024px) {
         .panda-card-corner {
-            top: 68px;
+            top: 76px;
             right: 12px;
-            width: 148px;
+            width: 116px;
             opacity: 0.94;
         }
 
         .eyes-login-mascot {
-            height: 82px;
+            height: 66px;
         }
 
         .eyes-orb {
-            width: 70px;
-            height: 70px;
+            width: 54px;
+            height: 54px;
         }
 
         .eyes-pupil {
-            width: 27px;
-            height: 27px;
-            margin-left: -13.5px;
-            margin-top: -13.5px;
+            width: 20px;
+            height: 20px;
+            margin-left: -10px;
+            margin-top: -10px;
         }
 
         .eyes-brow {
-            width: 46px;
-            height: 9px;
-            top: 1px;
+            width: 38px;
+            height: 7px;
+            top: -8px;
         }
     }
 
     @media (max-width: 640px) {
         .panda-card-corner {
-            top: 70px;
+            top: 78px;
             right: 8px;
-            width: 120px;
+            width: 96px;
             opacity: 0.92;
         }
 
         .eyes-login-mascot {
-            height: 70px;
+            height: 56px;
         }
 
         .eyes-orb {
-            width: 58px;
-            height: 58px;
+            width: 44px;
+            height: 44px;
         }
 
         .eyes-pupil {
-            width: 22px;
-            height: 22px;
-            margin-left: -11px;
-            margin-top: -11px;
+            width: 16px;
+            height: 16px;
+            margin-left: -8px;
+            margin-top: -8px;
         }
 
         .eyes-brow {
-            width: 38px;
-            height: 8px;
-            top: 0;
+            width: 30px;
+            height: 6px;
+            top: -7px;
         }
 
         .eyes-brow-left { left: 8px; }
