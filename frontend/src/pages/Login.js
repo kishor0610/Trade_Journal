@@ -5,11 +5,13 @@ import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import PandaLogin from '../components/PandaLogin';
 import { TrendingUp, Mail, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function Login() {
   const canvasRef = useRef(null);
+  const pandaRef = useRef(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -134,13 +136,42 @@ export default function Login() {
     
     try {
       await login(email, password);
+      pandaRef.current?.loginSuccess();
       toast.success('Welcome back!');
+      await new Promise((resolve) => setTimeout(resolve, 700));
       navigate('/dashboard');
     } catch (error) {
+      pandaRef.current?.loginError();
       toast.error(error.response?.data?.detail || 'Login failed');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleEmailFocus = () => {
+    pandaRef.current?.emailFocus();
+  };
+
+  const handleEmailHover = () => {
+    pandaRef.current?.emailHover();
+  };
+
+  const handleEmailBlur = () => {
+    pandaRef.current?.emailBlur();
+  };
+
+  const handleEmailChange = (event) => {
+    const value = event.target.value;
+    setEmail(value);
+    pandaRef.current?.emailType(value);
+  };
+
+  const handlePasswordFocus = () => {
+    pandaRef.current?.passwordFocus();
+  };
+
+  const handlePasswordBlur = () => {
+    pandaRef.current?.passwordBlur();
   };
 
   return (
@@ -173,6 +204,9 @@ export default function Login() {
           <p className="mb-8 text-[#9ec7cc]">Sign in to continue tracking your trades</p>
 
           <form onSubmit={handleSubmit} className="space-y-6">
+            <PandaLogin ref={pandaRef} />
+
+            <div className="panda-login-stack">
             <div className="space-y-2">
               <Label htmlFor="email" className="text-sm font-medium">Email</Label>
               <div className="relative">
@@ -182,7 +216,10 @@ export default function Login() {
                   type="email"
                   placeholder="you@example.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onMouseEnter={handleEmailHover}
+                  onFocus={handleEmailFocus}
+                  onBlur={handleEmailBlur}
+                  onChange={handleEmailChange}
                   className="h-12 border-white/10 bg-black/30 pl-12 focus:border-[#1affda]"
                   data-testid="login-email-input"
                   required
@@ -205,6 +242,8 @@ export default function Login() {
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  onFocus={handlePasswordFocus}
+                  onBlur={handlePasswordBlur}
                   className="h-12 border-white/10 bg-black/30 pl-12 pr-12 focus:border-[#1affda]"
                   data-testid="login-password-input"
                   required
@@ -238,6 +277,7 @@ export default function Login() {
                 </span>
               )}
             </Button>
+            </div>
           </form>
 
           <p className="mt-8 text-center text-[#9ec7cc]">
