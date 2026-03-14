@@ -1,48 +1,41 @@
-@import url('https://fonts.googleapis.com/css2?family=Chivo:wght@700;900&family=Dancing+Script:wght@400;700&family=JetBrains+Mono:wght@400;700&family=Manrope:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Chivo:wght@700;900&family=JetBrains+Mono:wght@400;700&family=Kalam:wght@300;400;700&family=Manrope:wght@400;500;700&display=swap');
 
 /**
 * @license
 *
-* Font Family: Dancing Script
-* Designed by: Impallari Type
-* URL: https://www.fontshare.com/fonts/dancing-script
+* Font Family: Kalam
+* Designed by: Indian Type Foundry
+* URL: https://www.fontshare.com/fonts/kalam
 * © 2026 Indian Type Foundry
 *
-* Dancing Script Regular
-* Dancing Script Bold
-* Dancing Script Variable (Variable font)
+* Kalam Light
+* Kalam Regular
+* Kalam Bold
 *
 */
 @font-face {
-    font-family: 'DancingScript-Regular';
-  src: local('Dancing Script Regular'),
-      local('Dancing Script');
+    font-family: 'Kalam-Light';
+    src: local('Kalam Light'),
+        local('Kalam');
+    font-weight: 300;
+    font-display: swap;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Kalam-Regular';
+    src: local('Kalam Regular'),
+        local('Kalam');
     font-weight: 400;
     font-display: swap;
     font-style: normal;
 }
 
 @font-face {
-    font-family: 'DancingScript-Bold';
-  src: local('Dancing Script Bold'),
-      local('Dancing Script');
+    font-family: 'Kalam-Bold';
+    src: local('Kalam Bold'),
+        local('Kalam');
     font-weight: 700;
-    font-display: swap;
-    font-style: normal;
-}
-
-/**
-* This is a variable font
-* You can control variable axes as shown below:
-* font-variation-settings: wght 400.0;
-*
-* available axes:
-'wght' (range from 400.0 to 700.0
-*/
-@font-face {
-    font-family: 'DancingScript-Variable';
-    src: local('Dancing Script');
-    font-weight: 400 700;
     font-display: swap;
     font-style: normal;
 }
@@ -104,10 +97,22 @@
     body,
     #root,
     #root * {
-        font-family: 'DancingScript-Variable', 'DancingScript-Regular', 'Dancing Script', cursive;
+        font-family: 'Kalam-Regular', 'Kalam', cursive;
+        font-weight: 400;
+    }
+
+    p,
+    small,
+    label,
+    .text-xs,
+    .text-sm,
+    .text-muted-foreground {
+        font-family: 'Kalam-Light', 'Kalam', cursive;
+        font-weight: 300;
     }
 
     h1, h2, h3, h4, h5, h6 {
+        font-family: 'Kalam-Bold', 'Kalam', cursive;
         font-weight: 700;
         letter-spacing: -0.01em;
     }
@@ -182,10 +187,9 @@
 
     .brand-logo-text {
         position: relative;
-        font-family: 'DancingScript-Variable', 'DancingScript-Bold', 'Dancing Script', cursive;
+        font-family: 'Kalam-Bold', 'Kalam', cursive;
         font-weight: 700;
         letter-spacing: 0.01em;
-        font-variation-settings: 'wght' 700;
         color: #d8fffb;
         text-shadow: 0 0 12px rgba(48, 245, 220, 0.22), 0 0 28px rgba(27, 164, 157, 0.2);
         animation: logoFade 3s ease-in-out infinite;
@@ -196,36 +200,45 @@
     }
 
     .auth-chroma-shell {
-        --auth-color-1: #00c2ff;
-        --auth-color-2: #00d18f;
-        --auth-color-3: #ffd166;
-        --auth-color-4: #ff6b6b;
-        --auth-color-5: #8a7dff;
-        --auth-accent: var(--auth-color-1);
-        animation: authAccentCycle 15s linear infinite;
+        --auth-accent: #00d7c0;
+        isolation: isolate;
     }
 
     .auth-chroma-base {
         background:
-            radial-gradient(circle at 18% 20%, color-mix(in srgb, var(--auth-color-1) 40%, transparent), transparent 38%),
-            radial-gradient(circle at 84% 76%, color-mix(in srgb, var(--auth-color-3) 32%, transparent), transparent 41%),
-            linear-gradient(130deg, #020a10 0%, #061825 45%, #0a2530 100%);
-        transition: background 3s ease-in-out;
+            radial-gradient(circle at 20% 22%, rgba(0, 194, 255, 0.28), transparent 36%),
+            radial-gradient(circle at 82% 74%, rgba(255, 107, 107, 0.24), transparent 38%),
+            linear-gradient(125deg, #00c2ff, #00d18f, #ffd166, #ff6b6b, #8a7dff, #00c2ff);
+        background-size: 320% 320%;
+        animation: authChromaticWave 15s ease-in-out infinite;
+        transition: opacity 1.2s ease;
+        opacity: 0.42;
     }
 
     .auth-chroma-aurora {
         background:
-            linear-gradient(110deg,
-                color-mix(in srgb, var(--auth-color-1) 22%, transparent),
-                color-mix(in srgb, var(--auth-color-2) 18%, transparent),
-                color-mix(in srgb, var(--auth-color-3) 18%, transparent),
-                color-mix(in srgb, var(--auth-color-4) 20%, transparent),
-                color-mix(in srgb, var(--auth-color-5) 20%, transparent)
+            radial-gradient(circle at 16% 18%, rgba(0, 194, 255, 0.32), transparent 44%),
+            radial-gradient(circle at 34% 82%, rgba(0, 209, 143, 0.28), transparent 46%),
+            radial-gradient(circle at 66% 16%, rgba(255, 209, 102, 0.24), transparent 40%),
+            radial-gradient(circle at 82% 62%, rgba(138, 125, 255, 0.28), transparent 43%),
+            linear-gradient(112deg,
+                rgba(0, 194, 255, 0.34),
+                rgba(0, 209, 143, 0.32),
+                rgba(255, 209, 102, 0.3),
+                rgba(255, 107, 107, 0.34),
+                rgba(138, 125, 255, 0.36)
             );
+        background-size: 300% 300%;
+        animation: authChromaticWave 15s ease-in-out infinite reverse;
         filter: saturate(125%);
-        mix-blend-mode: screen;
-        opacity: 0.72;
+        mix-blend-mode: soft-light;
+        opacity: 0.78;
         transition: opacity 3s ease-in-out, background 3s ease-in-out;
+    }
+
+    .auth-particle-canvas {
+        opacity: 0.95;
+        mix-blend-mode: screen;
     }
 }
 
@@ -286,46 +299,15 @@
     }
 }
 
-@keyframes authAccentCycle {
-    0%, 20% {
-        --auth-accent: #00c2ff;
-        --auth-color-1: #00c2ff;
-        --auth-color-2: #00d18f;
-        --auth-color-3: #ffd166;
-        --auth-color-4: #ff6b6b;
-        --auth-color-5: #8a7dff;
+@keyframes authChromaticWave {
+    0% {
+        background-position: 0% 50%;
     }
-    20%, 40% {
-        --auth-accent: #00d18f;
-        --auth-color-1: #00d18f;
-        --auth-color-2: #ffd166;
-        --auth-color-3: #ff6b6b;
-        --auth-color-4: #8a7dff;
-        --auth-color-5: #00c2ff;
+    50% {
+        background-position: 100% 50%;
     }
-    40%, 60% {
-        --auth-accent: #ffd166;
-        --auth-color-1: #ffd166;
-        --auth-color-2: #ff6b6b;
-        --auth-color-3: #8a7dff;
-        --auth-color-4: #00c2ff;
-        --auth-color-5: #00d18f;
-    }
-    60%, 80% {
-        --auth-accent: #ff6b6b;
-        --auth-color-1: #ff6b6b;
-        --auth-color-2: #8a7dff;
-        --auth-color-3: #00c2ff;
-        --auth-color-4: #00d18f;
-        --auth-color-5: #ffd166;
-    }
-    80%, 100% {
-        --auth-accent: #8a7dff;
-        --auth-color-1: #8a7dff;
-        --auth-color-2: #00c2ff;
-        --auth-color-3: #00d18f;
-        --auth-color-4: #ffd166;
-        --auth-color-5: #ff6b6b;
+    100% {
+        background-position: 0% 50%;
     }
 }
 

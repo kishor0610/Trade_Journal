@@ -151,15 +151,14 @@ export default function Register() {
 
   return (
     <div className="auth-chroma-shell relative min-h-screen overflow-hidden bg-[#020a10]">
+      <div className="auth-chroma-base absolute inset-0" />
+      <div className="auth-chroma-aurora pointer-events-none absolute inset-0" />
       <canvas
         id="bg"
         ref={canvasRef}
-        className="pointer-events-none fixed inset-0 h-full w-full"
+        className="auth-particle-canvas pointer-events-none fixed inset-0 z-[2] h-full w-full"
         aria-hidden="true"
       />
-
-      <div className="auth-chroma-aurora pointer-events-none absolute inset-0" />
-      <div className="auth-chroma-base absolute inset-0" />
 
       <div className="relative z-10 flex min-h-screen items-center justify-center p-4 sm:p-8">
         <motion.div
