@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
@@ -9,6 +9,7 @@ import { TrendingUp, Mail, Lock, User, ArrowRight, Eye, EyeOff } from 'lucide-re
 import { toast } from 'sonner';
 
 export default function Register() {
+  const canvasRef = useRef(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -16,6 +17,117 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const { register } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return undefined;
+
+    const ctx = canvas.getContext('2d', { alpha: true });
+    if (!ctx) return undefined;
+
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const DPR = Math.min(window.devicePixelRatio || 1, 2);
+    let width = 0;
+    let height = 0;
+    let frameId = null;
+    let active = !document.hidden;
+
+    class Particle {
+      constructor() {
+        this.reset();
+        this.x = Math.random() * width;
+        this.y = Math.random() * height;
+      }
+
+      reset() {
+        this.size = 0.6 + Math.random() * 2.2;
+        this.speedX = 0.07 + Math.random() * 0.45;
+        this.speedY = -0.05 + Math.random() * 0.22;
+        this.alpha = 0.2 + Math.random() * 0.55;
+      }
+
+      update() {
+        this.x += this.speedX;
+        this.y += this.speedY;
+
+        if (this.x > width + 20) this.x = -20;
+        if (this.x < -20) this.x = width + 20;
+        if (this.y > height + 20) this.y = -20;
+        if (this.y < -20) this.y = height + 20;
+      }
+
+      draw() {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(26, 255, 218, ${this.alpha})`;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = 'rgba(26, 255, 218, 0.45)';
+        ctx.fill();
+      }
+    }
+
+    const particles = [];
+
+    const getParticleCount = () => {
+      const area = window.innerWidth * window.innerHeight;
+      const target = Math.floor(area / 3200);
+      return Math.max(140, Math.min(target, 520));
+    };
+
+    const buildParticles = () => {
+      particles.length = 0;
+      const count = prefersReducedMotion ? Math.floor(getParticleCount() * 0.35) : getParticleCount();
+      for (let i = 0; i < count; i += 1) {
+        particles.push(new Particle());
+      }
+    };
+
+    const resize = () => {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = Math.floor(width * DPR);
+      canvas.height = Math.floor(height * DPR);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      buildParticles();
+    };
+
+    const animate = () => {
+      if (!active) {
+        frameId = requestAnimationFrame(animate);
+        return;
+      }
+
+      ctx.fillStyle = 'rgba(2, 12, 18, 0.2)';
+      ctx.fillRect(0, 0, width, height);
+
+      for (let i = 0; i < particles.length; i += 1) {
+        particles[i].update();
+        particles[i].draw();
+      }
+
+      frameId = requestAnimationFrame(animate);
+    };
+
+    const handleVisibility = () => {
+      active = !document.hidden;
+    };
+
+    resize();
+    ctx.fillStyle = 'rgba(2, 12, 18, 1)';
+    ctx.fillRect(0, 0, width, height);
+    animate();
+
+    window.addEventListener('resize', resize);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.removeEventListener('resize', resize);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      if (frameId) cancelAnimationFrame(frameId);
+    };
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -38,25 +150,34 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen flex">
-      {/* Left Side - Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
+    <div className="relative min-h-screen overflow-hidden bg-[#020a10]">
+      <canvas
+        id="bg"
+        ref={canvasRef}
+        className="pointer-events-none fixed inset-0 h-full w-full"
+        aria-hidden="true"
+      />
+
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_25%,rgba(23,196,170,0.12),transparent_45%),radial-gradient(circle_at_80%_75%,rgba(17,111,144,0.18),transparent_40%)]" />
+      <div className="absolute inset-0 bg-gradient-to-br from-[#020a10]/95 via-[#031520]/78 to-[#041825]/92" />
+
+      <div className="relative z-10 flex min-h-screen items-center justify-center p-4 sm:p-8">
         <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5 }}
-          className="w-full max-w-md"
+          initial={{ opacity: 0, y: 14, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.55, ease: 'easeOut' }}
+          className="login-glass-panel w-full max-w-md rounded-2xl p-6 sm:p-8"
         >
           {/* Logo */}
-          <div className="flex items-center gap-3 mb-12">
-            <div className="w-12 h-12 rounded-xl bg-accent/20 flex items-center justify-center">
-              <TrendingUp className="w-6 h-6 text-accent" />
+          <div className="mb-10 flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#12b7a2]/20 shadow-[0_0_25px_rgba(18,183,162,0.35)]">
+              <TrendingUp className="h-6 w-6 text-[#1affda]" />
             </div>
-            <span className="text-2xl font-heading font-bold">TradeLedger</span>
+            <span className="brand-logo-text text-[1.8rem] leading-none">TradeLedger</span>
           </div>
 
-          <h1 className="text-4xl font-heading font-black mb-2">Create account</h1>
-          <p className="text-muted-foreground mb-8">Start your trading journal journey</p>
+          <h1 className="mb-2 text-4xl font-heading font-black">Create account</h1>
+          <p className="mb-8 text-[#9ec7cc]">Start your trading journal journey</p>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
@@ -69,7 +190,7 @@ export default function Register() {
                   placeholder="John Doe"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="pl-12 h-12 bg-secondary border-white/10 focus:border-accent"
+                  className="h-12 border-white/10 bg-black/30 pl-12 focus:border-[#1affda]"
                   data-testid="register-name-input"
                   required
                 />
@@ -86,7 +207,7 @@ export default function Register() {
                   placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="pl-12 h-12 bg-secondary border-white/10 focus:border-accent"
+                  className="h-12 border-white/10 bg-black/30 pl-12 focus:border-[#1affda]"
                   data-testid="register-email-input"
                   required
                 />
@@ -103,7 +224,7 @@ export default function Register() {
                   placeholder="Create a strong password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pl-12 pr-12 h-12 bg-secondary border-white/10 focus:border-accent"
+                  className="h-12 border-white/10 bg-black/30 pl-12 pr-12 focus:border-[#1affda]"
                   data-testid="register-password-input"
                   required
                   minLength={6}
@@ -122,7 +243,7 @@ export default function Register() {
             <Button
               type="submit"
               disabled={loading}
-              className="w-full h-12 bg-white text-black font-bold hover:bg-gray-200 rounded-lg shadow-[0_0_20px_rgba(255,255,255,0.2)]"
+              className="h-12 w-full rounded-lg bg-[#1affda] font-bold text-[#012228] shadow-[0_0_24px_rgba(26,255,218,0.4)] hover:bg-[#62ffe6]"
               data-testid="register-submit-btn"
             >
               {loading ? (
@@ -138,30 +259,13 @@ export default function Register() {
             </Button>
           </form>
 
-          <p className="text-center mt-8 text-muted-foreground">
+          <p className="mt-8 text-center text-[#9ec7cc]">
             Already have an account?{' '}
-            <Link to="/login" className="text-accent hover:underline font-medium" data-testid="login-link">
+            <Link to="/login" className="font-medium text-[#1affda] hover:underline" data-testid="login-link">
               Sign in
             </Link>
           </p>
         </motion.div>
-      </div>
-
-      {/* Right Side - Image */}
-      <div className="hidden lg:block lg:w-1/2 relative overflow-hidden">
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{
-            backgroundImage: 'url(https://images.unsplash.com/photo-1651467987631-1bcd570b9f7f?crop=entropy&cs=srgb&fm=jpg&q=85)',
-          }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-r from-background to-transparent" />
-        <div className="absolute bottom-12 left-12 right-12">
-          <div className="glass-card p-6">
-            <p className="text-lg font-medium mb-2">"Track, analyze, and improve"</p>
-            <p className="text-muted-foreground text-sm">Join thousands of traders optimizing their strategies</p>
-          </div>
-        </div>
       </div>
     </div>
   );

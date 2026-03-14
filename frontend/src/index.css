@@ -1,4 +1,55 @@
-@import url('https://fonts.googleapis.com/css2?family=Chivo:wght@700;900&family=JetBrains+Mono:wght@400;700&family=Manrope:wght@400;500;700&family=Space+Grotesk:wght@700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Chivo:wght@700;900&family=Dancing+Script:wght@400;700&family=JetBrains+Mono:wght@400;700&family=Manrope:wght@400;500;700&display=swap');
+
+/**
+* @license
+*
+* Font Family: Dancing Script
+* Designed by: Impallari Type
+* URL: https://www.fontshare.com/fonts/dancing-script
+* © 2026 Indian Type Foundry
+*
+* Dancing Script Regular
+* Dancing Script Bold
+* Dancing Script Variable (Variable font)
+*
+*/
+@font-face {
+    font-family: 'DancingScript-Regular';
+    src: url('/fonts/DancingScript-Regular.woff2') format('woff2'),
+             url('/fonts/DancingScript-Regular.woff') format('woff'),
+             url('/fonts/DancingScript-Regular.ttf') format('truetype');
+    font-weight: 400;
+    font-display: swap;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'DancingScript-Bold';
+    src: url('/fonts/DancingScript-Bold.woff2') format('woff2'),
+             url('/fonts/DancingScript-Bold.woff') format('woff'),
+             url('/fonts/DancingScript-Bold.ttf') format('truetype');
+    font-weight: 700;
+    font-display: swap;
+    font-style: normal;
+}
+
+/**
+* This is a variable font
+* You can control variable axes as shown below:
+* font-variation-settings: wght 400.0;
+*
+* available axes:
+'wght' (range from 400.0 to 700.0
+*/
+@font-face {
+    font-family: 'DancingScript-Variable';
+    src: url('/fonts/DancingScript-Variable.woff2') format('woff2'),
+             url('/fonts/DancingScript-Variable.woff') format('woff'),
+             url('/fonts/DancingScript-Variable.ttf') format('truetype');
+    font-weight: 400 700;
+    font-display: swap;
+    font-style: normal;
+}
 
 @tailwind base;
 @tailwind components;
@@ -129,9 +180,10 @@
 
     .brand-logo-text {
         position: relative;
-        font-family: 'Space Grotesk', 'Chivo', sans-serif;
+        font-family: 'DancingScript-Variable', 'DancingScript-Bold', 'Dancing Script', cursive;
         font-weight: 700;
-        letter-spacing: -0.02em;
+        letter-spacing: 0.01em;
+        font-variation-settings: 'wght' 700;
         color: #d8fffb;
         text-shadow: 0 0 12px rgba(48, 245, 220, 0.24), 0 0 30px rgba(27, 164, 157, 0.22);
         animation: logoFloat 4.8s ease-in-out infinite;
