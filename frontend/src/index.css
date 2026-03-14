@@ -165,15 +165,15 @@
 
     .login-glass-panel {
         position: relative;
-        border: 1px solid color-mix(in srgb, var(--auth-accent, #18d8c2) 42%, transparent);
-        background: linear-gradient(140deg, rgba(8, 31, 43, 0.65), rgba(3, 18, 28, 0.76));
+        border: 1px solid color-mix(in srgb, var(--auth-accent, #18d8c2) 24%, rgba(255, 255, 255, 0.15));
+        background: linear-gradient(145deg, rgba(10, 30, 44, 0.42), rgba(6, 18, 30, 0.5));
         box-shadow:
-            0 0 0 1px color-mix(in srgb, var(--auth-accent, #19d6bc) 14%, transparent),
-            0 24px 65px rgba(2, 17, 26, 0.72),
-            inset 0 1px 0 rgba(178, 255, 243, 0.14),
-            inset 0 -1px 0 rgba(10, 92, 116, 0.24);
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
+            0 0 0 1px color-mix(in srgb, var(--auth-accent, #19d6bc) 9%, transparent),
+            0 14px 34px rgba(4, 14, 22, 0.36),
+            inset 0 1px 0 rgba(255, 255, 255, 0.16),
+            inset 0 -1px 0 rgba(10, 92, 116, 0.16);
+        backdrop-filter: blur(14px) saturate(120%);
+        -webkit-backdrop-filter: blur(14px) saturate(120%);
         overflow: hidden;
     }
 
@@ -182,7 +182,9 @@
         position: absolute;
         inset: 0;
         pointer-events: none;
-        background: radial-gradient(circle at 16% 8%, rgba(80, 255, 229, 0.18), transparent 42%);
+        background:
+            radial-gradient(circle at 16% 8%, rgba(80, 255, 229, 0.12), transparent 44%),
+            linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0));
     }
 
     .brand-logo-text {

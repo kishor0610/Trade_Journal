@@ -1959,7 +1959,7 @@ async def import_trades_csv(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user)
 ):
-    """Import trades from a CSV file (Exness/MT5 format)"""
+    """Import trades from a CSV file (supports MT5 and app-export format)."""
     
     if not file.filename.endswith('.csv'):
         raise HTTPException(status_code=400, detail="Only CSV files are accepted")
@@ -1967,10 +1967,52 @@ async def import_trades_csv(
     try:
         # Read and decode the CSV content
         content = await file.read()
-        decoded = content.decode('utf-8')
+        try:
+            decoded = content.decode('utf-8-sig')
+        except UnicodeDecodeError:
+            decoded = content.decode('latin-1')
         
         # Parse CSV
         reader = csv.DictReader(io.StringIO(decoded))
+        headers = set(reader.fieldnames or [])
+
+        if not headers:
+            raise HTTPException(status_code=400, detail="CSV file is empty or missing header row")
+
+        def get_row_value(row: dict, keys: List[str], default: str = "") -> str:
+            for key in keys:
+                value = row.get(key)
+                if value is not None and str(value).strip() != "":
+                    return str(value).strip()
+            return default
+
+        def parse_float(value: str, field_label: str, row_num: int, required: bool = False) -> Optional[float]:
+            if value is None or value == "":
+                if required:
+                    raise ValueError(f"Row {row_num}: Missing {field_label}")
+                return None
+            try:
+                return float(value)
+            except ValueError:
+                raise ValueError(f"Row {row_num}: Invalid {field_label}")
+
+        def normalize_date(value: str) -> Optional[str]:
+            if not value:
+                return None
+            # Keep a compact, stable date-time string and support date-only input.
+            return value.replace(' ', 'T')[:19]
+
+        def build_trade_fingerprint(trade: dict) -> str:
+            return "|".join([
+                str(trade.get("instrument") or ""),
+                str(trade.get("position") or ""),
+                str(round(float(trade.get("entry_price") or 0), 8)),
+                str(round(float(trade.get("exit_price") or 0), 8)) if trade.get("exit_price") is not None else "",
+                str(round(float(trade.get("quantity") or 0), 8)),
+                str(trade.get("entry_date") or ""),
+                str(trade.get("exit_date") or ""),
+                str(trade.get("status") or ""),
+            ])
         
         imported_count = 0
         skipped_count = 0
@@ -1985,31 +2027,58 @@ async def import_trades_csv(
         for t in existing_trades:
             if t.get('mt5_ticket'):
                 existing_tickets.add(str(t['mt5_ticket']))
+
+        # Fallback duplicate detection for files without ticket numbers.
+        existing_fingerprints = set()
+        existing_for_fingerprint = await db.trades.find(
+            {"user_id": current_user['id']},
+            {
+                "_id": 0,
+                "instrument": 1,
+                "position": 1,
+                "entry_price": 1,
+                "exit_price": 1,
+                "quantity": 1,
+                "entry_date": 1,
+                "exit_date": 1,
+                "status": 1,
+            }
+        ).to_list(100000)
+        for existing in existing_for_fingerprint:
+            existing_fingerprints.add(build_trade_fingerprint(existing))
         
         now = datetime.now(timezone.utc).isoformat()
         trades_to_insert = []
+
+        has_mt5_shape = {'ticket', 'symbol', 'type', 'opening_price', 'lots'}.issubset(headers)
+        has_export_shape = {'Instrument', 'Position', 'Entry Price', 'Quantity', 'Entry Date'}.issubset(headers)
+
+        if not has_mt5_shape and not has_export_shape:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Unsupported CSV format. Expected MT5 columns (ticket,symbol,type,opening_price,lots,...) "
+                    "or app export columns (Instrument,Position,Entry Price,Quantity,Entry Date,...)."
+                )
+            )
         
         for row_num, row in enumerate(reader, start=2):
             try:
-                # Get ticket number
-                ticket = row.get('ticket', '').strip()
-                if not ticket:
+                ticket = get_row_value(row, ['ticket'])
+
+                # Skip ticket duplicates for MT5 files.
+                if ticket and ticket in existing_tickets:
                     skipped_count += 1
                     continue
                 
-                # Skip if already imported
-                if ticket in existing_tickets:
-                    skipped_count += 1
-                    continue
-                
-                # Parse required fields
-                symbol = row.get('symbol', '').strip()
+                # Parse shared fields from either MT5 or app-export headers.
+                symbol = get_row_value(row, ['symbol', 'instrument', 'Instrument'])
                 if not symbol:
                     errors.append(f"Row {row_num}: Missing symbol")
                     skipped_count += 1
                     continue
                 
-                trade_type = row.get('type', '').strip().lower()
+                trade_type = get_row_value(row, ['type', 'position', 'Position']).lower()
                 if trade_type not in ['buy', 'sell']:
                     errors.append(f"Row {row_num}: Invalid trade type '{trade_type}'")
                     skipped_count += 1
@@ -2017,32 +2086,45 @@ async def import_trades_csv(
                 
                 # Parse prices
                 try:
-                    opening_price = float(row.get('opening_price', 0))
-                    closing_price = float(row.get('closing_price', 0)) if row.get('closing_price', '').strip() else None
-                except ValueError:
-                    errors.append(f"Row {row_num}: Invalid price values")
+                    opening_price = parse_float(
+                        get_row_value(row, ['opening_price', 'entry_price', 'Entry Price']),
+                        'entry/opening price',
+                        row_num,
+                        required=True,
+                    )
+                    closing_price = parse_float(
+                        get_row_value(row, ['closing_price', 'exit_price', 'Exit Price']),
+                        'exit/closing price',
+                        row_num,
+                        required=False,
+                    )
+                except ValueError as e:
+                    errors.append(str(e))
                     skipped_count += 1
                     continue
                 
                 # Parse lots
                 try:
-                    lots = float(row.get('lots', 0))
-                    if lots <= 0:
-                        errors.append(f"Row {row_num}: Invalid lot size")
-                        skipped_count += 1
-                        continue
-                except ValueError:
-                    errors.append(f"Row {row_num}: Invalid lot size")
+                    lots = parse_float(
+                        get_row_value(row, ['lots', 'quantity', 'Quantity']),
+                        'lot size/quantity',
+                        row_num,
+                        required=True,
+                    )
+                    if lots is None or lots <= 0:
+                        raise ValueError(f"Row {row_num}: Invalid lot size")
+                except ValueError as e:
+                    errors.append(str(e))
                     skipped_count += 1
                     continue
                 
                 # Parse dates
-                opening_time = row.get('opening_time_utc', '').strip()
-                closing_time = row.get('closing_time_utc', '').strip()
+                opening_time = get_row_value(row, ['opening_time_utc', 'entry_date', 'Entry Date'])
+                closing_time = get_row_value(row, ['closing_time_utc', 'exit_date', 'Exit Date'])
                 
                 # Convert datetime format (2026-03-02T01:33:34.811 -> 2026-03-02T01:33:34)
-                entry_date = opening_time[:19] if opening_time else now[:19]
-                exit_date = closing_time[:19] if closing_time else None
+                entry_date = normalize_date(opening_time) or now[:19]
+                exit_date = normalize_date(closing_time)
                 
                 # Parse optional fields
                 stop_loss = None
@@ -2050,18 +2132,26 @@ async def import_trades_csv(
                 commission = 0
                 swap = 0
                 profit = None
+                note_text = get_row_value(row, ['notes', 'Notes'])
+                explicit_status = get_row_value(row, ['status', 'Status']).lower()
                 
                 try:
-                    if row.get('stop_loss', '').strip():
-                        stop_loss = float(row['stop_loss'])
-                    if row.get('take_profit', '').strip():
-                        take_profit = float(row['take_profit'])
-                    if row.get('commission_usd', '').strip():
-                        commission = float(row['commission_usd'])
-                    if row.get('swap_usd', '').strip():
-                        swap = float(row['swap_usd'])
-                    if row.get('profit_usd', '').strip():
-                        profit = float(row['profit_usd'])
+                    stop_loss_value = get_row_value(row, ['stop_loss', 'Stop Loss'])
+                    take_profit_value = get_row_value(row, ['take_profit', 'Take Profit'])
+                    commission_value = get_row_value(row, ['commission_usd', 'commission', 'Commission'], '0')
+                    swap_value = get_row_value(row, ['swap_usd', 'swap', 'Swap'], '0')
+                    profit_value = get_row_value(row, ['profit_usd', 'pnl', 'P&L'])
+
+                    if stop_loss_value:
+                        stop_loss = float(stop_loss_value)
+                    if take_profit_value:
+                        take_profit = float(take_profit_value)
+                    if commission_value:
+                        commission = float(commission_value)
+                    if swap_value:
+                        swap = float(swap_value)
+                    if profit_value:
+                        profit = float(profit_value)
                 except ValueError:
                     pass  # Use defaults for optional fields
                 
@@ -2069,7 +2159,10 @@ async def import_trades_csv(
                 instrument = normalize_symbol(symbol)
                 
                 # Determine status
-                status = 'closed' if closing_price and exit_date else 'open'
+                if explicit_status in {'open', 'closed'}:
+                    status = explicit_status
+                else:
+                    status = 'closed' if closing_price is not None and exit_date else 'open'
                 
                 # Create trade document
                 trade_id = str(uuid.uuid4())
@@ -2083,21 +2176,27 @@ async def import_trades_csv(
                     "quantity": lots,
                     "entry_date": entry_date,
                     "exit_date": exit_date,
-                    "notes": f"Imported from CSV - Ticket #{ticket}",
+                    "notes": note_text or (f"Imported from CSV - Ticket #{ticket}" if ticket else "Imported from CSV"),
                     "status": status,
                     "stop_loss": stop_loss,
                     "take_profit": take_profit,
                     "commission": commission,
                     "swap": swap,
-                    "mt5_ticket": ticket,
+                    "mt5_ticket": ticket or None,
                     "created_at": now
                 }
+
+                # Skip duplicates for non-ticket imports.
+                fingerprint = build_trade_fingerprint(trade_doc)
+                if not ticket and fingerprint in existing_fingerprints:
+                    skipped_count += 1
+                    continue
                 
                 # Use the profit from CSV directly if available, otherwise calculate
                 if profit is not None and status == 'closed':
                     trade_doc['pnl'] = round(profit, 2)
                     # Calculate pnl_percentage based on entry price
-                    if opening_price > 0 and closing_price:
+                    if opening_price > 0 and closing_price is not None:
                         if trade_type == 'buy':
                             trade_doc['pnl_percentage'] = round((closing_price - opening_price) / opening_price * 100, 2)
                         else:
@@ -2106,7 +2205,9 @@ async def import_trades_csv(
                     trade_doc = calculate_pnl(trade_doc)
                 
                 trades_to_insert.append(trade_doc)
-                existing_tickets.add(ticket)
+                if ticket:
+                    existing_tickets.add(ticket)
+                existing_fingerprints.add(fingerprint)
                 imported_count += 1
                 
             except Exception as e:
