@@ -1,43 +1,44 @@
-@import url('https://fonts.googleapis.com/css2?family=Chivo:wght@700;900&family=JetBrains+Mono:wght@400;700&family=Kalam:wght@300;400;700&family=Manrope:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Chivo:wght@700;900&family=JetBrains+Mono:wght@400;700&family=Manrope:wght@400;500;700&display=swap');
+@import url('https://api.fontshare.com/v2/css?f[]=bespoke-stencil@300,500,700&display=swap');
 
 /**
 * @license
 *
-* Font Family: Kalam
-* Designed by: Indian Type Foundry
-* URL: https://www.fontshare.com/fonts/kalam
-* © 2026 Indian Type Foundry
+* Font Family: Bespoke Stencil
+* Designed by: Jeremie Hornus, Theo Guillard, Morgane Pambrun, Alisa Nowak, Joachim Vu
+* URL: https://www.fontshare.com/fonts/bespoke-stencil
+* Copyright 2026 Indian Type Foundry
 *
-* Kalam Light
-* Kalam Regular
-* Kalam Bold
+* Bespoke Stencil LightItalic
+* Bespoke Stencil MediumItalic
+* Bespoke Stencil BoldItalic
 *
 */
 @font-face {
-    font-family: 'Kalam-Light';
-    src: local('Kalam Light'),
-        local('Kalam');
+    font-family: 'BespokeStencil-LightItalic';
+    src: local('Bespoke Stencil Light Italic'),
+        local('BespokeStencil-LightItalic');
     font-weight: 300;
     font-display: swap;
-    font-style: normal;
+    font-style: italic;
 }
 
 @font-face {
-    font-family: 'Kalam-Regular';
-    src: local('Kalam Regular'),
-        local('Kalam');
-    font-weight: 400;
+    font-family: 'BespokeStencil-MediumItalic';
+    src: local('Bespoke Stencil Medium Italic'),
+        local('BespokeStencil-MediumItalic');
+    font-weight: 500;
     font-display: swap;
-    font-style: normal;
+    font-style: italic;
 }
 
 @font-face {
-    font-family: 'Kalam-Bold';
-    src: local('Kalam Bold'),
-        local('Kalam');
+    font-family: 'BespokeStencil-BoldItalic';
+    src: local('Bespoke Stencil Bold Italic'),
+        local('BespokeStencil-BoldItalic');
     font-weight: 700;
     font-display: swap;
-    font-style: normal;
+    font-style: italic;
 }
 
 @tailwind base;
@@ -97,8 +98,8 @@
     body,
     #root,
     #root * {
-        font-family: 'Kalam-Regular', 'Kalam', cursive;
-        font-weight: 400;
+        font-family: 'Bespoke Stencil', 'BespokeStencil-MediumItalic', 'Manrope', sans-serif;
+        font-weight: 500;
     }
 
     p,
@@ -107,12 +108,12 @@
     .text-xs,
     .text-sm,
     .text-muted-foreground {
-        font-family: 'Kalam-Light', 'Kalam', cursive;
+        font-family: 'Bespoke Stencil', 'BespokeStencil-LightItalic', 'Manrope', sans-serif;
         font-weight: 300;
     }
 
     h1, h2, h3, h4, h5, h6 {
-        font-family: 'Kalam-Bold', 'Kalam', cursive;
+        font-family: 'Bespoke Stencil', 'BespokeStencil-BoldItalic', 'Manrope', sans-serif;
         font-weight: 700;
         letter-spacing: -0.01em;
     }
@@ -189,7 +190,7 @@
 
     .brand-logo-text {
         position: relative;
-        font-family: 'Kalam-Bold', 'Kalam', cursive;
+        font-family: 'Bespoke Stencil', 'BespokeStencil-BoldItalic', 'Manrope', sans-serif;
         font-weight: 700;
         letter-spacing: 0.01em;
         color: #d8fffb;
@@ -276,7 +277,7 @@
         align-items: center;
         justify-content: center;
         gap: 4px;
-        background: radial-gradient(circle at 50% 35%, rgba(8, 14, 26, 0.62), rgba(4, 8, 16, 0.12));
+        background: transparent;
     }
 
     .eyes-orb {
@@ -299,16 +300,19 @@
         box-shadow: 0 1px 4px rgba(255, 255, 255, 0.24);
         z-index: 3;
         transition: transform 140ms ease;
+        animation: eyesBrowFloat 1.8s ease-in-out infinite;
     }
 
     .eyes-brow-left {
         left: 10px;
         transform: rotate(12deg);
+        animation-delay: 0s;
     }
 
     .eyes-brow-right {
         right: 10px;
         transform: rotate(-12deg);
+        animation-delay: 0.12s;
     }
 
     .eyes-pupil {
@@ -499,6 +503,16 @@
     50% { transform: translateX(2px); }
     75% { transform: translateX(-1px); }
     100% { transform: translateX(0); }
+}
+
+@keyframes eyesBrowFloat {
+    0%,
+    100% {
+        margin-top: 0;
+    }
+    50% {
+        margin-top: -2px;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
