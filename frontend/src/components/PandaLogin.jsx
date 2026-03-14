@@ -23,8 +23,8 @@ const PandaLogin = forwardRef(function PandaLogin({ className = '' }, ref) {
       const deltaX = event.clientX - centerX;
       const deltaY = event.clientY - centerY;
 
-      setPupilX(clamp(deltaX / 22, -6.5, 6.5));
-      setPupilY(clamp(deltaY / 22, -5.5, 5.5));
+      setPupilX(clamp(deltaX / 24, -7.5, 7.5));
+      setPupilY(clamp(deltaY / 24, -6, 6));
     };
 
     window.addEventListener('mousemove', handleMouseMove);
@@ -71,28 +71,22 @@ const PandaLogin = forwardRef(function PandaLogin({ className = '' }, ref) {
   return (
     <div
       ref={mascotRef}
-      className={`panda-css-wrapper ${className} ${isCoveringEyes ? 'is-covering' : ''} panda-react-${reaction}`.trim()}
+      className={`eyes-login-mascot ${className} ${isCoveringEyes ? 'is-covering' : ''} eyes-react-${reaction}`.trim()}
       aria-hidden="true"
     >
-      <div className="panda-face-shell">
-        <div className="panda-ear panda-ear-left" />
-        <div className="panda-ear panda-ear-right" />
+      <div className="eyes-stage">
+        <div className="eyes-brow eyes-brow-left" />
+        <div className="eyes-brow eyes-brow-right" />
 
-        <div className="panda-brow panda-brow-left" />
-        <div className="panda-brow panda-brow-right" />
-
-        <div className="panda-eye panda-eye-left">
-          <div className="panda-pupil" style={{ transform: `translate(${pupilX}px, ${pupilY}px)` }} />
+        <div className="eyes-orb eyes-orb-left">
+          <div className="eyes-pupil" style={{ transform: `translate(${pupilX}px, ${pupilY}px)` }} />
+          <div className="eyes-lid" />
         </div>
-        <div className="panda-eye panda-eye-right">
-          <div className="panda-pupil" style={{ transform: `translate(${pupilX}px, ${pupilY}px)` }} />
+        <div className="eyes-orb eyes-orb-right">
+          <div className="eyes-pupil" style={{ transform: `translate(${pupilX}px, ${pupilY}px)` }} />
+          <div className="eyes-lid" />
         </div>
-
-        <div className="panda-nose" />
       </div>
-
-      <div className="panda-hand panda-hand-left" />
-      <div className="panda-hand panda-hand-right" />
     </div>
   );
 });

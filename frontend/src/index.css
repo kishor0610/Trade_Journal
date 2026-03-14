@@ -252,220 +252,175 @@
         gap: 16px;
     }
 
-    .panda-css-wrapper {
+    .eyes-login-mascot {
         width: 100%;
-        height: 116px;
+        height: 90px;
         position: relative;
         pointer-events: none;
-        filter: drop-shadow(0 6px 16px rgba(4, 18, 28, 0.42));
         transition: transform 180ms ease;
     }
 
     .panda-card-corner {
         position: absolute;
-        top: 56px;
-        right: 16px;
-        width: 118px;
+        top: 66px;
+        right: 14px;
+        width: 168px;
         z-index: 2;
     }
 
-    .panda-face-shell {
+    .eyes-stage {
         position: absolute;
         inset: 0;
-        border-radius: 52px;
-        background: linear-gradient(160deg, #dfe9f1, #c7d6e4 52%, #b0c1d3 100%);
-        border: 1px solid rgba(255, 255, 255, 0.7);
+        border-radius: 999px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        background: radial-gradient(circle at 50% 35%, rgba(8, 14, 26, 0.62), rgba(4, 8, 16, 0.12));
+    }
+
+    .eyes-orb {
+        width: 78px;
+        height: 78px;
+        border-radius: 50%;
+        position: relative;
+        background: radial-gradient(circle at 30% 25%, #ffffff, #f2f2f2 64%, #d9d9d9 100%);
         overflow: hidden;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.28);
     }
 
-    .panda-ear {
+    .eyes-brow {
         position: absolute;
-        width: 24px;
-        height: 24px;
-        border-radius: 50%;
-        background: linear-gradient(140deg, #d3e0ec, #c1d1df);
-        top: -10px;
-        border: 1px solid rgba(255, 255, 255, 0.7);
+        top: 2px;
+        width: 52px;
+        height: 10px;
+        border-radius: 999px;
+        background: linear-gradient(180deg, #ffffff, #e9efff);
+        box-shadow: 0 1px 4px rgba(255, 255, 255, 0.24);
+        z-index: 3;
+        transition: transform 140ms ease;
     }
 
-    .panda-ear::after {
-        content: '';
-        position: absolute;
-        inset: 6px;
-        border-radius: 50%;
-        background: #d25f7f;
-        opacity: 0.8;
-    }
-
-    .panda-ear-left { left: 18px; }
-    .panda-ear-right { right: 18px; }
-
-    .panda-brow {
-        position: absolute;
-        top: 31px;
-        width: 30px;
-        height: 7px;
-        border-radius: 12px;
-        background: #3a4b59;
-        transform-origin: center;
-        transition: transform 180ms ease;
-    }
-
-    .panda-brow-left {
-        left: 24px;
+    .eyes-brow-left {
+        left: 10px;
         transform: rotate(12deg);
     }
 
-    .panda-brow-right {
-        right: 24px;
+    .eyes-brow-right {
+        right: 10px;
         transform: rotate(-12deg);
     }
 
-    .panda-eye {
+    .eyes-pupil {
         position: absolute;
-        top: 44px;
-        width: 32px;
-        height: 24px;
-        border-radius: 18px;
-        background: #f8fbff;
-        border: 2px solid #8da1b6;
-        overflow: hidden;
-    }
-
-    .panda-eye-left { left: 20px; }
-    .panda-eye-right { right: 20px; }
-
-    .panda-pupil {
-        position: absolute;
-        width: 11px;
-        height: 11px;
+        width: 30px;
+        height: 30px;
         border-radius: 50%;
         left: 50%;
         top: 50%;
-        margin-left: -5.5px;
-        margin-top: -5.5px;
-        background: #25313e;
-        transition: transform 90ms linear;
+        margin-left: -15px;
+        margin-top: -15px;
+        background: #06070a;
+        transition: transform 95ms linear, opacity 120ms ease;
     }
 
-    .panda-nose {
+    .eyes-lid {
         position: absolute;
-        left: 50%;
-        top: 72px;
-        width: 18px;
-        height: 11px;
-        transform: translateX(-50%);
-        border-radius: 12px;
-        background: #344251;
-        box-shadow: 0 8px 0 -5px rgba(50, 66, 81, 0.42);
+        left: 0;
+        top: -102%;
+        width: 100%;
+        height: 102%;
+        background: #05070d;
+        transition: top 180ms cubic-bezier(0.2, 0.9, 0.2, 1);
     }
 
-    .panda-hand {
-        position: absolute;
-        top: 48px;
-        width: 48px;
-        height: 58px;
-        border-radius: 32px;
-        background: linear-gradient(160deg, #cad8e6, #afc2d4);
-        border: 1px solid rgba(255, 255, 255, 0.65);
-        transform: translateY(58px) rotate(0deg);
-        opacity: 0;
-        transition: transform 190ms ease, opacity 190ms ease;
+    .eyes-login-mascot.is-covering .eyes-lid {
+        top: 0;
     }
 
-    .panda-hand-left {
-        left: 9px;
-        transform-origin: right top;
-    }
-
-    .panda-hand-right {
-        right: 9px;
-        transform-origin: left top;
-    }
-
-    .panda-css-wrapper.is-covering .panda-hand-left {
-        transform: translateY(0) rotate(8deg);
-        opacity: 1;
-    }
-
-    .panda-css-wrapper.is-covering .panda-hand-right {
-        transform: translateY(0) rotate(-8deg);
-        opacity: 1;
-    }
-
-    .panda-css-wrapper.is-covering .panda-pupil {
+    .eyes-login-mascot.is-covering .eyes-pupil {
         opacity: 0;
     }
 
-    .panda-react-error .panda-face-shell {
-        animation: pandaShake 350ms ease;
+    .eyes-react-error .eyes-stage {
+        animation: pandaShake 360ms ease;
     }
 
-    .panda-react-error .panda-brow-left {
-        transform: rotate(24deg);
+    .eyes-react-error .eyes-brow-left {
+        transform: rotate(22deg) translateY(-1px);
     }
 
-    .panda-react-error .panda-brow-right {
-        transform: rotate(-24deg);
+    .eyes-react-error .eyes-brow-right {
+        transform: rotate(-22deg) translateY(-1px);
     }
 
-    .panda-react-success {
-        transform: translateY(-2px);
-    }
-
-    .panda-react-success .panda-face-shell {
-        box-shadow: 0 0 0 2px rgba(26, 255, 218, 0.24);
+    .eyes-react-success {
+        transform: translateY(-2px) scale(1.01);
     }
 
     @media (max-width: 1024px) {
         .panda-card-corner {
-            top: 58px;
+            top: 68px;
             right: 12px;
-            width: 106px;
+            width: 148px;
             opacity: 0.94;
         }
 
-        .panda-css-wrapper {
-            height: 104px;
+        .eyes-login-mascot {
+            height: 82px;
+        }
+
+        .eyes-orb {
+            width: 70px;
+            height: 70px;
+        }
+
+        .eyes-pupil {
+            width: 27px;
+            height: 27px;
+            margin-left: -13.5px;
+            margin-top: -13.5px;
+        }
+
+        .eyes-brow {
+            width: 46px;
+            height: 9px;
+            top: 1px;
         }
     }
 
     @media (max-width: 640px) {
         .panda-card-corner {
-            top: 56px;
-            right: 10px;
-            width: 86px;
+            top: 70px;
+            right: 8px;
+            width: 120px;
             opacity: 0.92;
         }
 
-        .panda-css-wrapper {
-            height: 88px;
+        .eyes-login-mascot {
+            height: 70px;
         }
 
-        .panda-brow {
-            top: 24px;
+        .eyes-orb {
+            width: 58px;
+            height: 58px;
         }
 
-        .panda-eye {
-            top: 34px;
-            width: 26px;
-            height: 19px;
+        .eyes-pupil {
+            width: 22px;
+            height: 22px;
+            margin-left: -11px;
+            margin-top: -11px;
         }
 
-        .panda-eye-left { left: 15px; }
-        .panda-eye-right { right: 15px; }
-
-        .panda-nose {
-            top: 57px;
-            width: 14px;
-            height: 9px;
+        .eyes-brow {
+            width: 38px;
+            height: 8px;
+            top: 0;
         }
 
-        .panda-hand {
-            top: 38px;
-            width: 36px;
-            height: 44px;
-        }
+        .eyes-brow-left { left: 8px; }
+        .eyes-brow-right { right: 8px; }
     }
 }
 
