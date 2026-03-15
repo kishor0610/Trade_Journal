@@ -636,8 +636,10 @@ export default function Journal() {
     try {
       const response = await axios.get(`${API_URL}/trades`);
       setTrades(response.data);
+      return response.data;
     } catch (error) {
       console.error('Failed to fetch trades:', error);
+      return [];
     } finally {
       setLoading(false);
     }
@@ -1600,15 +1602,22 @@ export default function Journal() {
       });
 
       setImportResult(response.data);
+      const latestTrades = await fetchTrades();
+      const hasActiveFilters = Boolean(filters.status || filters.instrument || filters.search);
+      if (latestTrades.length > 0 && hasActiveFilters) {
+        setFilters({ status: '', instrument: '', search: '' });
+        toast.info('Filters were cleared so all imported trades are visible.');
+      }
       
       if (response.data.imported_count > 0) {
         toast.success(`Successfully imported ${response.data.imported_count} trades!`);
-        fetchTrades();
       } else if (response.data.skipped_count > 0) {
         if (Array.isArray(response.data.errors) && response.data.errors.length > 0) {
           toast.warning('No new trades imported due to row errors. Check the import details.');
         } else {
-          toast.info('No new trades imported. This file was already imported (duplicates skipped).');
+          toast.info(latestTrades.length > 0
+            ? 'No new trades imported because this file already exists in your journal.'
+            : 'No new trades imported. This file was already imported (duplicates skipped).');
         }
       }
     } catch (error) {

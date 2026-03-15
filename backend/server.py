@@ -2087,43 +2087,47 @@ async def import_trades_csv(
         duplicate_count = 0
         error_count = 0
         errors = []
+
+        existing_trade_count = await db.trades.count_documents({"user_id": current_user['id']})
         
         # Use a row-level MT5 signature so partial closes with same ticket can still import.
         existing_mt5_signatures = set()
-        existing_trades = await db.trades.find(
-            {"user_id": current_user['id'], "mt5_ticket": {"$ne": None}},
-            {
-                "_id": 0,
-                "mt5_ticket": 1,
-                "entry_date": 1,
-                "exit_date": 1,
-                "quantity": 1,
-                "entry_price": 1,
-                "exit_price": 1,
-            }
-        ).to_list(100000)
-        for t in existing_trades:
-            if t.get('mt5_ticket'):
-                existing_mt5_signatures.add(build_mt5_signature(t))
+        if existing_trade_count > 0:
+            existing_trades = await db.trades.find(
+                {"user_id": current_user['id'], "mt5_ticket": {"$ne": None}},
+                {
+                    "_id": 0,
+                    "mt5_ticket": 1,
+                    "entry_date": 1,
+                    "exit_date": 1,
+                    "quantity": 1,
+                    "entry_price": 1,
+                    "exit_price": 1,
+                }
+            ).to_list(100000)
+            for t in existing_trades:
+                if t.get('mt5_ticket'):
+                    existing_mt5_signatures.add(build_mt5_signature(t))
 
         # Fallback duplicate detection for files without ticket numbers.
         existing_fingerprints = set()
-        existing_for_fingerprint = await db.trades.find(
-            {"user_id": current_user['id']},
-            {
-                "_id": 0,
-                "instrument": 1,
-                "position": 1,
-                "entry_price": 1,
-                "exit_price": 1,
-                "quantity": 1,
-                "entry_date": 1,
-                "exit_date": 1,
-                "status": 1,
-            }
-        ).to_list(100000)
-        for existing in existing_for_fingerprint:
-            existing_fingerprints.add(build_trade_fingerprint(existing))
+        if existing_trade_count > 0:
+            existing_for_fingerprint = await db.trades.find(
+                {"user_id": current_user['id']},
+                {
+                    "_id": 0,
+                    "instrument": 1,
+                    "position": 1,
+                    "entry_price": 1,
+                    "exit_price": 1,
+                    "quantity": 1,
+                    "entry_date": 1,
+                    "exit_date": 1,
+                    "status": 1,
+                }
+            ).to_list(100000)
+            for existing in existing_for_fingerprint:
+                existing_fingerprints.add(build_trade_fingerprint(existing))
         
         now = datetime.now(timezone.utc).isoformat()
         trades_to_insert = []
