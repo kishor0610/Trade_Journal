@@ -523,6 +523,33 @@ def normalize_position_value(value: Optional[str]) -> Optional[str]:
     return normalized
 
 
+def sanitize_trade_for_response(trade: dict) -> dict:
+    sanitized = dict(trade)
+    sanitized['position'] = normalize_position_value(sanitized.get('position')) or 'buy'
+
+    status_value = str(sanitized.get('status') or '').strip().lower()
+    if status_value not in {'open', 'closed'}:
+        status_value = 'closed' if sanitized.get('exit_price') is not None else 'open'
+    sanitized['status'] = status_value
+
+    if sanitized.get('notes') is None:
+        sanitized['notes'] = ''
+
+    if sanitized.get('created_at') is None:
+        sanitized['created_at'] = datetime.now(timezone.utc).isoformat()
+
+    if sanitized.get('entry_date') is None:
+        sanitized['entry_date'] = sanitized['created_at'][:19]
+
+    if sanitized.get('commission') is None:
+        sanitized['commission'] = 0
+
+    if sanitized.get('swap') is None:
+        sanitized['swap'] = 0
+
+    return calculate_pnl(sanitized)
+
+
 async def get_users_by_ids(user_ids: List[str], projection: Optional[Dict[str, int]] = None) -> Dict[str, dict]:
     unique_ids = [user_id for user_id in set(user_ids) if user_id]
     if not unique_ids:
@@ -1049,7 +1076,7 @@ async def create_trade(trade_data: TradeCreate, current_user: dict = Depends(get
     }
     trade_doc['position'] = normalize_position_value(trade_doc.get('position'))
     
-    trade_doc = calculate_pnl(trade_doc)
+    trade_doc = sanitize_trade_for_response(trade_doc)
     await db.trades.insert_one(trade_doc)
     
     if '_id' in trade_doc:
@@ -1075,14 +1102,26 @@ async def get_trades(
         query.setdefault("entry_date", {})["$lte"] = end_date
     
     trades = await db.trades.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
-    return [TradeResponse(**calculate_pnl(t)) for t in trades]
+    response_trades = []
+    invalid_rows = 0
+    for trade in trades:
+        try:
+            response_trades.append(TradeResponse(**sanitize_trade_for_response(trade)))
+        except Exception as e:
+            invalid_rows += 1
+            logging.warning(f"Skipping invalid trade row id={trade.get('id')}: {str(e)}")
+
+    if invalid_rows:
+        logging.warning(f"Skipped {invalid_rows} invalid trade rows for user {current_user.get('id')}")
+
+    return response_trades
 
 @api_router.get("/trades/{trade_id}", response_model=TradeResponse)
 async def get_trade(trade_id: str, current_user: dict = Depends(get_current_user)):
     trade = await db.trades.find_one({"id": trade_id, "user_id": current_user['id']}, {"_id": 0})
     if not trade:
         raise HTTPException(status_code=404, detail="Trade not found")
-    return TradeResponse(**calculate_pnl(trade))
+    return TradeResponse(**sanitize_trade_for_response(trade))
 
 @api_router.put("/trades/{trade_id}", response_model=TradeResponse)
 async def update_trade(trade_id: str, trade_data: TradeUpdate, current_user: dict = Depends(get_current_user)):
@@ -1097,7 +1136,7 @@ async def update_trade(trade_id: str, trade_data: TradeUpdate, current_user: dic
         await db.trades.update_one({"id": trade_id}, {"$set": update_dict})
     
     updated = await db.trades.find_one({"id": trade_id}, {"_id": 0})
-    return TradeResponse(**calculate_pnl(updated))
+    return TradeResponse(**sanitize_trade_for_response(updated))
 
 @api_router.delete("/trades/{trade_id}")
 async def delete_trade(trade_id: str, current_user: dict = Depends(get_current_user)):
