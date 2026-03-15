@@ -511,6 +511,59 @@ def calculate_pnl(trade: dict) -> dict:
         trade['pnl_percentage'] = None
     return trade
 
+
+async def get_users_by_ids(user_ids: List[str], projection: Optional[Dict[str, int]] = None) -> Dict[str, dict]:
+    unique_ids = [user_id for user_id in set(user_ids) if user_id]
+    if not unique_ids:
+        return {}
+
+    user_projection = {"_id": 0, "id": 1}
+    if projection:
+        user_projection.update(projection)
+
+    users = await db.users.find({"id": {"$in": unique_ids}}, user_projection).to_list(len(unique_ids))
+    return {user["id"]: user for user in users}
+
+
+async def get_trade_summaries_by_user(user_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+    unique_ids = [user_id for user_id in set(user_ids) if user_id]
+    summaries = {
+        user_id: {"trade_count": 0, "total_pnl": 0.0}
+        for user_id in unique_ids
+    }
+    if not unique_ids:
+        return summaries
+
+    trades = await db.trades.find(
+        {"user_id": {"$in": unique_ids}},
+        {
+            "_id": 0,
+            "user_id": 1,
+            "status": 1,
+            "entry_price": 1,
+            "exit_price": 1,
+            "quantity": 1,
+            "position": 1,
+            "commission": 1,
+            "swap": 1,
+            "instrument": 1,
+        },
+    ).to_list(100000)
+
+    for trade in trades:
+        user_id = trade.get("user_id")
+        if not user_id:
+            continue
+        summary = summaries.setdefault(user_id, {"trade_count": 0, "total_pnl": 0.0})
+        summary["trade_count"] += 1
+        if trade.get("status") == "closed":
+            summary["total_pnl"] += calculate_pnl(trade).get("pnl", 0) or 0
+
+    for summary in summaries.values():
+        summary["total_pnl"] = round(summary["total_pnl"], 2)
+
+    return summaries
+
 # ============ AUTH ROUTES ============
 
 @api_router.post("/auth/register", response_model=TokenResponse)
@@ -674,21 +727,17 @@ async def admin_login(user_data: UserLogin):
 @admin_router.get("/stats")
 async def get_admin_stats(admin: dict = Depends(get_admin_user)):
     """Get overall platform statistics"""
-    total_users = await db.users.count_documents({})
-    total_trades = await db.trades.count_documents({})
-    total_mt5_accounts = await db.mt5_accounts.count_documents({})
-    
-    # Get trades stats
-    all_trades = await db.trades.find({"status": "closed"}, {"_id": 0}).to_list(100000)
-    total_pnl = sum(calculate_pnl(t).get('pnl', 0) or 0 for t in all_trades)
-    
-    # Recent signups (last 7 days)
     week_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
-    recent_users = await db.users.count_documents({"created_at": {"$gte": week_ago}})
-    
-    # Recent trades (last 7 days)
-    recent_trades = await db.trades.count_documents({"created_at": {"$gte": week_ago}})
-    
+    total_users, total_trades, total_mt5_accounts, all_trades, recent_users, recent_trades = await asyncio.gather(
+        db.users.count_documents({}),
+        db.trades.count_documents({}),
+        db.mt5_accounts.count_documents({}),
+        db.trades.find({"status": "closed"}, {"_id": 0}).to_list(100000),
+        db.users.count_documents({"created_at": {"$gte": week_ago}}),
+        db.trades.count_documents({"created_at": {"$gte": week_ago}}),
+    )
+    total_pnl = sum(calculate_pnl(t).get('pnl', 0) or 0 for t in all_trades)
+
     return {
         "total_users": total_users,
         "total_trades": total_trades,
@@ -706,20 +755,17 @@ async def get_all_users(
 ):
     """Get all registered users"""
     users = await db.users.find({}, {"_id": 0, "password": 0}).skip(skip).limit(limit).sort("created_at", -1).to_list(limit)
-    
-    # Add trade count and P&L for each user
-    enriched_users = []
-    for user in users:
-        trade_count = await db.trades.count_documents({"user_id": user['id']})
-        trades = await db.trades.find({"user_id": user['id'], "status": "closed"}, {"_id": 0}).to_list(10000)
-        total_pnl = sum(calculate_pnl(t).get('pnl', 0) or 0 for t in trades)
-        
-        enriched_users.append({
+
+    trade_summaries = await get_trade_summaries_by_user([user['id'] for user in users])
+    enriched_users = [
+        {
             **user,
-            "trade_count": trade_count,
-            "total_pnl": round(total_pnl, 2)
-        })
-    
+            "trade_count": trade_summaries.get(user['id'], {}).get("trade_count", 0),
+            "total_pnl": trade_summaries.get(user['id'], {}).get("total_pnl", 0.0),
+        }
+        for user in users
+    ]
+
     total = await db.users.count_documents({})
     return {"users": enriched_users, "total": total}
 
@@ -767,17 +813,17 @@ async def get_all_trades(
     """Get all trades from all users"""
     trades = await db.trades.find({}, {"_id": 0}).skip(skip).limit(limit).sort("created_at", -1).to_list(limit)
     trades = [calculate_pnl(t) for t in trades]
-    
-    # Enrich with user info
-    enriched_trades = []
-    for trade in trades:
-        user = await db.users.find_one({"id": trade['user_id']}, {"_id": 0, "name": 1, "email": 1})
-        enriched_trades.append({
+
+    user_map = await get_users_by_ids([trade.get('user_id') for trade in trades], {"name": 1, "email": 1})
+    enriched_trades = [
+        {
             **trade,
-            "user_name": user.get('name') if user else 'Unknown',
-            "user_email": user.get('email') if user else 'Unknown'
-        })
-    
+            "user_name": user_map.get(trade.get('user_id'), {}).get('name', 'Unknown'),
+            "user_email": user_map.get(trade.get('user_id'), {}).get('email', 'Unknown'),
+        }
+        for trade in trades
+    ]
+
     total = await db.trades.count_documents({})
     return {"trades": enriched_trades, "total": total}
 
@@ -793,12 +839,11 @@ async def get_recent_activity(
     # Recent trades
     recent_trades = await db.trades.find({}, {"_id": 0}).sort("created_at", -1).limit(20).to_list(20)
     recent_trades = [calculate_pnl(t) for t in recent_trades]
-    
-    # Enrich trades with user info
+
+    user_map = await get_users_by_ids([trade.get('user_id') for trade in recent_trades], {"name": 1})
     for trade in recent_trades:
-        user = await db.users.find_one({"id": trade['user_id']}, {"_id": 0, "name": 1})
-        trade['user_name'] = user.get('name') if user else 'Unknown'
-    
+        trade['user_name'] = user_map.get(trade.get('user_id'), {}).get('name', 'Unknown')
+
     # Recent password resets
     recent_resets = await db.password_resets.find({}, {"_id": 0}).sort("created_at", -1).limit(10).to_list(10)
     
@@ -1937,6 +1982,10 @@ SYMBOL_MAPPING = {
 def normalize_symbol(symbol: str) -> str:
     """Convert broker symbol format to app instrument format"""
     symbol = symbol.strip()
+    if not symbol:
+        return symbol
+    # Normalize case so broker variants like xauusdm or XauUsdM map reliably.
+    symbol = symbol.upper()
     if symbol in SYMBOL_MAPPING:
         return SYMBOL_MAPPING[symbol]
     # Remove trailing 'm' if present and check again
@@ -1960,8 +2009,9 @@ async def import_trades_csv(
     current_user: dict = Depends(get_current_user)
 ):
     """Import trades from a CSV file (supports MT5 and app-export format)."""
-    
-    if not file.filename.endswith('.csv'):
+
+    file_name = (file.filename or '').lower()
+    if not file_name.endswith('.csv'):
         raise HTTPException(status_code=400, detail="Only CSV files are accepted")
     
     try:
@@ -1974,14 +2024,22 @@ async def import_trades_csv(
         
         # Parse CSV
         reader = csv.DictReader(io.StringIO(decoded))
-        headers = set(reader.fieldnames or [])
+        raw_headers = [h for h in (reader.fieldnames or []) if h]
 
-        if not headers:
+        def normalize_header_key(value: str) -> str:
+            if value is None:
+                return ''
+            return ''.join(ch for ch in str(value).strip().lower() if ch.isalnum())
+
+        normalized_headers = {normalize_header_key(h) for h in raw_headers if normalize_header_key(h)}
+
+        if not normalized_headers:
             raise HTTPException(status_code=400, detail="CSV file is empty or missing header row")
 
-        def get_row_value(row: dict, keys: List[str], default: str = "") -> str:
+        def get_row_value(row_lookup: Dict[str, Any], keys: List[str], default: str = "") -> str:
             for key in keys:
-                value = row.get(key)
+                normalized_key = normalize_header_key(key)
+                value = row_lookup.get(normalized_key)
                 if value is not None and str(value).strip() != "":
                     return str(value).strip()
             return default
@@ -2013,6 +2071,16 @@ async def import_trades_csv(
                 str(trade.get("exit_date") or ""),
                 str(trade.get("status") or ""),
             ])
+
+        def build_mt5_signature(trade: dict) -> str:
+            return "|".join([
+                str(trade.get("mt5_ticket") or ""),
+                str(trade.get("entry_date") or ""),
+                str(trade.get("exit_date") or ""),
+                str(round(float(trade.get("quantity") or 0), 8)),
+                str(round(float(trade.get("entry_price") or 0), 8)),
+                str(round(float(trade.get("exit_price") or 0), 8)) if trade.get("exit_price") is not None else "",
+            ])
         
         imported_count = 0
         skipped_count = 0
@@ -2020,15 +2088,23 @@ async def import_trades_csv(
         error_count = 0
         errors = []
         
-        # Get existing tickets to avoid duplicates
-        existing_tickets = set()
+        # Use a row-level MT5 signature so partial closes with same ticket can still import.
+        existing_mt5_signatures = set()
         existing_trades = await db.trades.find(
             {"user_id": current_user['id'], "mt5_ticket": {"$ne": None}},
-            {"mt5_ticket": 1, "_id": 0}
+            {
+                "_id": 0,
+                "mt5_ticket": 1,
+                "entry_date": 1,
+                "exit_date": 1,
+                "quantity": 1,
+                "entry_price": 1,
+                "exit_price": 1,
+            }
         ).to_list(100000)
         for t in existing_trades:
             if t.get('mt5_ticket'):
-                existing_tickets.add(str(t['mt5_ticket']))
+                existing_mt5_signatures.add(build_mt5_signature(t))
 
         # Fallback duplicate detection for files without ticket numbers.
         existing_fingerprints = set()
@@ -2052,8 +2128,8 @@ async def import_trades_csv(
         now = datetime.now(timezone.utc).isoformat()
         trades_to_insert = []
 
-        has_mt5_shape = {'ticket', 'symbol', 'type', 'opening_price', 'lots'}.issubset(headers)
-        has_export_shape = {'Instrument', 'Position', 'Entry Price', 'Quantity', 'Entry Date'}.issubset(headers)
+        has_mt5_shape = {'ticket', 'symbol', 'type', 'openingprice', 'lots'}.issubset(normalized_headers)
+        has_export_shape = {'instrument', 'position', 'entryprice', 'quantity', 'entrydate'}.issubset(normalized_headers)
 
         if not has_mt5_shape and not has_export_shape:
             raise HTTPException(
@@ -2066,23 +2142,23 @@ async def import_trades_csv(
         
         for row_num, row in enumerate(reader, start=2):
             try:
-                ticket = get_row_value(row, ['ticket'])
+                row_lookup = {
+                    normalize_header_key(key): value
+                    for key, value in (row or {}).items()
+                    if key is not None
+                }
 
-                # Skip ticket duplicates for MT5 files.
-                if ticket and ticket in existing_tickets:
-                    duplicate_count += 1
-                    skipped_count += 1
-                    continue
+                ticket = get_row_value(row_lookup, ['ticket'])
                 
                 # Parse shared fields from either MT5 or app-export headers.
-                symbol = get_row_value(row, ['symbol', 'instrument', 'Instrument'])
+                symbol = get_row_value(row_lookup, ['symbol', 'instrument'])
                 if not symbol:
                     errors.append(f"Row {row_num}: Missing symbol")
                     error_count += 1
                     skipped_count += 1
                     continue
                 
-                raw_trade_type = get_row_value(row, ['type', 'position', 'Position']).lower()
+                raw_trade_type = get_row_value(row_lookup, ['type', 'position']).lower()
                 trade_type = {'long': 'buy', 'short': 'sell'}.get(raw_trade_type, raw_trade_type)
                 if trade_type not in ['buy', 'sell']:
                     errors.append(f"Row {row_num}: Invalid trade type '{trade_type}'")
@@ -2093,13 +2169,13 @@ async def import_trades_csv(
                 # Parse prices
                 try:
                     opening_price = parse_float(
-                        get_row_value(row, ['opening_price', 'entry_price', 'Entry Price']),
+                        get_row_value(row_lookup, ['opening_price', 'entry_price', 'Entry Price']),
                         'entry/opening price',
                         row_num,
                         required=True,
                     )
                     closing_price = parse_float(
-                        get_row_value(row, ['closing_price', 'exit_price', 'Exit Price']),
+                        get_row_value(row_lookup, ['closing_price', 'exit_price', 'Exit Price']),
                         'exit/closing price',
                         row_num,
                         required=False,
@@ -2113,7 +2189,7 @@ async def import_trades_csv(
                 # Parse lots
                 try:
                     lots = parse_float(
-                        get_row_value(row, ['lots', 'quantity', 'Quantity']),
+                        get_row_value(row_lookup, ['lots', 'quantity', 'Quantity']),
                         'lot size/quantity',
                         row_num,
                         required=True,
@@ -2127,8 +2203,8 @@ async def import_trades_csv(
                     continue
                 
                 # Parse dates
-                opening_time = get_row_value(row, ['opening_time_utc', 'entry_date', 'Entry Date'])
-                closing_time = get_row_value(row, ['closing_time_utc', 'exit_date', 'Exit Date'])
+                opening_time = get_row_value(row_lookup, ['opening_time_utc', 'entry_date'])
+                closing_time = get_row_value(row_lookup, ['closing_time_utc', 'exit_date'])
                 
                 # Convert datetime format (2026-03-02T01:33:34.811 -> 2026-03-02T01:33:34)
                 entry_date = normalize_date(opening_time) or now[:19]
@@ -2140,15 +2216,15 @@ async def import_trades_csv(
                 commission = 0
                 swap = 0
                 profit = None
-                note_text = get_row_value(row, ['notes', 'Notes'])
-                explicit_status = get_row_value(row, ['status', 'Status']).lower()
+                note_text = get_row_value(row_lookup, ['notes'])
+                explicit_status = get_row_value(row_lookup, ['status']).lower()
                 
                 try:
-                    stop_loss_value = get_row_value(row, ['stop_loss', 'Stop Loss'])
-                    take_profit_value = get_row_value(row, ['take_profit', 'Take Profit'])
-                    commission_value = get_row_value(row, ['commission_usd', 'commission', 'Commission'], '0')
-                    swap_value = get_row_value(row, ['swap_usd', 'swap', 'Swap'], '0')
-                    profit_value = get_row_value(row, ['profit_usd', 'pnl', 'P&L'])
+                    stop_loss_value = get_row_value(row_lookup, ['stop_loss'])
+                    take_profit_value = get_row_value(row_lookup, ['take_profit'])
+                    commission_value = get_row_value(row_lookup, ['commission_usd', 'commission'], '0')
+                    swap_value = get_row_value(row_lookup, ['swap_usd', 'swap'], '0')
+                    profit_value = get_row_value(row_lookup, ['profit_usd', 'pnl', 'p&l', 'pl'])
 
                     if stop_loss_value:
                         stop_loss = float(stop_loss_value)
@@ -2200,6 +2276,13 @@ async def import_trades_csv(
                     duplicate_count += 1
                     skipped_count += 1
                     continue
+
+                if ticket:
+                    mt5_signature = build_mt5_signature(trade_doc)
+                    if mt5_signature in existing_mt5_signatures:
+                        duplicate_count += 1
+                        skipped_count += 1
+                        continue
                 
                 # Use the profit from CSV directly if available, otherwise calculate
                 if profit is not None and status == 'closed':
@@ -2215,7 +2298,7 @@ async def import_trades_csv(
                 
                 trades_to_insert.append(trade_doc)
                 if ticket:
-                    existing_tickets.add(ticket)
+                    existing_mt5_signatures.add(build_mt5_signature(trade_doc))
                 imported_count += 1
                 
             except Exception as e:
@@ -2254,6 +2337,8 @@ async def import_trades_csv(
             message=message
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"CSV import error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to import CSV: {str(e)}")

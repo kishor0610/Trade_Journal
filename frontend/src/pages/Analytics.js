@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Area, AreaChart } from 'recharts';
-import { TrendingUp, TrendingDown, Target, Award, BarChart3 } from 'lucide-react';
-import { formatCurrency, getInstrumentColor, INSTRUMENTS } from '../lib/utils';
+import { Area, AreaChart, Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Award, TrendingDown, TrendingUp } from 'lucide-react';
+import { formatCurrency, getInstrumentColor } from '../lib/utils';
 
 const API_URL = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -36,14 +36,14 @@ export default function Analytics() {
   };
 
   // Calculate cumulative P&L for the line chart
-  const cumulativeData = monthlyData.reduce((acc, item) => {
+  const cumulativeData = useMemo(() => monthlyData.reduce((acc, item) => {
     const lastTotal = acc.length > 0 ? acc[acc.length - 1].cumulative : 0;
     acc.push({
       ...item,
       cumulative: lastTotal + item.pnl
     });
     return acc;
-  }, []);
+  }, []), [monthlyData]);
 
   if (loading) {
     return (

@@ -1583,7 +1583,7 @@ export default function Journal() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.endsWith('.csv')) {
+    if (!file.name.toLowerCase().endsWith('.csv')) {
       toast.error('Please select a CSV file');
       return;
     }

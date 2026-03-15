@@ -164,35 +164,46 @@ const TradingCalendar = ({ year, month, dailyData, onMonthChange }) => {
   const daysInMonth = getDaysInMonth(year, month);
   const firstDay = getFirstDayOfMonth(year, month);
   const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const dailyDataByDate = useMemo(
+    () => new Map((dailyData || []).map((item) => [item.date, item])),
+    [dailyData]
+  );
 
-  const calendarDays = [];
-  for (let i = 0; i < firstDay; i += 1) {
-    calendarDays.push(null);
-  }
-
-  for (let day = 1; day <= daysInMonth; day += 1) {
-    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    const dayData = dailyData.find((d) => d.date === dateStr);
-    calendarDays.push({
-      day,
-      pnl: Number(dayData?.pnl || 0),
-      trades: Number(dayData?.trades || 0),
-      date: dateStr,
-    });
-  }
-
-  const weeks = [];
-  let row = [];
-  calendarDays.forEach((item, idx) => {
-    row.push(item);
-    if (row.length === 7 || idx === calendarDays.length - 1) {
-      while (row.length < 7) row.push(null);
-      weeks.push(row);
-      row = [];
+  const calendarDays = useMemo(() => {
+    const days = [];
+    for (let i = 0; i < firstDay; i += 1) {
+      days.push(null);
     }
-  });
 
-  const weeklySummary = weeks.map((week, index) => {
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const dayData = dailyDataByDate.get(dateStr);
+      days.push({
+        day,
+        pnl: Number(dayData?.pnl || 0),
+        trades: Number(dayData?.trades || 0),
+        date: dateStr,
+      });
+    }
+
+    return days;
+  }, [dailyDataByDate, daysInMonth, firstDay, month, year]);
+
+  const weeks = useMemo(() => {
+    const nextWeeks = [];
+    let row = [];
+    calendarDays.forEach((item, idx) => {
+      row.push(item);
+      if (row.length === 7 || idx === calendarDays.length - 1) {
+        while (row.length < 7) row.push(null);
+        nextWeeks.push(row);
+        row = [];
+      }
+    });
+    return nextWeeks;
+  }, [calendarDays]);
+
+  const weeklySummary = useMemo(() => weeks.map((week, index) => {
     const points = week.filter(Boolean);
     const pnl = points.reduce((acc, p) => acc + p.pnl, 0);
     const tradingDays = points.filter((p) => p.trades > 0).length;
@@ -204,10 +215,12 @@ const TradingCalendar = ({ year, month, dailyData, onMonthChange }) => {
       tradingDays,
       range: first && last ? `${new Date(first).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${new Date(last).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : '-',
     };
-  });
+  }), [weeks]);
 
-  const monthPnl = dailyData.reduce((acc, d) => acc + Number(d.pnl || 0), 0);
-  const monthDays = dailyData.filter((d) => Number(d.trades || 0) > 0).length;
+  const { monthDays, monthPnl } = useMemo(() => ({
+    monthPnl: (dailyData || []).reduce((acc, d) => acc + Number(d.pnl || 0), 0),
+    monthDays: (dailyData || []).filter((d) => Number(d.trades || 0) > 0).length,
+  }), [dailyData]);
 
   return (
     <motion.div
@@ -225,7 +238,15 @@ const TradingCalendar = ({ year, month, dailyData, onMonthChange }) => {
           <Button variant="ghost" size="icon" onClick={() => onMonthChange(1)}>
             <ChevronRight className="w-4 h-4" />
           </Button>
-          <Button variant="outline" size="sm" className="gap-1">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1"
+            onClick={() => {
+              const now = new Date();
+              onMonthChange(now.getMonth() - month + (now.getFullYear() - year) * 12);
+            }}
+          >
             <Calendar className="w-3 h-3" />
             Today
           </Button>
@@ -322,7 +343,7 @@ export default function Dashboard() {
   const prevTotalPnl = useRef(null);
   const prevStreak = useRef(0);
 
-  const fetchDashboardData = async (mode = 'normal') => {
+  const fetchDashboardData = React.useCallback(async (mode = 'normal') => {
     try {
       const [summaryRes, tradeCountRes, balanceRes] = await Promise.all([
         axios.get(`${API_URL}/analytics/summary`),
@@ -347,16 +368,16 @@ export default function Dashboard() {
       }
       setRefreshing(false);
     }
-  };
+  }, [selectedPeriod]);
 
-  const fetchCalendarData = async () => {
+  const fetchCalendarData = React.useCallback(async () => {
     try {
       const response = await axios.get(`${API_URL}/analytics/daily?year=${calendarDate.year}&month=${calendarDate.month + 1}`);
       setDailyData(response.data || { days: [] });
     } catch (error) {
       console.error('Failed to fetch calendar data:', error);
     }
-  };
+  }, [calendarDate.month, calendarDate.year]);
 
   useEffect(() => {
     if (firstLoadRef.current) {
@@ -367,13 +388,11 @@ export default function Dashboard() {
       setPeriodTransition(true);
       fetchDashboardData('period');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPeriod]);
+  }, [fetchDashboardData, selectedPeriod]);
 
   useEffect(() => {
     fetchCalendarData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [calendarDate]);
+  }, [fetchCalendarData]);
 
   useEffect(() => {
     const timer = setInterval(() => {
