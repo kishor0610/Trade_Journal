@@ -65,9 +65,7 @@ export const INSTRUMENTS = [
 
 export const POSITIONS = [
   { value: 'buy', label: 'Buy / Long' },
-  { value: 'sell', label: 'Sell / Short' },
-  { value: 'long', label: 'Long' },
-  { value: 'short', label: 'Short' }
+  { value: 'sell', label: 'Sell / Short' }
 ];
 
 export const STATUSES = [

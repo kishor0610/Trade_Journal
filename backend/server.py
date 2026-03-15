@@ -512,6 +512,17 @@ def calculate_pnl(trade: dict) -> dict:
     return trade
 
 
+def normalize_position_value(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    normalized = str(value).strip().lower()
+    if normalized in {'long', 'buy'}:
+        return 'buy'
+    if normalized in {'short', 'sell'}:
+        return 'sell'
+    return normalized
+
+
 async def get_users_by_ids(user_ids: List[str], projection: Optional[Dict[str, int]] = None) -> Dict[str, dict]:
     unique_ids = [user_id for user_id in set(user_ids) if user_id]
     if not unique_ids:
@@ -1036,6 +1047,7 @@ async def create_trade(trade_data: TradeCreate, current_user: dict = Depends(get
         **trade_data.model_dump(),
         "created_at": now
     }
+    trade_doc['position'] = normalize_position_value(trade_doc.get('position'))
     
     trade_doc = calculate_pnl(trade_doc)
     await db.trades.insert_one(trade_doc)
@@ -1079,6 +1091,8 @@ async def update_trade(trade_id: str, trade_data: TradeUpdate, current_user: dic
         raise HTTPException(status_code=404, detail="Trade not found")
     
     update_dict = {k: v for k, v in trade_data.model_dump().items() if v is not None}
+    if 'position' in update_dict:
+        update_dict['position'] = normalize_position_value(update_dict.get('position'))
     if update_dict:
         await db.trades.update_one({"id": trade_id}, {"$set": update_dict})
     
@@ -2006,6 +2020,7 @@ class CSVImportResponse(BaseModel):
 @api_router.post("/trades/import-csv", response_model=CSVImportResponse)
 async def import_trades_csv(
     file: UploadFile = File(...),
+    force: bool = Query(default=False),
     current_user: dict = Depends(get_current_user)
 ):
     """Import trades from a CSV file (supports MT5 and app-export format)."""
@@ -2276,12 +2291,12 @@ async def import_trades_csv(
 
                 # Skip duplicates for non-ticket imports.
                 fingerprint = build_trade_fingerprint(trade_doc)
-                if not ticket and fingerprint in existing_fingerprints:
+                if not force and not ticket and fingerprint in existing_fingerprints:
                     duplicate_count += 1
                     skipped_count += 1
                     continue
 
-                if ticket:
+                if not force and ticket:
                     mt5_signature = build_mt5_signature(trade_doc)
                     if mt5_signature in existing_mt5_signatures:
                         duplicate_count += 1

@@ -1601,18 +1601,34 @@ export default function Journal() {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 
-      setImportResult(response.data);
-      const latestTrades = await fetchTrades();
+      let finalResult = response.data;
+      let latestTrades = await fetchTrades();
+
+      if (
+        finalResult?.imported_count === 0 &&
+        finalResult?.skipped_count > 0 &&
+        latestTrades.length === 0
+      ) {
+        const retryForm = new FormData();
+        retryForm.append('file', file);
+        const retryResponse = await axios.post(`${API_URL}/trades/import-csv?force=true`, retryForm, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        finalResult = retryResponse.data;
+        latestTrades = await fetchTrades();
+      }
+
+      setImportResult(finalResult);
       const hasActiveFilters = Boolean(filters.status || filters.instrument || filters.search);
       if (latestTrades.length > 0 && hasActiveFilters) {
         setFilters({ status: '', instrument: '', search: '' });
         toast.info('Filters were cleared so all imported trades are visible.');
       }
       
-      if (response.data.imported_count > 0) {
-        toast.success(`Successfully imported ${response.data.imported_count} trades!`);
-      } else if (response.data.skipped_count > 0) {
-        if (Array.isArray(response.data.errors) && response.data.errors.length > 0) {
+      if (finalResult.imported_count > 0) {
+        toast.success(`Successfully imported ${finalResult.imported_count} trades!`);
+      } else if (finalResult.skipped_count > 0) {
+        if (Array.isArray(finalResult.errors) && finalResult.errors.length > 0) {
           toast.warning('No new trades imported due to row errors. Check the import details.');
         } else {
           toast.info(latestTrades.length > 0
