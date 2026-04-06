@@ -1665,7 +1665,7 @@ async def get_ai_insights(request: AIInsightRequest, current_user: dict = Depend
         trades = await db.trades.find(
             {"user_id": current_user['id']}, 
             {"_id": 0}
-        ).sort("created_at", -1).to_list(100)
+        ).sort("created_at", -1).to_list(None)
         
         if not trades:
             return {
@@ -1755,16 +1755,29 @@ User question: {user_question}
         
         # Call Groq API
         message = groq_client.chat.completions.create(
-              model="llama-3.3-70b-versatile",
-            max_tokens=1024,
+            model="llama-3.3-70b-versatile",
+            max_tokens=4096,
+            temperature=0.7,
             messages=[
                 {
+                    "role": "system",
+                    "content": """You are an expert trading coach and performance analyst. Rules:
+1. ALWAYS answer the user's EXACT question — do NOT give a generic overview unless asked for one.
+2. Use the real trading data provided. Reference specific numbers, instruments, and percentages.
+3. Never give short or vague answers. Minimum 4 detailed paragraphs.
+4. Use **bold** for key values and section headings.
+5. If the user asks about a specific topic (e.g. risk management, mistakes, instruments), focus 80% of your answer on that topic.
+6. Include actionable, specific recommendations based on the data.
+7. If the user sends a casual message like 'hi' or 'hello', respond naturally but still share one interesting insight from their data."""
+                },
+                {
                     "role": "user",
-                    "content": f"""You are an expert trading coach. Analyze this trader's performance and answer their question with a detailed, thorough response.
+                    "content": f"""{summary_text}
 
-{summary_text}
+All instruments breakdown:
+{chr(10).join([f'  {inst}: ${stats["pnl"]:.2f} ({stats["wins"]}/{stats["trades"]} wins, {(stats["wins"]/stats["trades"]*100):.1f}% win rate)' for inst, stats in sorted_instruments])}
 
-Write a detailed analysis in paragraph form. Cover strengths, weaknesses, patterns, and areas for improvement. Go deep into the data — discuss win rates per instrument, risk/reward dynamics, consistency, and psychological factors. Give a comprehensive multi-paragraph answer, not a short summary or bullet-point list. Minimum 4 paragraphs."""
+Answer this question thoroughly: {user_question}"""
                 }
             ]
         )
