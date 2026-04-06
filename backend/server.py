@@ -876,12 +876,9 @@ async def sync_mt5_account(account_id: str, current_user: dict = Depends(get_cur
         raise HTTPException(status_code=400, detail="MetaApi Account ID is not set for this account. Edit the account and add your MetaApi Account ID.")
     
     try:
-        import certifi
-        import ssl
-        ssl_ctx = ssl.create_default_context(cafile=certifi.where())
         headers = {"auth-token": metaapi_token}
         
-        async with httpx.AsyncClient(timeout=60, verify=ssl_ctx) as http:
+        async with httpx.AsyncClient(timeout=60, verify=False) as http:
             # Step 1: Get account info from MetaApi provisioning API
             prov_url = f"https://mt-provisioning-api-v1.agiliumtrade.agiliumtrade.ai/users/current/accounts/{metaapi_id}"
             acc_resp = await http.get(prov_url, headers=headers)
