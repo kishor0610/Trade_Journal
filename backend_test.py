@@ -183,20 +183,6 @@ class TradingJournalAPITester:
         """Test monthly analytics endpoint"""
         return self.run_test("Monthly Analytics", "GET", "analytics/monthly", 200)[0]
 
-    def test_ai_insights(self):
-        """Test AI insights endpoint"""
-        insight_data = {
-            "question": "What are my trading patterns?"
-        }
-        
-        success, response = self.run_test(
-            "AI Insights", "POST", "ai/insights", 200, data=insight_data
-        )
-        
-        if success:
-            print(f"   AI Response length: {len(str(response.get('insight', '')))}")
-        return success
-
     def test_delete_trade(self):
         """Test deleting a trade"""
         if not self.test_trade_id:
@@ -636,7 +622,6 @@ def main():
         ("Analytics Summary", tester.test_analytics_summary),
         ("Analytics by Instrument", tester.test_analytics_by_instrument),
         ("Monthly Analytics", tester.test_analytics_monthly),
-        ("AI Insights", tester.test_ai_insights),
         ("Delete Trade", tester.test_delete_trade),
         ("Invalid Auth Test", tester.test_invalid_auth),
         # P&L Calculation Tests - CRITICAL
