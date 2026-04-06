@@ -931,10 +931,17 @@ async def sync_mt5_account(account_id: str, current_user: dict = Depends(get_cur
             return {"message": "No deals found in MetaApi history.", "new_trades": 0, "total_deals": 0}
         
         # Step 4: Group deals by positionId to reconstruct trades
+        # Each trade has an "in" deal (entry) and an "out" deal (exit/close)
+        # Skip balance operations and deals without a symbol
         positions = {}
         for deal in deals:
             pos_id = deal.get('positionId')
-            if not pos_id:
+            symbol = deal.get('symbol', '')
+            if not pos_id or not symbol:
+                continue
+            # Skip non-trade deal types (balance, credit, etc.)
+            deal_type = deal.get('type', '')
+            if 'BALANCE' in deal_type or 'CREDIT' in deal_type or 'CHARGE' in deal_type:
                 continue
             entry_type = deal.get('entryType', '')
             if pos_id not in positions:
@@ -943,6 +950,9 @@ async def sync_mt5_account(account_id: str, current_user: dict = Depends(get_cur
                 positions[pos_id]['entries'].append(deal)
             elif entry_type == 'DEAL_ENTRY_OUT':
                 positions[pos_id]['exits'].append(deal)
+        
+        # Get account base currency for conversion
+        base_currency = acc_info.get('baseCurrency', 'USD')
         
         # Step 5: Build trade documents
         trades_to_import = []
@@ -956,28 +966,43 @@ async def sync_mt5_account(account_id: str, current_user: dict = Depends(get_cur
             raw_symbol = entry.get('symbol', '')
             normalized_symbol = normalize_symbol(raw_symbol)
             
-            deal_type = entry.get('type', '')
-            direction = 'buy' if 'BUY' in deal_type else 'sell'
+            # Direction comes from the "in" deal's type: BUY = long, SELL = short
+            in_type = entry.get('type', '')
+            direction = 'buy' if 'BUY' in in_type else 'sell'
             
-            total_commission = sum(d.get('commission', 0) or 0 for d in pos_deals['entries'] + pos_deals['exits'])
-            total_swap = sum(d.get('swap', 0) or 0 for d in pos_deals['entries'] + pos_deals['exits'])
-            raw_profit = (exit_deal.get('profit', 0) or 0) if exit_deal else None
+            # Commission and swap from BOTH in and out deals
+            all_deals_for_pos = pos_deals['entries'] + pos_deals['exits']
+            total_commission = sum(d.get('commission', 0) or 0 for d in all_deals_for_pos)
+            total_swap = sum(d.get('swap', 0) or 0 for d in all_deals_for_pos)
             
-            # Total PnL = profit + commission + swap
+            # PnL: ONLY from the "out" (close) deal's profit field
             pnl = None
-            if raw_profit is not None:
-                pnl = round(raw_profit + total_commission + total_swap, 2)
+            if exit_deal:
+                raw_profit = exit_deal.get('profit', 0) or 0
+                raw_pnl = raw_profit + total_commission + total_swap
+                
+                # Convert from account currency to USD if not USD
+                # MetaApi provides accountCurrencyExchangeRate (rate from USD to account currency)
+                exchange_rate = exit_deal.get('accountCurrencyExchangeRate', None)
+                if exchange_rate and base_currency != 'USD' and exchange_rate > 0:
+                    pnl = round(raw_pnl / exchange_rate, 2)
+                else:
+                    pnl = round(raw_pnl, 2)
             
             entry_time = entry.get('time', '')
             exit_time = exit_deal.get('time', '') if exit_deal else None
+            
+            # Entry price from "in" deal, exit price from "out" deal
+            entry_price = entry.get('price', 0)
+            exit_price = exit_deal.get('price') if exit_deal else None
             
             trade = {
                 "id": str(uuid.uuid4()),
                 "user_id": current_user['id'],
                 "instrument": normalized_symbol,
                 "position": direction,
-                "entry_price": entry.get('price', 0),
-                "exit_price": exit_deal.get('price') if exit_deal else None,
+                "entry_price": entry_price,
+                "exit_price": exit_price,
                 "quantity": entry.get('volume', 0),
                 "entry_date": entry_time,
                 "exit_date": exit_time,
@@ -987,7 +1012,7 @@ async def sync_mt5_account(account_id: str, current_user: dict = Depends(get_cur
                 "pnl": pnl,
                 "commission": round(total_commission, 2),
                 "swap": round(total_swap, 2),
-                "notes": f"Auto-synced from MT5 (ticket: {pos_id})",
+                "notes": f"Auto-synced from MT5 (position: {pos_id})",
                 "mt5_ticket": str(pos_id),
                 "mt5_account_id": account_id,
                 "created_at": now,
@@ -2026,20 +2051,29 @@ Answer this question thoroughly: {user_question}"""
 SYMBOL_MAPPING = {
     'XAUUSDm': 'XAU/USD',
     'XAUUSD': 'XAU/USD',
+    'XAUUSD+': 'XAU/USD',
     'XAGUSDm': 'XAG/USD',
     'XAGUSD': 'XAG/USD',
+    'XAGUSD+': 'XAG/USD',
     'BTCUSDm': 'BTC/USD',
     'BTCUSD': 'BTC/USD',
+    'BTCUSD+': 'BTC/USD',
     'ETHUSDm': 'ETH/USD',
     'ETHUSD': 'ETH/USD',
+    'ETHUSD+': 'ETH/USD',
     'EURUSDm': 'EUR/USD',
     'EURUSD': 'EUR/USD',
+    'EURUSD+': 'EUR/USD',
     'GBPUSDm': 'GBP/USD',
     'GBPUSD': 'GBP/USD',
+    'GBPUSD+': 'GBP/USD',
     'USDJPYm': 'USD/JPY',
     'USDJPY': 'USD/JPY',
+    'USDJPY+': 'USD/JPY',
     'NAS100m': 'NAS100',
+    'NAS100': 'NAS100',
     'US30m': 'US30',
+    'US30': 'US30',
 }
 
 def normalize_symbol(symbol: str) -> str:
@@ -2051,11 +2085,12 @@ def normalize_symbol(symbol: str) -> str:
     symbol = symbol.upper()
     if symbol in SYMBOL_MAPPING:
         return SYMBOL_MAPPING[symbol]
-    # Remove trailing 'm' if present and check again
-    if symbol.endswith('m'):
-        base = symbol[:-1]
-        if base in SYMBOL_MAPPING:
-            return SYMBOL_MAPPING[base]
+    # Remove trailing 'm' or '+' if present and check again
+    for suffix in ['M', '+', '.', '#']:
+        if symbol.endswith(suffix):
+            base = symbol[:-1]
+            if base in SYMBOL_MAPPING:
+                return SYMBOL_MAPPING[base]
     # Return original if no mapping found
     return symbol
 
