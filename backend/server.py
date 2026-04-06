@@ -1661,22 +1661,45 @@ async def get_ai_insights(request: AIInsightRequest, current_user: dict = Depend
         raise HTTPException(status_code=503, detail="AI service is not configured")
     
     try:
-        # Fetch ALL user trades (no limit)
+        # Fetch user's closed trades
         trades = await db.trades.find(
             {"user_id": current_user['id']}, 
             {"_id": 0}
-        ).sort("created_at", -1).to_list(None)
+        ).sort("created_at", -1).to_list(100)
+        
+        if not trades:
+            return {
+                "insight": "No trades found. Start logging your trades to get AI-powered insights.",
+                "summary": {
+                    "total_trades": 0,
+                    "total_pnl": 0,
+                    "win_rate": 0,
+                    "profit_factor": 0,
+                    "expectancy": 0,
+                }
+            }
         
         # Calculate closed trades and metrics
-        closed_trades = [calculate_pnl(t) for t in trades if t.get('status') == 'closed'] if trades else []
-        open_trades = [t for t in trades if t.get('status') != 'closed'] if trades else []
+        closed_trades = [calculate_pnl(t) for t in trades if t['status'] == 'closed']
         
+        if not closed_trades:
+            return {
+                "insight": "You only have open trades. Close some trades first to get meaningful insights.",
+                "summary": {
+                    "total_trades": 0,
+                    "total_pnl": 0,
+                    "win_rate": 0,
+                    "profit_factor": 0,
+                    "expectancy": 0,
+                }
+            }
+        
+        # Build trading summary
         total_trades = len(closed_trades)
         total_pnl = sum((t.get('pnl', 0) or 0) for t in closed_trades)
         
         wins = [t for t in closed_trades if (t.get('pnl') or 0) > 0]
         losses = [t for t in closed_trades if (t.get('pnl') or 0) < 0]
-        breakeven = [t for t in closed_trades if (t.get('pnl') or 0) == 0]
         winning = len(wins)
         losing = len(losses)
         win_rate = (winning / total_trades * 100) if total_trades else 0.0
@@ -1690,150 +1713,94 @@ async def get_ai_insights(request: AIInsightRequest, current_user: dict = Depend
         
         expectancy = (total_pnl / total_trades) if total_trades else 0.0
         
-        # Instrument breakdown - ALL instruments
+        # Get top/worst instruments
         instrument_stats = {}
         for t in closed_trades:
             inst = t.get('instrument', 'Unknown') or 'Unknown'
             if inst not in instrument_stats:
-                instrument_stats[inst] = {"trades": 0, "pnl": 0.0, "wins": 0, "losses": 0, "buy": 0, "sell": 0}
+                instrument_stats[inst] = {"trades": 0, "pnl": 0.0, "wins": 0}
             instrument_stats[inst]["trades"] += 1
             instrument_stats[inst]["pnl"] += t.get('pnl') or 0
             if (t.get('pnl') or 0) > 0:
                 instrument_stats[inst]["wins"] += 1
-            elif (t.get('pnl') or 0) < 0:
-                instrument_stats[inst]["losses"] += 1
-            if t.get('position') == 'buy':
-                instrument_stats[inst]["buy"] += 1
-            else:
-                instrument_stats[inst]["sell"] += 1
         
-        sorted_instruments = sorted(instrument_stats.items(), key=lambda x: x[1]["pnl"], reverse=True)
+        sorted_instruments = sorted(
+            instrument_stats.items(),
+            key=lambda x: x[1]["pnl"],
+            reverse=True
+        )
         
-        # Position direction analysis
-        buy_trades = [t for t in closed_trades if t.get('position') == 'buy']
-        sell_trades = [t for t in closed_trades if t.get('position') == 'sell']
-        buy_pnl = sum((t.get('pnl') or 0) for t in buy_trades)
-        sell_pnl = sum((t.get('pnl') or 0) for t in sell_trades)
-        buy_wins = len([t for t in buy_trades if (t.get('pnl') or 0) > 0])
-        sell_wins = len([t for t in sell_trades if (t.get('pnl') or 0) > 0])
-        
-        # Streak analysis
-        max_win_streak = 0
-        max_loss_streak = 0
-        current_streak = 0
-        last_result = None
-        for t in reversed(closed_trades):
-            pnl = t.get('pnl') or 0
-            if pnl > 0:
-                if last_result == 'win':
-                    current_streak += 1
-                else:
-                    current_streak = 1
-                last_result = 'win'
-                max_win_streak = max(max_win_streak, current_streak)
-            elif pnl < 0:
-                if last_result == 'loss':
-                    current_streak += 1
-                else:
-                    current_streak = 1
-                last_result = 'loss'
-                max_loss_streak = max(max_loss_streak, current_streak)
-        
-        # Recent performance (last 50 trades vs older trades)
-        recent_50 = closed_trades[:50]
-        older = closed_trades[50:]
-        recent_pnl = sum((t.get('pnl') or 0) for t in recent_50)
-        older_pnl = sum((t.get('pnl') or 0) for t in older)
-        recent_wins = len([t for t in recent_50 if (t.get('pnl') or 0) > 0])
-        recent_win_rate = (recent_wins / len(recent_50) * 100) if recent_50 else 0
-        
-        # Largest trades
-        sorted_by_pnl = sorted(closed_trades, key=lambda t: t.get('pnl') or 0, reverse=True)
-        top_5_wins = sorted_by_pnl[:5]
-        top_5_losses = sorted_by_pnl[-5:]
-        
-        # Build comprehensive data summary for AI
-        user_question = request.question.strip() if request.question else ""
-        
-        instrument_details = chr(10).join([
-            f"  {inst}: P&L=${stats['pnl']:.2f}, {stats['wins']}W/{stats['losses']}L out of {stats['trades']} trades, Win Rate={stats['wins']/stats['trades']*100:.1f}%, Buy={stats['buy']}, Sell={stats['sell']}"
-            for inst, stats in sorted_instruments
-        ])
-        
-        top_wins_text = chr(10).join([
-            f"  #{i+1}: {t.get('instrument','?')} {t.get('position','?')} P&L=${t.get('pnl',0):.2f}"
-            for i, t in enumerate(top_5_wins)
-        ])
-        
-        top_losses_text = chr(10).join([
-            f"  #{i+1}: {t.get('instrument','?')} {t.get('position','?')} P&L=${t.get('pnl',0):.2f}"
-            for i, t in enumerate(top_5_losses)
-        ])
+        # Build prompt for Groq
+        user_question = request.question or "Analyze my trading performance and provide insights on how I can improve."
         
         summary_text = f"""
-=== COMPLETE TRADING DATA (ALL {total_trades} CLOSED TRADES ANALYZED) ===
-
-OVERALL METRICS:
+Trading Performance Summary:
 - Total closed trades: {total_trades}
-- Open trades: {len(open_trades)}
 - Total P&L: ${total_pnl:.2f}
-- Win rate: {win_rate:.1f}% ({winning} wins, {losing} losses, {len(breakeven)} breakeven)
+- Win rate: {win_rate:.1f}%
 - Average winning trade: ${avg_win:.2f}
-- Average losing trade: -${avg_loss:.2f}
-- Risk/Reward ratio: {(avg_win / avg_loss):.2f} if avg_loss > 0 else N/A
+- Average losing trade: ${avg_loss:.2f}
 - Profit factor: {profit_factor:.2f}
 - Expectancy per trade: ${expectancy:.2f}
-- Max winning streak: {max_win_streak}
-- Max losing streak: {max_loss_streak}
+- Best trade: ${max([t.get('pnl', 0) or 0 for t in closed_trades], default=0):.2f}
+- Worst trade: ${min([t.get('pnl', 0) or 0 for t in closed_trades], default=0):.2f}
 
-DIRECTION ANALYSIS:
-- Buy trades: {len(buy_trades)} (P&L: ${buy_pnl:.2f}, Wins: {buy_wins}/{len(buy_trades)})
-- Sell trades: {len(sell_trades)} (P&L: ${sell_pnl:.2f}, Wins: {sell_wins}/{len(sell_trades)})
+Top instruments by P&L:
+{chr(10).join([f"  {inst}: ${stats['pnl']:.2f} ({stats['wins']}/{stats['trades']} wins)" for inst, stats in sorted_instruments[:3]])}
 
-ALL INSTRUMENTS BREAKDOWN:
-{instrument_details}
+Recent 10 trades P&L: ${sum(t.get('pnl', 0) or 0 for t in closed_trades[:10]):.2f}
 
-TOP 5 BEST TRADES:
-{top_wins_text}
-
-TOP 5 WORST TRADES:
-{top_losses_text}
-
-RECENT PERFORMANCE (Last 50 trades):
-- Recent 50 P&L: ${recent_pnl:.2f}, Win Rate: {recent_win_rate:.1f}%
-- Older trades P&L: ${older_pnl:.2f} ({len(older)} trades)
-- Trend: {"Improving" if recent_pnl > (older_pnl / max(len(older), 1) * min(len(recent_50), 50)) else "Declining"}
-
-BEST TRADE EVER: ${max([t.get('pnl', 0) or 0 for t in closed_trades], default=0):.2f}
-WORST TRADE EVER: ${min([t.get('pnl', 0) or 0 for t in closed_trades], default=0):.2f}
+User question: {user_question}
 """
-        
-        # Build messages for Groq
-        system_message = """You are a professional trading performance analyst. You have access to the trader's COMPLETE trade history data.
-
-RULES:
-- Answer the user's EXACT question directly. Do not give generic advice.
-- If they say hello or ask a casual question, respond naturally like a trading coach would — greet them, mention their stats briefly, and ask how you can help.
-- Use the actual numbers from their data. Reference specific instruments, trades, and patterns.
-- Give deep, detailed analysis with multiple paragraphs. Never give 1-2 line answers.
-- Be specific: mention exact instruments, win rates, P&L figures, and patterns you observe.
-- If they ask about mistakes, look at the losing trades data and identify real patterns.
-- If they ask about improvements, analyze gaps between their best and worst performance."""
-        
-        messages = [
-            {"role": "system", "content": system_message},
-            {"role": "user", "content": f"Here is my complete trading data:\n{summary_text}\n\nMy question: {user_question if user_question else 'Give me a comprehensive analysis of my overall trading performance.'}"}
-        ]
         
         # Call Groq API
         message = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            max_tokens=4096,
-            temperature=0.7,
-            messages=messages
+              model="llama-3.3-70b-versatile",
+            max_tokens=1024,
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"""You are an expert trading coach. Analyze this trader's performance and answer their question with a detailed, thorough response.
+
+{summary_text}
+
+Write a detailed analysis in paragraph form. Cover strengths, weaknesses, patterns, and areas for improvement. Go deep into the data — discuss win rates per instrument, risk/reward dynamics, consistency, and psychological factors. Give a comprehensive multi-paragraph answer, not a short summary or bullet-point list. Minimum 4 paragraphs."""
+                }
+            ]
         )
         
         insight_text = message.choices[0].message.content
+        
+        # Build chart data for frontend visualization
+        instrument_chart = [
+            {
+                "name": inst,
+                "pnl": round(stats["pnl"], 2),
+                "trades": stats["trades"],
+                "wins": stats["wins"],
+                "winRate": round((stats["wins"] / stats["trades"] * 100), 1) if stats["trades"] > 0 else 0,
+            }
+            for inst, stats in sorted_instruments
+        ]
+        
+        # Direction breakdown (long vs short)
+        long_trades = [t for t in closed_trades if (t.get('direction') or '').lower() in ('long', 'buy')]
+        short_trades = [t for t in closed_trades if (t.get('direction') or '').lower() in ('short', 'sell')]
+        direction_chart = {
+            "long": {
+                "total": len(long_trades),
+                "wins": len([t for t in long_trades if (t.get('pnl') or 0) > 0]),
+                "pnl": round(sum(t.get('pnl', 0) or 0 for t in long_trades), 2),
+            },
+            "short": {
+                "total": len(short_trades),
+                "wins": len([t for t in short_trades if (t.get('pnl') or 0) > 0]),
+                "pnl": round(sum(t.get('pnl', 0) or 0 for t in short_trades), 2),
+            },
+        }
+        
+        best_trade = max(closed_trades, key=lambda t: t.get('pnl', 0) or 0, default={})
+        worst_trade = min(closed_trades, key=lambda t: t.get('pnl', 0) or 0, default={})
         
         return {
             "insight": insight_text,
@@ -1843,6 +1810,24 @@ RULES:
                 "win_rate": round(win_rate, 2),
                 "profit_factor": round(profit_factor, 2),
                 "expectancy": round(expectancy, 2),
+                "avg_win": round(avg_win, 2),
+                "avg_loss": round(avg_loss, 2),
+                "winning_trades": winning,
+                "losing_trades": losing,
+                "gross_profit": round(gross_profit, 2),
+                "gross_loss": round(gross_loss, 2),
+            },
+            "charts": {
+                "instruments": instrument_chart,
+                "direction": direction_chart,
+                "best_trade": {
+                    "pnl": round(best_trade.get('pnl', 0) or 0, 2),
+                    "instrument": best_trade.get('instrument', 'N/A'),
+                },
+                "worst_trade": {
+                    "pnl": round(worst_trade.get('pnl', 0) or 0, 2),
+                    "instrument": worst_trade.get('instrument', 'N/A'),
+                },
             },
             "source": "groq"
         }
