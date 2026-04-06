@@ -12,7 +12,6 @@ COPY requirements.txt .
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
 COPY . .
-COPY .env.production .env
 
 ENV PORT=8080
 EXPOSE 8080
