@@ -28,3 +28,4 @@ jobs:
           source: backend/
           region: asia-south1
           project_id: project-347898d6-1551-4abf-803
+          flags: '--no-clear-env-vars'
