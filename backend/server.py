@@ -299,6 +299,17 @@ def get_instrument_multiplier(instrument: str) -> float:
 
 def calculate_pnl(trade: dict) -> dict:
     if trade.get('exit_price') and trade.get('status') == 'closed':
+        # For MT5-synced trades, keep the PnL from MetaApi (already converted to USD)
+        if trade.get('mt5_ticket') and trade.get('pnl') is not None:
+            # Only calculate percentage if missing
+            if trade.get('pnl_percentage') is None:
+                entry = trade['entry_price']
+                exit_p = trade['exit_price']
+                position = trade['position']
+                pnl_percentage = ((exit_p - entry) / entry * 100) if position in ['long', 'buy'] else ((entry - exit_p) / entry * 100)
+                trade['pnl_percentage'] = round(pnl_percentage, 2)
+            return trade
+        
         entry = trade['entry_price']
         exit_p = trade['exit_price']
         qty = trade['quantity']  # This is lot size
