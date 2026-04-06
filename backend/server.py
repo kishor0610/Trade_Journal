@@ -902,16 +902,26 @@ async def sync_mt5_account(account_id: str, current_user: dict = Depends(get_cur
                     if check_data.get('connectionStatus') == 'CONNECTED':
                         break
             
-            # Step 3: Fetch history deals from MetaApi client API
+            # Step 3: Fetch history deals from MetaApi client API (paginated, max 1000 per page)
             start_time = (datetime.now(timezone.utc) - timedelta(days=730)).strftime('%Y-%m-%dT%H:%M:%S.000Z')
             end_time = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.000Z')
             
-            client_base = f"https://mt-client-api-v1.{region}.agiliumtrade.agiliumtrade.ai"
+            client_base = f"https://mt-client-api-v1.{region}.agiliumtrade.ai"
             deals_url = f"{client_base}/users/current/accounts/{metaapi_id}/history-deals/time/{start_time}/{end_time}"
             
-            deals_resp = await http.get(deals_url, headers=headers)
-            deals_resp.raise_for_status()
-            deals = deals_resp.json()
+            deals = []
+            offset = 0
+            limit = 1000
+            while True:
+                resp = await http.get(deals_url, headers=headers, params={"offset": offset, "limit": limit})
+                resp.raise_for_status()
+                page = resp.json()
+                if not page:
+                    break
+                deals.extend(page)
+                if len(page) < limit:
+                    break
+                offset += limit
         
         if not deals:
             await db.mt5_accounts.update_one(
