@@ -256,6 +256,7 @@ def compute_trade_insight_metrics(closed_trades: List[dict]) -> Dict[str, Any]:
 
 
 def build_rule_based_insight(metrics: Dict[str, Any], user_question: str) -> str:
+    question = (user_question or "").strip()
     total_trades = metrics["total_trades"]
     total_pnl = metrics["total_pnl"]
     win_rate = metrics["win_rate"]
@@ -269,83 +270,113 @@ def build_rule_based_insight(metrics: Dict[str, Any], user_question: str) -> str
         return (
             "Snapshot: No closed trades yet, so there is not enough data for a reliable performance diagnosis.\n"
             "What is working:\n"
-            "- You are capturing trade details, which is the first step toward better review.\n"
+            "- You are logging trades consistently, which is the foundation for improvement.\n"
             "What is hurting performance:\n"
-            "- There is no closed trade history to identify a repeatable edge.\n"
+            "- There is no closed trade history to validate your edge or sizing decisions.\n"
             "Next 5-trade plan:\n"
-            "- Record at least 15 closed trades with clear entry, exit, and notes.\n"
-            "- Use a consistent risk percentage per trade.\n"
-            "- Review each trade within 24 hours and note whether the setup followed your rules.\n"
-            f"User focus: {user_question}"
+            "- Record the full setup, entry trigger, stop, and exit reason for each trade.\n"
+            "- Use the same risk percentage for every trade and avoid overleveraging.\n"
+            "- Review each closed trade within 24 hours and note whether you followed your plan.\n"
+            f"User focus: {question or 'Build process before chasing performance.'}"
         )
 
     top_instrument = instrument_stats[0] if instrument_stats else None
     weak_instrument = instrument_stats[-1] if len(instrument_stats) > 1 else None
+    recent_trend = None
+    if recent_10_pnl > previous_10_pnl:
+        recent_trend = "improved"
+    elif recent_10_pnl < previous_10_pnl:
+        recent_trend = "weakened"
 
     snapshot_lines = [
         f"{total_trades} closed trades, total P&L ${total_pnl:.2f}, win rate {win_rate:.1f}%.",
-        f"Expectancy ${expectancy:.2f} per trade, profit factor {profit_factor}.",
+        f"Expectancy ${expectancy:.2f} per trade, profit factor {profit_factor}."
     ]
-
-    if recent_10_pnl != previous_10_pnl:
-        trend = "improved" if recent_10_pnl > previous_10_pnl else "weakened"
-        snapshot_lines.append(f"Recent 10-trade performance has {trend} compared to the previous 10 trades.")
+    if recent_trend:
+        snapshot_lines.append(f"Recent 10-trade performance has {recent_trend} compared to the prior 10 trades.")
 
     strengths = []
     risks = []
     actions = []
 
     if total_pnl > 0:
-        strengths.append(f"Net positive P&L shows there is a working edge in your process.")
+        strengths.append("Positive net P&L shows your current process has the potential to be profitable.")
     if win_rate >= 55:
-        strengths.append(f"A win rate above 55% indicates your entries have a reasonable edge.")
+        strengths.append("A win rate above 55% suggests that your entry selection often identifies valid setups.")
     if isinstance(profit_factor, (int, float)) and profit_factor >= 1.2:
-        strengths.append(f"Profit factor {profit_factor:.2f} suggests winners exceed losers enough to grow capital.")
+        strengths.append("Profit factor above 1.2 means winners are outperforming losers, which is a good sign.")
     if top_instrument and top_instrument["trades"] >= 3 and top_instrument["pnl"] > 0:
         strengths.append(
-            f"Your best instrument is {top_instrument['instrument']} with ${top_instrument['pnl']:.2f} across {top_instrument['trades']} trades."
+            f"Your strongest instrument is {top_instrument['instrument']} with ${top_instrument['pnl']:.2f} across {top_instrument['trades']} trades."
         )
 
     if total_pnl < 0:
-        risks.append("Negative overall P&L means the current trade process is not consistently profitable.")
+        risks.append("Negative net P&L indicates your trade management or instrument selection needs review.")
     if win_rate < 50:
-        risks.append("Win rate below 50% often means entries need tighter filters or better timing.")
+        risks.append("A win rate below 50% usually means entries are too loose or the setup is not selective enough.")
     if isinstance(profit_factor, (int, float)) and profit_factor < 1.0:
-        risks.append(f"Profit factor {profit_factor:.2f} is below break-even, indicating losses outweigh winners.")
+        risks.append("Profit factor below 1.0 means losses are larger than wins, so focus on improving risk/reward.")
     if weak_instrument and weak_instrument["trades"] >= 3 and weak_instrument["pnl"] < 0:
         risks.append(
-            f"Weakest instrument is {weak_instrument['instrument']} at ${weak_instrument['pnl']:.2f}; consider pausing or reviewing it."
+            f"The weakest instrument is {weak_instrument['instrument']} with ${weak_instrument['pnl']:.2f}; consider reducing exposure to it."
         )
-    if recent_10_pnl < previous_10_pnl:
-        risks.append("Recent performance is worse than the prior 10 trades, so review recent execution and market context.")
+    if recent_trend == "weakened":
+        risks.append("Recent performance weakening suggests the last trades were less disciplined or the market context changed.")
+    if expectancy < 0:
+        risks.append(f"Negative expectancy (${expectancy:.2f}) means the system is losing money on average."
+        )
 
-    if total_trades >= 15:
-        actions.append("Trade only your strongest instrument(s) for the next 5 trades and avoid weak setups.")
-        actions.append("Use a fixed risk percentage and do not increase size after a loss.")
-        actions.append("Review every closed trade note and identify one tangible improvement before the next trade.")
+    if total_trades < 15:
+        actions.append("Trade only one setup type for the next 5 closed trades to build consistency.")
+        actions.append("Keep risk small and fixed so one losing streak cannot derail your account.")
+        actions.append("Record the reason for every trade and review whether each trade followed your rules.")
     else:
-        actions.append("Build consistency by trading only one setup type for the next 5 closed trades.")
-        actions.append("Keep risk small and focus on execution quality over profit size.")
-        actions.append("Log the reason for each trade, then review whether you followed your plan.")
+        if total_pnl < 0:
+            actions.append("Reduce position size until a clear, repeatable edge is visible.")
+            actions.append("Stop trading instruments with sustained negative performance until you can isolate the cause.")
+            actions.append("Review the last 10 trades and identify whether entries, exits, or sizing caused the losses.")
+        else:
+            actions.append("Keep risk fixed and trade only your strongest setups for the next 5 trades.")
+            actions.append("Review every loser and identify one entry or exit change before the next trade.")
+            actions.append("Track R-multiple per trade and compare it to your documented edge.")
+
+    if "win rate" in question.lower() or "winrate" in question.lower() or "loss" in question.lower():
+        actions.insert(0, "Review whether your entry rules are selective enough and avoid trades that do not meet every criterion.")
+    elif "risk" in question.lower() or "position" in question.lower() or "size" in question.lower():
+        actions.insert(0, "Confirm your risk per trade is consistent and does not increase after a loss or winning streak.")
+    elif "exit" in question.lower() or "profit" in question.lower() or "target" in question.lower():
+        actions.insert(0, "Use a clear exit plan and avoid moving stops to chase profits.")
+    elif "instrument" in question.lower() or "market" in question.lower():
+        if top_instrument:
+            actions.insert(0, f"Favor {top_instrument['instrument']} for the next few trades and avoid the weakest instrument(s).")
+        else:
+            actions.insert(0, "Review instrument performance and focus on the markets where you have the most edge.")
 
     if not strengths:
         strengths.append("Your trade history is usable for structured review and process improvement.")
     if not risks:
-        risks.append("No clear fatal flaws found, but there is still room to improve consistency and execution.")
+        risks.append("No immediate fatal flaws found, but there is still room to improve consistency.")
+
+    if len(strengths) > 3:
+        strengths = strengths[:3]
+    if len(risks) > 3:
+        risks = risks[:3]
+    if len(actions) > 4:
+        actions = actions[:4]
 
     return (
         f"Snapshot: {' '.join(snapshot_lines)}\n"
         "What is working:\n"
         f"- {strengths[0]}\n"
         f"- {strengths[1] if len(strengths) > 1 else strengths[0]}\n"
-        f"What is hurting performance:\n"
+        "What is hurting performance:\n"
         f"- {risks[0]}\n"
         f"- {risks[1] if len(risks) > 1 else risks[0]}\n"
         "Next 5-trade plan:\n"
         f"- {actions[0]}\n"
         f"- {actions[1]}\n"
         f"- {actions[2]}\n"
-        f"User focus: {user_question}"
+        f"User focus: {question or 'Use these insights to improve your trading discipline.'}"
     )
 
 
