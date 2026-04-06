@@ -1760,17 +1760,11 @@ User question: {user_question}
             messages=[
                 {
                     "role": "user",
-                    "content": f"""You are an expert trading coach. Analyze this trader's performance and provide specific, actionable insights.
+                    "content": f"""You are an expert trading coach. Analyze this trader's performance and answer their question with a detailed, thorough response.
 
 {summary_text}
 
-Provide:
-1. Key strengths in their trading
-2. Main areas for improvement
-3. Specific next steps (top 3 actionable tips)
-4. Overall assessment
-
-Be concise but thorough. Focus on practical advice."""
+Write a detailed analysis in paragraph form. Cover strengths, weaknesses, patterns, and areas for improvement. Go deep into the data — discuss win rates per instrument, risk/reward dynamics, consistency, and psychological factors. Give a comprehensive multi-paragraph answer, not a short summary or bullet-point list. Minimum 4 paragraphs."""
                 }
             ]
         )
