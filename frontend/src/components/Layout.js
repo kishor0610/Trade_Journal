@@ -6,15 +6,13 @@ import {
   LayoutDashboard, 
   BookOpen, 
   BarChart3, 
-  Sparkles, 
+  Sparkles,
   LogOut, 
-  TrendingUp,
   User,
   Wallet,
   Bot,
   Copy
 } from 'lucide-react';
-import { Button } from '../components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '../components/ui/dropdown-menu';
 import { Toaster } from '../components/ui/sonner';
 

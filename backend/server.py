@@ -20,6 +20,7 @@ import secrets
 import resend
 import httpx
 from collections import defaultdict
+from groq import Groq
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -53,6 +54,12 @@ FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
 # Initialize Resend
 if RESEND_API_KEY:
     resend.api_key = RESEND_API_KEY
+
+# Initialize Groq
+GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')
+groq_client = None
+if GROQ_API_KEY:
+    groq_client = Groq(api_key=GROQ_API_KEY)
 
 # Create the main app
 app = FastAPI(title="TradeLedger API", version="2.0.0")
@@ -173,10 +180,6 @@ class TradeResponse(BaseModel):
     mt5_account_id: Optional[str] = None
     created_at: str
 
-class AIInsightRequest(BaseModel):
-    question: Optional[str] = None
-
-
 class CandleResponse(BaseModel):
     time: int
     open: float
@@ -186,224 +189,9 @@ class CandleResponse(BaseModel):
     volume: float
 
 
-def compute_trade_insight_metrics(closed_trades: List[dict]) -> Dict[str, Any]:
-    total_trades = len(closed_trades)
-    total_pnl = sum((t.get('pnl', 0) or 0) for t in closed_trades)
+class AIInsightRequest(BaseModel):
+    question: Optional[str] = None
 
-    wins = [t for t in closed_trades if (t.get('pnl') or 0) > 0]
-    losses = [t for t in closed_trades if (t.get('pnl') or 0) < 0]
-    winning = len(wins)
-    losing = len(losses)
-    win_rate = (winning / total_trades * 100) if total_trades else 0.0
-
-    avg_win = (sum((t.get('pnl') or 0) for t in wins) / winning) if winning else 0.0
-    avg_loss_abs = (abs(sum((t.get('pnl') or 0) for t in losses)) / losing) if losing else 0.0
-    gross_profit = sum((t.get('pnl') or 0) for t in wins)
-    gross_loss_abs = abs(sum((t.get('pnl') or 0) for t in losses))
-    profit_factor = (gross_profit / gross_loss_abs) if gross_loss_abs else (float('inf') if gross_profit > 0 else 0.0)
-    expectancy = (total_pnl / total_trades) if total_trades else 0.0
-
-    instrument_stats: Dict[str, Dict[str, Any]] = defaultdict(lambda: {
-        "instrument": "",
-        "trades": 0,
-        "wins": 0,
-        "pnl": 0.0,
-        "avg_pnl": 0.0,
-        "win_rate": 0.0,
-    })
-    for t in closed_trades:
-        inst = t.get('instrument', 'Unknown') or 'Unknown'
-        pnl = t.get('pnl') or 0.0
-        stat = instrument_stats[inst]
-        stat["instrument"] = inst
-        stat["trades"] += 1
-        stat["pnl"] += pnl
-        if pnl > 0:
-            stat["wins"] += 1
-
-    for stat in instrument_stats.values():
-        trades_count = stat["trades"]
-        stat["avg_pnl"] = stat["pnl"] / trades_count if trades_count else 0.0
-        stat["win_rate"] = (stat["wins"] / trades_count * 100) if trades_count else 0.0
-
-    ranked_instruments = sorted(
-        instrument_stats.values(),
-        key=lambda x: (x["pnl"], x["avg_pnl"]),
-        reverse=True,
-    )
-
-    recent_slice = closed_trades[:10]
-    previous_slice = closed_trades[10:20]
-    recent_pnl = sum((t.get('pnl', 0) or 0) for t in recent_slice)
-    previous_pnl = sum((t.get('pnl', 0) or 0) for t in previous_slice)
-
-    return {
-        "total_trades": total_trades,
-        "total_pnl": round(total_pnl, 2),
-        "winning": winning,
-        "losing": losing,
-        "win_rate": round(win_rate, 2),
-        "avg_win": round(avg_win, 2),
-        "avg_loss": round(avg_loss_abs, 2),
-        "profit_factor": round(profit_factor, 2) if profit_factor != float('inf') else "inf",
-        "expectancy": round(expectancy, 2),
-        "best_trade": round(max([(t.get('pnl') or 0) for t in closed_trades], default=0), 2),
-        "worst_trade": round(min([(t.get('pnl') or 0) for t in closed_trades], default=0), 2),
-        "recent_10_pnl": round(recent_pnl, 2),
-        "previous_10_pnl": round(previous_pnl, 2),
-        "instrument_stats": ranked_instruments,
-    }
-
-
-def build_rule_based_insight(metrics: Dict[str, Any], user_question: str) -> str:
-    question = (user_question or "").strip()
-    total_trades = metrics["total_trades"]
-    total_pnl = metrics["total_pnl"]
-    win_rate = metrics["win_rate"]
-    expectancy = metrics["expectancy"]
-    profit_factor = metrics["profit_factor"]
-    recent_10_pnl = metrics["recent_10_pnl"]
-    previous_10_pnl = metrics["previous_10_pnl"]
-    instrument_stats = metrics["instrument_stats"]
-
-    if total_trades == 0:
-        return (
-            "Snapshot: No closed trades yet, so there is not enough data for a reliable performance diagnosis.\n"
-            "What is working:\n"
-            "- You are logging trades consistently, which is the foundation for improvement.\n"
-            "What is hurting performance:\n"
-            "- There is no closed trade history to validate your edge or sizing decisions.\n"
-            "Next 5-trade plan:\n"
-            "- Record the full setup, entry trigger, stop, and exit reason for each trade.\n"
-            "- Use the same risk percentage for every trade and avoid overleveraging.\n"
-            "- Review each closed trade within 24 hours and note whether you followed your plan.\n"
-            f"User focus: {question or 'Build process before chasing performance.'}"
-        )
-
-    top_instrument = instrument_stats[0] if instrument_stats else None
-    weak_instrument = instrument_stats[-1] if len(instrument_stats) > 1 else None
-    recent_trend = None
-    if recent_10_pnl > previous_10_pnl:
-        recent_trend = "improved"
-    elif recent_10_pnl < previous_10_pnl:
-        recent_trend = "weakened"
-
-    snapshot_lines = [
-        f"{total_trades} closed trades, total P&L ${total_pnl:.2f}, win rate {win_rate:.1f}%.",
-        f"Expectancy ${expectancy:.2f} per trade, profit factor {profit_factor}."
-    ]
-    if recent_trend:
-        snapshot_lines.append(f"Recent 10-trade performance has {recent_trend} compared to the prior 10 trades.")
-
-    strengths = []
-    risks = []
-    actions = []
-
-    if total_pnl > 0:
-        strengths.append("Positive net P&L shows your current process has the potential to be profitable.")
-    if win_rate >= 55:
-        strengths.append("A win rate above 55% suggests that your entry selection often identifies valid setups.")
-    if isinstance(profit_factor, (int, float)) and profit_factor >= 1.2:
-        strengths.append("Profit factor above 1.2 means winners are outperforming losers, which is a good sign.")
-    if top_instrument and top_instrument["trades"] >= 3 and top_instrument["pnl"] > 0:
-        strengths.append(
-            f"Your strongest instrument is {top_instrument['instrument']} with ${top_instrument['pnl']:.2f} across {top_instrument['trades']} trades."
-        )
-
-    if total_pnl < 0:
-        risks.append("Negative net P&L indicates your trade management or instrument selection needs review.")
-    if win_rate < 50:
-        risks.append("A win rate below 50% usually means entries are too loose or the setup is not selective enough.")
-    if isinstance(profit_factor, (int, float)) and profit_factor < 1.0:
-        risks.append("Profit factor below 1.0 means losses are larger than wins, so focus on improving risk/reward.")
-    if weak_instrument and weak_instrument["trades"] >= 3 and weak_instrument["pnl"] < 0:
-        risks.append(
-            f"The weakest instrument is {weak_instrument['instrument']} with ${weak_instrument['pnl']:.2f}; consider reducing exposure to it."
-        )
-    if recent_trend == "weakened":
-        risks.append("Recent performance weakening suggests the last trades were less disciplined or the market context changed.")
-    if expectancy < 0:
-        risks.append(f"Negative expectancy (${expectancy:.2f}) means the system is losing money on average."
-        )
-
-    if total_trades < 15:
-        actions.append("Trade only one setup type for the next 5 closed trades to build consistency.")
-        actions.append("Keep risk small and fixed so one losing streak cannot derail your account.")
-        actions.append("Record the reason for every trade and review whether each trade followed your rules.")
-    else:
-        if total_pnl < 0:
-            actions.append("Reduce position size until a clear, repeatable edge is visible.")
-            actions.append("Stop trading instruments with sustained negative performance until you can isolate the cause.")
-            actions.append("Review the last 10 trades and identify whether entries, exits, or sizing caused the losses.")
-        else:
-            actions.append("Keep risk fixed and trade only your strongest setups for the next 5 trades.")
-            actions.append("Review every loser and identify one entry or exit change before the next trade.")
-            actions.append("Track R-multiple per trade and compare it to your documented edge.")
-
-    if "win rate" in question.lower() or "winrate" in question.lower() or "loss" in question.lower():
-        actions.insert(0, "Review whether your entry rules are selective enough and avoid trades that do not meet every criterion.")
-    elif "risk" in question.lower() or "position" in question.lower() or "size" in question.lower():
-        actions.insert(0, "Confirm your risk per trade is consistent and does not increase after a loss or winning streak.")
-    elif "exit" in question.lower() or "profit" in question.lower() or "target" in question.lower():
-        actions.insert(0, "Use a clear exit plan and avoid moving stops to chase profits.")
-    elif "instrument" in question.lower() or "market" in question.lower():
-        if top_instrument:
-            actions.insert(0, f"Favor {top_instrument['instrument']} for the next few trades and avoid the weakest instrument(s).")
-        else:
-            actions.insert(0, "Review instrument performance and focus on the markets where you have the most edge.")
-
-    if not strengths:
-        strengths.append("Your trade history is usable for structured review and process improvement.")
-    if not risks:
-        risks.append("No immediate fatal flaws found, but there is still room to improve consistency.")
-
-    if len(strengths) > 3:
-        strengths = strengths[:3]
-    if len(risks) > 3:
-        risks = risks[:3]
-    if len(actions) > 4:
-        actions = actions[:4]
-
-    return (
-        f"Snapshot: {' '.join(snapshot_lines)}\n"
-        "What is working:\n"
-        f"- {strengths[0]}\n"
-        f"- {strengths[1] if len(strengths) > 1 else strengths[0]}\n"
-        "What is hurting performance:\n"
-        f"- {risks[0]}\n"
-        f"- {risks[1] if len(risks) > 1 else risks[0]}\n"
-        "Next 5-trade plan:\n"
-        f"- {actions[0]}\n"
-        f"- {actions[1]}\n"
-        f"- {actions[2]}\n"
-        f"User focus: {question or 'Use these insights to improve your trading discipline.'}"
-    )
-
-
-def compute_insight_freshness(total_closed_trades: int) -> Dict[str, Any]:
-    if total_closed_trades >= 100:
-        return {
-            "level": "high",
-            "score": 100,
-            "label": "High confidence",
-            "message": "Insight confidence is high because you have a deep closed-trade sample.",
-        }
-    if total_closed_trades >= 40:
-        return {
-            "level": "medium",
-            "score": 70,
-            "label": "Medium confidence",
-            "message": "Insights are useful, but confidence improves with more closed trades.",
-        }
-    return {
-        "level": "low",
-        "score": 40,
-        "label": "Low confidence",
-        "message": "Data is still thin. Aim for at least 40 closed trades for more reliable guidance.",
-    }
-
-
-# ============ AUTH HELPERS ============
 
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
@@ -1868,32 +1656,143 @@ async def market_live_candles_ws(
 
 @api_router.post("/ai/insights")
 async def get_ai_insights(request: AIInsightRequest, current_user: dict = Depends(get_current_user)):
-    trades = await db.trades.find({"user_id": current_user['id']}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    """Get AI-powered trading insights using Groq."""
+    if not groq_client:
+        raise HTTPException(status_code=503, detail="AI service is not configured")
     
-    closed_trades = [calculate_pnl(t) for t in trades if t['status'] == 'closed']
-    metrics = compute_trade_insight_metrics(closed_trades)
-    freshness = compute_insight_freshness(metrics["total_trades"])
+    try:
+        # Fetch user's closed trades
+        trades = await db.trades.find(
+            {"user_id": current_user['id']}, 
+            {"_id": 0}
+        ).sort("created_at", -1).to_list(100)
+        
+        if not trades:
+            return {
+                "insight": "No trades found. Start logging your trades to get AI-powered insights.",
+                "summary": {
+                    "total_trades": 0,
+                    "total_pnl": 0,
+                    "win_rate": 0,
+                    "profit_factor": 0,
+                    "expectancy": 0,
+                }
+            }
+        
+        # Calculate closed trades and metrics
+        closed_trades = [calculate_pnl(t) for t in trades if t['status'] == 'closed']
+        
+        if not closed_trades:
+            return {
+                "insight": "You only have open trades. Close some trades first to get meaningful insights.",
+                "summary": {
+                    "total_trades": 0,
+                    "total_pnl": 0,
+                    "win_rate": 0,
+                    "profit_factor": 0,
+                    "expectancy": 0,
+                }
+            }
+        
+        # Build trading summary
+        total_trades = len(closed_trades)
+        total_pnl = sum((t.get('pnl', 0) or 0) for t in closed_trades)
+        
+        wins = [t for t in closed_trades if (t.get('pnl') or 0) > 0]
+        losses = [t for t in closed_trades if (t.get('pnl') or 0) < 0]
+        winning = len(wins)
+        losing = len(losses)
+        win_rate = (winning / total_trades * 100) if total_trades else 0.0
+        
+        avg_win = (sum((t.get('pnl') or 0) for t in wins) / winning) if winning else 0.0
+        avg_loss = (abs(sum((t.get('pnl') or 0) for t in losses)) / losing) if losing else 0.0
+        
+        gross_profit = sum((t.get('pnl') or 0) for t in wins)
+        gross_loss = abs(sum((t.get('pnl') or 0) for t in losses))
+        profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else (999 if gross_profit > 0 else 0)
+        
+        expectancy = (total_pnl / total_trades) if total_trades else 0.0
+        
+        # Get top/worst instruments
+        instrument_stats = {}
+        for t in closed_trades:
+            inst = t.get('instrument', 'Unknown') or 'Unknown'
+            if inst not in instrument_stats:
+                instrument_stats[inst] = {"trades": 0, "pnl": 0.0, "wins": 0}
+            instrument_stats[inst]["trades"] += 1
+            instrument_stats[inst]["pnl"] += t.get('pnl') or 0
+            if (t.get('pnl') or 0) > 0:
+                instrument_stats[inst]["wins"] += 1
+        
+        sorted_instruments = sorted(
+            instrument_stats.items(),
+            key=lambda x: x[1]["pnl"],
+            reverse=True
+        )
+        
+        # Build prompt for Groq
+        user_question = request.question or "Analyze my trading performance and provide insights on how I can improve."
+        
+        summary_text = f"""
+Trading Performance Summary:
+- Total closed trades: {total_trades}
+- Total P&L: ${total_pnl:.2f}
+- Win rate: {win_rate:.1f}%
+- Average winning trade: ${avg_win:.2f}
+- Average losing trade: ${avg_loss:.2f}
+- Profit factor: {profit_factor:.2f}
+- Expectancy per trade: ${expectancy:.2f}
+- Best trade: ${max([t.get('pnl', 0) or 0 for t in closed_trades], default=0):.2f}
+- Worst trade: ${min([t.get('pnl', 0) or 0 for t in closed_trades], default=0):.2f}
 
-    user_question = request.question or "Analyze my trading performance and provide insights on how I can improve."
-    insight = build_rule_based_insight(metrics, user_question)
+Top instruments by P&L:
+{chr(10).join([f"  {inst}: ${stats['pnl']:.2f} ({stats['wins']}/{stats['trades']} wins)" for inst, stats in sorted_instruments[:3]])}
 
-    return {
-        "insight": insight,
-        "summary": {
-            "total_trades": metrics["total_trades"],
-            "total_pnl": metrics["total_pnl"],
-            "win_rate": metrics["win_rate"],
-            "profit_factor": metrics["profit_factor"],
-            "expectancy": metrics["expectancy"],
-            "freshness": freshness,
-        },
-        "source": "rule_based",
-        "meta": {
-            "reason": "rule_based_insight",
-            "model_used": None,
-            "models_tried": [],
+Recent 10 trades P&L: ${sum(t.get('pnl', 0) or 0 for t in closed_trades[:10]):.2f}
+
+User question: {user_question}
+"""
+        
+        # Call Groq API
+        message = groq_client.messages.create(
+            model="mixtral-8x7b-32768",
+            max_tokens=1024,
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"""You are an expert trading coach. Analyze this trader's performance and provide specific, actionable insights.
+
+{summary_text}
+
+Provide:
+1. Key strengths in their trading
+2. Main areas for improvement
+3. Specific next steps (top 3 actionable tips)
+4. Overall assessment
+
+Be concise but thorough. Focus on practical advice."""
+                }
+            ]
+        )
+        
+        insight_text = message.content[0].text
+        
+        return {
+            "insight": insight_text,
+            "summary": {
+                "total_trades": total_trades,
+                "total_pnl": round(total_pnl, 2),
+                "win_rate": round(win_rate, 2),
+                "profit_factor": round(profit_factor, 2),
+                "expectancy": round(expectancy, 2),
+            },
+            "source": "groq"
         }
-    }
+        
+    except Exception as e:
+        logging.error(f"AI insights error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate insights: {str(e)}")
+
 
 # ============ IMPORT ROUTES ============
 
