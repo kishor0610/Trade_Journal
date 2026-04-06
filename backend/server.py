@@ -62,7 +62,7 @@ if GROQ_API_KEY:
     groq_client = Groq(api_key=GROQ_API_KEY)
 
 # Create the main app
-app = FastAPI(title="TradeLedger API", version="2.0.0")
+app = FastAPI(title="TradeLedger API", version="2.1.0")
 
 # Create routers
 api_router = APIRouter(prefix="/api")
