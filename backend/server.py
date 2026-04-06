@@ -779,6 +779,35 @@ async def export_all_trades_csv(admin: dict = Depends(get_admin_user)):
 
 # ============ MT5 ACCOUNT ROUTES ============
 
+@api_router.post("/mt5/metaapi-token")
+async def save_metaapi_token(current_user: dict = Depends(get_current_user), body: dict = {}):
+    """Save MetaApi API token for the user"""
+    token = body.get('token', '').strip()
+    if not token:
+        raise HTTPException(status_code=400, detail="Token is required")
+    await db.user_settings.update_one(
+        {"user_id": current_user['id']},
+        {"$set": {"user_id": current_user['id'], "metaapi_token": token, "updated_at": datetime.now(timezone.utc).isoformat()}},
+        upsert=True
+    )
+    return {"message": "MetaApi token saved successfully"}
+
+@api_router.get("/mt5/metaapi-token")
+async def get_metaapi_token(current_user: dict = Depends(get_current_user)):
+    """Check if user has a MetaApi token saved"""
+    settings = await db.user_settings.find_one({"user_id": current_user['id']}, {"_id": 0})
+    has_token = bool(settings and settings.get('metaapi_token'))
+    return {"has_token": has_token}
+
+@api_router.delete("/mt5/metaapi-token")
+async def delete_metaapi_token(current_user: dict = Depends(get_current_user)):
+    """Remove saved MetaApi token"""
+    await db.user_settings.update_one(
+        {"user_id": current_user['id']},
+        {"$unset": {"metaapi_token": ""}}
+    )
+    return {"message": "MetaApi token removed"}
+
 @api_router.post("/mt5/accounts", response_model=MT5AccountResponse)
 async def add_mt5_account(account_data: MT5AccountCreate, current_user: dict = Depends(get_current_user)):
     account_id = str(uuid.uuid4())
@@ -792,6 +821,7 @@ async def add_mt5_account(account_data: MT5AccountCreate, current_user: dict = D
         "password": account_data.password,
         "server": account_data.server,
         "platform": account_data.platform,
+        "metaapi_account_id": account_data.metaapi_account_id or None,
         "is_connected": False,
         "last_sync": None,
         "balance": None,
@@ -835,14 +865,18 @@ async def sync_mt5_account(account_id: str, current_user: dict = Depends(get_cur
     now = datetime.now(timezone.utc).isoformat()
     metaapi_id = account.get('metaapi_account_id')
     
-    if not METAAPI_TOKEN:
-        raise HTTPException(status_code=503, detail="MetaApi token not configured. Set METAAPI_TOKEN in backend environment.")
+    # Get MetaApi token: user's saved token first, then env var fallback
+    user_settings = await db.user_settings.find_one({"user_id": current_user['id']}, {"_id": 0})
+    metaapi_token = (user_settings or {}).get('metaapi_token') or METAAPI_TOKEN
+    
+    if not metaapi_token:
+        raise HTTPException(status_code=503, detail="MetaApi token not configured. Go to Accounts page and add your MetaApi API Token.")
     
     if not metaapi_id:
         raise HTTPException(status_code=400, detail="MetaApi Account ID is not set for this account. Edit the account and add your MetaApi Account ID.")
     
     try:
-        headers = {"auth-token": METAAPI_TOKEN}
+        headers = {"auth-token": metaapi_token}
         
         async with httpx.AsyncClient(timeout=60) as http:
             # Step 1: Get account info from MetaApi provisioning API

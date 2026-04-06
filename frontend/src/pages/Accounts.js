@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
-import { Plus, Trash2, RefreshCw, Link2, Unlink, Settings, Server } from 'lucide-react';
+import { Plus, Trash2, RefreshCw, Link2, Unlink, Server, Key, Check, Eye, EyeOff } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -124,10 +124,52 @@ export default function Accounts() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [syncing, setSyncing] = useState({});
+  const [hasToken, setHasToken] = useState(false);
+  const [tokenInput, setTokenInput] = useState('');
+  const [savingToken, setSavingToken] = useState(false);
+  const [showToken, setShowToken] = useState(false);
 
   useEffect(() => {
     fetchAccounts();
+    checkToken();
   }, []);
+
+  const checkToken = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/mt5/metaapi-token`);
+      setHasToken(res.data.has_token);
+    } catch { }
+  };
+
+  const handleSaveToken = async () => {
+    if (!tokenInput.trim()) {
+      toast.error('Please enter your MetaApi API token');
+      return;
+    }
+    setSavingToken(true);
+    try {
+      await axios.post(`${API_URL}/mt5/metaapi-token`, { token: tokenInput.trim() });
+      toast.success('MetaApi token saved!');
+      setHasToken(true);
+      setTokenInput('');
+      setShowToken(false);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to save token');
+    } finally {
+      setSavingToken(false);
+    }
+  };
+
+  const handleRemoveToken = async () => {
+    if (!window.confirm('Remove your MetaApi token? Sync will stop working.')) return;
+    try {
+      await axios.delete(`${API_URL}/mt5/metaapi-token`);
+      toast.success('Token removed');
+      setHasToken(false);
+    } catch {
+      toast.error('Failed to remove token');
+    }
+  };
 
   const fetchAccounts = async () => {
     try {
@@ -224,10 +266,67 @@ export default function Accounts() {
           <div>
             <h4 className="font-medium mb-1">MetaApi Integration</h4>
             <p className="text-sm text-muted-foreground">
-              Connect your MT5 accounts via MetaApi cloud service to automatically sync trades. 
-              Use your investor (read-only) password for security. Configure the METAAPI_TOKEN 
-              in backend settings to enable live syncing.
+              Connect your MT5 accounts to automatically sync trades. First add your MetaApi API token below, 
+              then add your account with the MetaApi Account ID. Click sync to import all your trades.
             </p>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* MetaApi Token Setup */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className={`glass-card p-5 border ${hasToken ? 'border-emerald-500/30' : 'border-amber-500/30'}`}
+      >
+        <div className="flex items-start gap-3">
+          <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${hasToken ? 'bg-emerald-500/20' : 'bg-amber-500/20'}`}>
+            <Key className={`w-5 h-5 ${hasToken ? 'text-emerald-400' : 'text-amber-400'}`} />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <h4 className="font-medium">MetaApi API Token</h4>
+              {hasToken && <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full flex items-center gap-1"><Check className="w-3 h-3" /> Configured</span>}
+            </div>
+            {hasToken ? (
+              <div className="flex items-center gap-2 mt-2">
+                <p className="text-sm text-muted-foreground">Your MetaApi token is saved and active.</p>
+                <Button variant="ghost" size="sm" className="text-red-400 hover:text-red-300 text-xs" onClick={handleRemoveToken}>
+                  Remove
+                </Button>
+              </div>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Enter your MetaApi API token to enable MT5 trade syncing. Get it from{' '}
+                  <a href="https://app.metaapi.cloud/api-access/generate-token" target="_blank" rel="noreferrer" className="text-accent hover:underline">
+                    MetaApi Dashboard → API Access
+                  </a>
+                </p>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Input
+                      type={showToken ? 'text' : 'password'}
+                      value={tokenInput}
+                      onChange={(e) => setTokenInput(e.target.value)}
+                      className="bg-secondary border-white/10 font-mono text-xs pr-10"
+                      placeholder="Paste your MetaApi API token (eyJhbGci...)"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowToken(v => !v)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-white"
+                    >
+                      {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <Button onClick={handleSaveToken} disabled={savingToken} className="bg-accent text-black hover:bg-accent/80">
+                    {savingToken ? 'Saving...' : 'Save Token'}
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </motion.div>
