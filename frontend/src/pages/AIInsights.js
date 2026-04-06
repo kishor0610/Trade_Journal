@@ -8,6 +8,82 @@ import { formatCurrency } from '../lib/utils';
 
 const API_URL = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
+// Format AI text with highlighted values
+const FormatInsightText = ({ text }) => {
+  if (!text) return null;
+  
+  const paragraphs = text.split('\n\n').filter(p => p.trim());
+  
+  return paragraphs.map((paragraph, pIdx) => {
+    // Check if it's a heading-like line (starts with ** or ##)
+    const trimmed = paragraph.trim();
+    if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
+      return (
+        <h4 key={pIdx} className="text-white font-bold text-lg mt-4 mb-2">
+          {trimmed.replace(/\*\*/g, '')}
+        </h4>
+      );
+    }
+
+    // Split paragraph into lines for bullet points
+    const lines = paragraph.split('\n');
+    
+    return (
+      <div key={pIdx} className="mb-4">
+        {lines.map((line, lIdx) => {
+          const isBullet = line.trim().startsWith('-') || line.trim().startsWith('•') || /^\d+[\.\)]/.test(line.trim());
+          
+          // Highlight values in the line
+          const highlighted = line
+            // Bold text **...**
+            .split(/(\*\*[^*]+\*\*)/)
+            .map((segment, i) => {
+              if (segment.startsWith('**') && segment.endsWith('**')) {
+                return <span key={i} className="text-white font-semibold">{segment.replace(/\*\*/g, '')}</span>;
+              }
+              // Further split for values
+              return segment
+                .split(/(\$[\-]?[\d,]+\.?\d*|[\-]?\d+\.?\d*%|\d+\/\d+|\b(?:XAU\/USD|XAG\/USD|EUR\/USD|GBP\/USD|USD\/JPY|BTC\/USD|ETH\/USD|NAS100|US30)\b)/g)
+                .map((part, j) => {
+                  // Dollar amounts
+                  if (/^\$[\-]?[\d,]+\.?\d*$/.test(part)) {
+                    const isNegative = part.includes('-');
+                    return <span key={`${i}-${j}`} className={`font-mono font-bold ${isNegative ? 'text-red-400' : 'text-emerald-400'}`}>{part}</span>;
+                  }
+                  // Percentages
+                  if (/^[\-]?\d+\.?\d*%$/.test(part)) {
+                    const val = parseFloat(part);
+                    const color = val >= 70 ? 'text-emerald-400' : val >= 50 ? 'text-amber-400' : 'text-red-400';
+                    return <span key={`${i}-${j}`} className={`font-mono font-bold ${color}`}>{part}</span>;
+                  }
+                  // Win/Loss ratios like 5/10
+                  if (/^\d+\/\d+$/.test(part)) {
+                    return <span key={`${i}-${j}`} className="font-mono font-bold text-blue-400">{part}</span>;
+                  }
+                  // Instrument names
+                  if (/^(XAU\/USD|XAG\/USD|EUR\/USD|GBP\/USD|USD\/JPY|BTC\/USD|ETH\/USD|NAS100|US30)$/.test(part)) {
+                    return <span key={`${i}-${j}`} className="font-semibold text-accent">{part}</span>;
+                  }
+                  return part;
+                });
+            });
+          
+          if (isBullet) {
+            return (
+              <div key={lIdx} className="flex gap-2 ml-2 mb-1.5">
+                <span className="text-accent mt-0.5">•</span>
+                <span className="text-gray-300 leading-relaxed">{highlighted}</span>
+              </div>
+            );
+          }
+          
+          return <p key={lIdx} className="text-gray-300 leading-relaxed">{highlighted}</p>;
+        })}
+      </div>
+    );
+  });
+};
+
 const SuggestedQuestion = ({ question, onClick }) => (
   <button
     onClick={() => onClick(question)}
@@ -183,9 +259,7 @@ export default function AIInsights() {
               <h3 className="text-lg font-heading font-bold">AI Analysis</h3>
             </div>
             <div className="prose prose-invert max-w-none">
-              <div className="whitespace-pre-wrap text-muted-foreground leading-relaxed">
-                {insight?.insight}
-              </div>
+              <FormatInsightText text={insight?.insight} />
             </div>
           </motion.div>
         </motion.div>
