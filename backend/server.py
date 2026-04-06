@@ -1754,8 +1754,8 @@ User question: {user_question}
 """
         
         # Call Groq API
-        message = groq_client.messages.create(
-            model="mixtral-8x7b-32768",
+        message = groq_client.chat.completions.create(
+              model="llama-3.3-70b-versatile",
             max_tokens=1024,
             messages=[
                 {
@@ -1775,7 +1775,7 @@ Be concise but thorough. Focus on practical advice."""
             ]
         )
         
-        insight_text = message.content[0].text
+        insight_text = message.choices[0].message.content
         
         return {
             "insight": insight_text,
