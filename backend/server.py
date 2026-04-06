@@ -109,9 +109,10 @@ class ResetPasswordRequest(BaseModel):
 class MT5AccountCreate(BaseModel):
     name: str
     login: str
-    password: str
+    password: str = ""
     server: str
     platform: str = "mt5"
+    metaapi_account_id: Optional[str] = None
 
 class MT5AccountResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -121,6 +122,7 @@ class MT5AccountResponse(BaseModel):
     login: str
     server: str
     platform: str
+    metaapi_account_id: Optional[str] = None
     is_connected: bool = False
     last_sync: Optional[str] = None
     balance: Optional[float] = None
@@ -822,7 +824,7 @@ async def delete_mt5_account(account_id: str, current_user: dict = Depends(get_c
 
 @api_router.post("/mt5/accounts/{account_id}/sync")
 async def sync_mt5_account(account_id: str, current_user: dict = Depends(get_current_user)):
-    """Sync trades from MT5 account via MetaApi"""
+    """Sync trades from MT5 account via MetaApi REST API"""
     account = await db.mt5_accounts.find_one(
         {"id": account_id, "user_id": current_user['id']},
         {"_id": 0}
@@ -831,51 +833,175 @@ async def sync_mt5_account(account_id: str, current_user: dict = Depends(get_cur
         raise HTTPException(status_code=404, detail="Account not found")
     
     now = datetime.now(timezone.utc).isoformat()
+    metaapi_id = account.get('metaapi_account_id')
     
-    # Check if MetaApi is configured
     if not METAAPI_TOKEN:
-        await db.mt5_accounts.update_one(
-            {"id": account_id},
-            {"$set": {"last_sync": now}}
-        )
-        return {
-            "message": "MetaApi not configured",
-            "account_id": account_id,
-            "last_sync": now,
-            "note": "To enable live MT5 sync, add your MetaApi token to the backend configuration. Get a free token at https://metaapi.cloud"
-        }
+        raise HTTPException(status_code=503, detail="MetaApi token not configured. Set METAAPI_TOKEN in backend environment.")
     
-    # MetaApi sync logic would go here
-    # For now, update the sync time and return info
+    if not metaapi_id:
+        raise HTTPException(status_code=400, detail="MetaApi Account ID is not set for this account. Edit the account and add your MetaApi Account ID.")
+    
     try:
-        from metaapi_cloud_sdk import MetaApi
+        headers = {"auth-token": METAAPI_TOKEN}
         
-        meta_api = MetaApi(METAAPI_TOKEN)
+        async with httpx.AsyncClient(timeout=60) as http:
+            # Step 1: Get account info from MetaApi provisioning API
+            prov_url = f"https://mt-provisioning-api-v1.agiliumtrade.agiliumtrade.ai/users/current/accounts/{metaapi_id}"
+            acc_resp = await http.get(prov_url, headers=headers)
+            if acc_resp.status_code == 404:
+                raise HTTPException(status_code=400, detail="MetaApi Account ID not found. Check the ID in your MetaApi dashboard.")
+            acc_resp.raise_for_status()
+            acc_info = acc_resp.json()
+            
+            region = acc_info.get('region', 'vint-hill')
+            acc_state = acc_info.get('state', 'UNDEPLOYED')
+            
+            # Step 2: Deploy account if needed
+            if acc_state == 'UNDEPLOYED':
+                deploy_resp = await http.post(f"{prov_url}/deploy", headers=headers)
+                deploy_resp.raise_for_status()
+                # Wait briefly for deployment
+                for _ in range(10):
+                    await asyncio.sleep(3)
+                    check = await http.get(prov_url, headers=headers)
+                    check_data = check.json()
+                    if check_data.get('connectionStatus') == 'CONNECTED':
+                        break
+            
+            # Step 3: Fetch history deals from MetaApi client API
+            start_time = (datetime.now(timezone.utc) - timedelta(days=730)).strftime('%Y-%m-%dT%H:%M:%S.000Z')
+            end_time = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.000Z')
+            
+            client_base = f"https://mt-client-api-v1.{region}.agiliumtrade.agiliumtrade.ai"
+            deals_url = f"{client_base}/users/current/accounts/{metaapi_id}/history-deals/time/{start_time}/{end_time}"
+            
+            deals_resp = await http.get(deals_url, headers=headers)
+            deals_resp.raise_for_status()
+            deals = deals_resp.json()
         
-        # This is a simplified flow - full implementation would:
-        # 1. Create/get MetaApi account linked to user's MT5
-        # 2. Deploy the account
-        # 3. Fetch history deals/orders
-        # 4. Import them as trades
+        if not deals:
+            await db.mt5_accounts.update_one(
+                {"id": account_id},
+                {"$set": {"last_sync": now, "is_connected": True}}
+            )
+            return {"message": "No deals found in MetaApi history.", "new_trades": 0, "total_deals": 0}
+        
+        # Step 4: Group deals by positionId to reconstruct trades
+        positions = {}
+        for deal in deals:
+            pos_id = deal.get('positionId')
+            if not pos_id:
+                continue
+            entry_type = deal.get('entryType', '')
+            if pos_id not in positions:
+                positions[pos_id] = {'entries': [], 'exits': []}
+            if entry_type == 'DEAL_ENTRY_IN':
+                positions[pos_id]['entries'].append(deal)
+            elif entry_type == 'DEAL_ENTRY_OUT':
+                positions[pos_id]['exits'].append(deal)
+        
+        # Step 5: Build trade documents
+        trades_to_import = []
+        for pos_id, pos_deals in positions.items():
+            if not pos_deals['entries']:
+                continue
+            
+            entry = pos_deals['entries'][0]
+            exit_deal = pos_deals['exits'][0] if pos_deals['exits'] else None
+            
+            raw_symbol = entry.get('symbol', '')
+            normalized_symbol = normalize_symbol(raw_symbol)
+            
+            deal_type = entry.get('type', '')
+            direction = 'buy' if 'BUY' in deal_type else 'sell'
+            
+            total_commission = sum(d.get('commission', 0) or 0 for d in pos_deals['entries'] + pos_deals['exits'])
+            total_swap = sum(d.get('swap', 0) or 0 for d in pos_deals['entries'] + pos_deals['exits'])
+            raw_profit = (exit_deal.get('profit', 0) or 0) if exit_deal else None
+            
+            # Total PnL = profit + commission + swap
+            pnl = None
+            if raw_profit is not None:
+                pnl = round(raw_profit + total_commission + total_swap, 2)
+            
+            entry_time = entry.get('time', '')
+            exit_time = exit_deal.get('time', '') if exit_deal else None
+            
+            trade = {
+                "id": str(uuid.uuid4()),
+                "user_id": current_user['id'],
+                "instrument": normalized_symbol,
+                "position": direction,
+                "entry_price": entry.get('price', 0),
+                "exit_price": exit_deal.get('price') if exit_deal else None,
+                "quantity": entry.get('volume', 0),
+                "entry_date": entry_time,
+                "exit_date": exit_time,
+                "stop_loss": None,
+                "take_profit": None,
+                "status": "closed" if exit_deal else "open",
+                "pnl": pnl,
+                "commission": round(total_commission, 2),
+                "swap": round(total_swap, 2),
+                "notes": f"Auto-synced from MT5 (ticket: {pos_id})",
+                "mt5_ticket": str(pos_id),
+                "mt5_account_id": account_id,
+                "created_at": now,
+                "updated_at": now,
+            }
+            trades_to_import.append(trade)
+        
+        # Step 6: Deduplicate — skip trades whose mt5_ticket already exists
+        existing = await db.trades.find(
+            {"user_id": current_user['id'], "mt5_ticket": {"$ne": None}},
+            {"mt5_ticket": 1}
+        ).to_list(None)
+        existing_tickets = {t['mt5_ticket'] for t in existing}
+        
+        new_trades = [t for t in trades_to_import if t['mt5_ticket'] not in existing_tickets]
+        
+        # Step 7: Insert new trades
+        if new_trades:
+            await db.trades.insert_many(new_trades)
+        
+        # Step 8: Update account status
+        update_fields = {
+            "is_connected": True,
+            "last_sync": now,
+        }
+        # Try to get balance/equity from account info
+        if 'balance' in acc_info:
+            update_fields['balance'] = acc_info.get('balance')
+        if 'equity' in acc_info:
+            update_fields['equity'] = acc_info.get('equity')
         
         await db.mt5_accounts.update_one(
             {"id": account_id},
-            {"$set": {"last_sync": now, "is_connected": True}}
+            {"$set": update_fields}
         )
         
         return {
-            "message": "Sync initiated",
-            "account_id": account_id,
-            "last_sync": now,
-            "note": "MetaApi integration active. Full sync requires account provisioning."
+            "message": f"Sync completed! {len(new_trades)} new trades imported.",
+            "total_deals": len(deals),
+            "total_positions": len(positions),
+            "new_trades": len(new_trades),
+            "skipped_duplicates": len(trades_to_import) - len(new_trades),
         }
+        
+    except HTTPException:
+        raise
+    except httpx.HTTPStatusError as e:
+        logging.error(f"MetaApi HTTP error: {e.response.status_code} - {e.response.text}")
+        error_detail = "MetaApi API error"
+        try:
+            err_body = e.response.json()
+            error_detail = err_body.get('message', str(e))
+        except Exception:
+            error_detail = e.response.text[:200]
+        raise HTTPException(status_code=502, detail=f"MetaApi error: {error_detail}")
     except Exception as e:
         logging.error(f"MT5 sync error: {str(e)}")
-        return {
-            "message": "Sync failed",
-            "error": str(e),
-            "note": "Check MetaApi configuration and account credentials"
-        }
+        raise HTTPException(status_code=500, detail=f"Sync failed: {str(e)}")
 
 # ============ TRADE ROUTES ============
 

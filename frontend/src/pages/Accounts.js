@@ -18,7 +18,8 @@ const AccountForm = ({ onSubmit, onClose }) => {
     login: '',
     password: '',
     server: '',
-    platform: 'mt5'
+    platform: 'mt5',
+    metaapi_account_id: ''
   });
   const [loading, setLoading] = useState(false);
 
@@ -78,19 +79,6 @@ const AccountForm = ({ onSubmit, onClose }) => {
       </div>
 
       <div className="space-y-2">
-        <Label>Password (Investor/Read-only recommended)</Label>
-        <Input
-          type="password"
-          value={formData.password}
-          onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-          className="bg-secondary border-white/10"
-          placeholder="Enter your MT5 password"
-          required
-          data-testid="account-password-input"
-        />
-      </div>
-
-      <div className="space-y-2">
         <Label>Broker Server</Label>
         <Input
           value={formData.server}
@@ -100,6 +88,23 @@ const AccountForm = ({ onSubmit, onClose }) => {
           required
           data-testid="account-server-input"
         />
+      </div>
+
+      <div className="space-y-2">
+        <Label className="flex items-center gap-2">
+          MetaApi Account ID
+          <span className="text-emerald-400 text-xs font-normal">(Required for sync)</span>
+        </Label>
+        <Input
+          value={formData.metaapi_account_id}
+          onChange={(e) => setFormData({ ...formData, metaapi_account_id: e.target.value })}
+          className="bg-secondary border-white/10 font-mono text-sm"
+          placeholder="e.g., 037d3f7c-7c77-425d-bdcf-6f87292325b7"
+          data-testid="metaapi-account-id-input"
+        />
+        <p className="text-xs text-muted-foreground">
+          Find this in your <a href="https://app.metaapi.cloud/accounts" target="_blank" rel="noreferrer" className="text-accent hover:underline">MetaApi dashboard</a> → Account → Copy the Account ID
+        </p>
       </div>
 
       <div className="flex gap-3 pt-4">
@@ -158,13 +163,23 @@ export default function Accounts() {
     
     try {
       const response = await axios.post(`${API_URL}/mt5/accounts/${accountId}/sync`);
-      toast.success(response.data.message);
-      if (response.data.note) {
-        toast.info(response.data.note);
+      const data = response.data;
+      
+      if (data.new_trades > 0) {
+        toast.success(`${data.new_trades} new trades imported!`);
+      } else if (data.total_deals > 0) {
+        toast.info('All trades already synced. No new trades found.');
+      } else {
+        toast.info(data.message || 'Sync completed');
       }
+      
+      if (data.skipped_duplicates > 0) {
+        toast.info(`${data.skipped_duplicates} duplicate trades skipped`);
+      }
+      
       fetchAccounts();
     } catch (error) {
-      toast.error('Failed to sync account');
+      toast.error(error.response?.data?.detail || 'Failed to sync account');
     } finally {
       setSyncing(prev => ({ ...prev, [accountId]: false }));
     }
@@ -305,6 +320,13 @@ export default function Accounts() {
                   </p>
                 </div>
               </div>
+
+              {account.metaapi_account_id && (
+                <div className="mb-4 p-3 rounded-lg bg-secondary/50">
+                  <p className="text-xs text-muted-foreground mb-1">MetaApi Account</p>
+                  <p className="font-mono text-xs text-accent truncate">{account.metaapi_account_id}</p>
+                </div>
+              )}
 
               {(account.balance !== null || account.equity !== null) && (
                 <div className="grid grid-cols-2 gap-4 mb-4">
