@@ -248,29 +248,44 @@ const FormatInsightText = ({ text }) => {
           const isBullet = line.trim().startsWith('-') || line.trim().startsWith('•') || /^\d+[\.\)]/.test(line.trim());
           
           const highlightLine = (text) => {
+            // First handle bold markers
             return text
               .split(/(\*\*[^*]+\*\*)/)
               .map((segment, i) => {
                 if (segment.startsWith('**') && segment.endsWith('**')) {
-                  return <span key={i} className="text-white font-semibold">{segment.replace(/\*\*/g, '')}</span>;
+                  return <span key={i} className="text-white font-bold">{segment.replace(/\*\*/g, '')}</span>;
                 }
+                // Split on: -$123 / $123 / ₹123 / -₹123 / percentages / fractions / instruments / standalone numbers with context
                 return segment
-                  .split(/(\$[\-]?[\d,]+\.?\d*|[\-+]?\d+\.?\d*%|\d+\/\d+|\b(?:XAU\/USD|XAG\/USD|EUR\/USD|GBP\/USD|USD\/JPY|BTC\/USD|ETH\/USD|NAS100|US30|XAUUSD|XAGUSD|EURUSD|GBPUSD|USDJPY|BTCUSD|ETHUSD|NIFTY|BANKNIFTY)\b)/gi)
+                  .split(/([\-+]?\$[\d,]+\.?\d*|\$[\-+]?[\d,]+\.?\d*|[\-+]?₹[\d,]+\.?\d*|₹[\-+]?[\d,]+\.?\d*|[\-+]?\d+\.?\d*%|\d+\s*(?:wins?|losses?|trades?|out of \d+)|\d+\/\d+|\b(?:XAU[\/]?USD|XAG[\/]?USD|EUR[\/]?USD|GBP[\/]?USD|USD[\/]?JPY|BTC[\/]?USD|ETH[\/]?USD|NAS100|US30|US500|XAUUSD\+?|XAGUSD\+?|EURUSD|GBPUSD|USDJPY|BTCUSD|ETHUSD|NIFTY|BANKNIFTY|CRUDE|SILVER|GOLD|NASDAQ|SPX|S&P)\b|\b(?:win rate|stop[- ]loss|take[- ]profit|risk[- ]reward|risk management|position siz(?:e|ing)|profit factor|drawdown|expectancy|lot size|leverage)\b)/gi)
                   .map((part, j) => {
-                    if (/^\$[\-]?[\d,]+\.?\d*$/.test(part)) {
+                    // Dollar/Rupee amounts
+                    if (/^[\-+]?\$[\d,]+\.?\d*$|^\$[\-+]?[\d,]+\.?\d*$|^[\-+]?₹[\d,]+\.?\d*$|^₹[\-+]?[\d,]+\.?\d*$/.test(part)) {
                       const isNeg = part.includes('-');
-                      return <span key={`${i}-${j}`} className={`font-mono font-bold px-1 py-0.5 rounded ${isNeg ? 'text-red-300 bg-red-500/10' : 'text-emerald-300 bg-emerald-500/10'}`}>{part}</span>;
+                      return <span key={`${i}-${j}`} className={`font-mono font-extrabold px-1.5 py-0.5 rounded-md ${isNeg ? 'text-red-300 bg-red-500/15 shadow-[0_0_8px_rgba(239,68,68,0.15)]' : 'text-emerald-300 bg-emerald-500/15 shadow-[0_0_8px_rgba(16,185,129,0.15)]'}`}>{part}</span>;
                     }
+                    // Percentages
                     if (/^[\-+]?\d+\.?\d*%$/.test(part)) {
                       const val = parseFloat(part);
-                      const color = val >= 70 ? 'text-emerald-300 bg-emerald-500/10' : val >= 50 ? 'text-amber-300 bg-amber-500/10' : 'text-red-300 bg-red-500/10';
-                      return <span key={`${i}-${j}`} className={`font-mono font-bold px-1 py-0.5 rounded ${color}`}>{part}</span>;
+                      const isNeg = part.startsWith('-');
+                      const color = isNeg ? 'text-red-300 bg-red-500/15' : val >= 70 ? 'text-emerald-300 bg-emerald-500/15' : val >= 50 ? 'text-amber-300 bg-amber-500/15' : 'text-orange-300 bg-orange-500/15';
+                      return <span key={`${i}-${j}`} className={`font-mono font-extrabold px-1.5 py-0.5 rounded-md ${color}`}>{part}</span>;
                     }
+                    // Trade counts (e.g. "26 wins out of 30")
+                    if (/^\d+\s*(?:wins?|losses?|trades?|out of \d+)$/i.test(part)) {
+                      return <span key={`${i}-${j}`} className="font-mono font-bold text-sky-300 bg-sky-500/15 px-1.5 py-0.5 rounded-md">{part}</span>;
+                    }
+                    // Fractions (e.g. 26/30)
                     if (/^\d+\/\d+$/.test(part)) {
-                      return <span key={`${i}-${j}`} className="font-mono font-bold text-blue-300 bg-blue-500/10 px-1 py-0.5 rounded">{part}</span>;
+                      return <span key={`${i}-${j}`} className="font-mono font-bold text-sky-300 bg-sky-500/15 px-1.5 py-0.5 rounded-md">{part}</span>;
                     }
-                    if (/^(XAU\/USD|XAG\/USD|EUR\/USD|GBP\/USD|USD\/JPY|BTC\/USD|ETH\/USD|NAS100|US30|XAUUSD|XAGUSD|EURUSD|GBPUSD|USDJPY|BTCUSD|ETHUSD|NIFTY|BANKNIFTY)$/i.test(part)) {
-                      return <span key={`${i}-${j}`} className="font-semibold text-violet-300 bg-violet-500/10 px-1 py-0.5 rounded">{part}</span>;
+                    // Instrument symbols
+                    if (/^(?:XAU[\/]?USD|XAG[\/]?USD|EUR[\/]?USD|GBP[\/]?USD|USD[\/]?JPY|BTC[\/]?USD|ETH[\/]?USD|NAS100|US30|US500|XAUUSD\+?|XAGUSD\+?|EURUSD|GBPUSD|USDJPY|BTCUSD|ETHUSD|NIFTY|BANKNIFTY|CRUDE|SILVER|GOLD|NASDAQ|SPX|S&P)$/i.test(part)) {
+                      return <span key={`${i}-${j}`} className="font-bold text-fuchsia-300 bg-fuchsia-500/15 px-1.5 py-0.5 rounded-md shadow-[0_0_8px_rgba(217,70,239,0.12)]">{part}</span>;
+                    }
+                    // Trading keywords
+                    if (/^(?:win rate|stop[- ]loss|take[- ]profit|risk[- ]reward|risk management|position siz(?:e|ing)|profit factor|drawdown|expectancy|lot size|leverage)$/i.test(part)) {
+                      return <span key={`${i}-${j}`} className="font-semibold text-cyan-300">{part}</span>;
                     }
                     return part;
                   });
@@ -278,11 +293,17 @@ const FormatInsightText = ({ text }) => {
           };
           
           if (isBullet) {
-            const bulletText = line.trim().replace(/^[-•]\s*/, '').replace(/^\d+[\.\)]\s*/, '');
+            const bulletText = line.trim().replace(/^[-•]\s*/, '').replace(/^\d+[\.)\:]\s*/, '');
+            // Check if bullet starts with a bold label like "Risk Management:"
+            const labelMatch = bulletText.match(/^([^:]+:)\s*(.*)$/);
             return (
-              <div key={lIdx} className="flex gap-3 ml-1 mb-2 group">
-                <span className="mt-1.5 w-2 h-2 rounded-full bg-gradient-to-r from-accent to-emerald-400 flex-shrink-0 group-hover:scale-125 transition-transform" />
-                <span className="text-gray-200 leading-relaxed">{highlightLine(bulletText)}</span>
+              <div key={lIdx} className="flex gap-3 ml-1 mb-3 group">
+                <span className="mt-2 w-2.5 h-2.5 rounded-full bg-gradient-to-br from-fuchsia-400 via-violet-400 to-cyan-400 flex-shrink-0 group-hover:scale-150 group-hover:shadow-[0_0_10px_rgba(168,85,247,0.5)] transition-all duration-300" />
+                <span className="text-gray-200 leading-relaxed">
+                  {labelMatch ? (
+                    <><span className="font-bold text-amber-300">{labelMatch[1]}</span> {highlightLine(labelMatch[2])}</>
+                  ) : highlightLine(bulletText)}
+                </span>
               </div>
             );
           }
