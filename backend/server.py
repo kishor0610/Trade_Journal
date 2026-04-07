@@ -908,15 +908,22 @@ async def sync_mt5_account(account_id: str, current_user: dict = Depends(get_cur
             
             # Step 2: Deploy account if needed
             if acc_state == 'UNDEPLOYED':
-                deploy_resp = await http.post(f"{prov_url}/deploy", headers=headers)
-                deploy_resp.raise_for_status()
-                # Wait briefly for deployment
-                for _ in range(10):
-                    await asyncio.sleep(3)
-                    check = await http.get(prov_url, headers=headers)
-                    check_data = check.json()
-                    if check_data.get('connectionStatus') == 'CONNECTED':
-                        break
+                try:
+                    deploy_resp = await http.post(f"{prov_url}/deploy", headers=headers)
+                    deploy_resp.raise_for_status()
+                    # Wait briefly for deployment
+                    for _ in range(10):
+                        await asyncio.sleep(3)
+                        check = await http.get(prov_url, headers=headers)
+                        check_data = check.json()
+                        if check_data.get('connectionStatus') == 'CONNECTED':
+                            break
+                except Exception as deploy_err:
+                    logging.warning(f"MetaApi deploy failed (may need manual deploy): {deploy_err}")
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Account is not deployed. Please log in to your MetaApi dashboard at https://app.metaapi.cloud, deploy the account manually, then sync again. Your API token may not have deploy permissions — use a token with full access or upgrade your MetaApi plan."
+                    )
             
             # Step 3: Fetch history deals from MetaApi client API (paginated, max 1000 per page)
             start_time = (datetime.now(timezone.utc) - timedelta(days=730)).strftime('%Y-%m-%dT%H:%M:%S.000Z')
