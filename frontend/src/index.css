@@ -1,40 +1,42 @@
-@import url('https://fonts.googleapis.com/css2?family=Chivo:wght@700;900&family=JetBrains+Mono:wght@400;700&family=Kalam:wght@300;400;700&family=Manrope:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Chivo:wght@700;900&family=JetBrains+Mono:wght@400;700&family=Manrope:wght@400;500;700&display=swap');
 
 /**
-* @license
-*
-* Font Family: Kalam
-* Designed by: Indian Type Foundry
-* URL: https://www.fontshare.com/fonts/kalam
-* Copyright 2026 Indian Type Foundry
-*
-* Kalam Light
-* Kalam Regular
-* Kalam Bold
-*
+* Font Family: Amulya
+* Designed by: Joana Correia
+* URL: https://www.fontshare.com/fonts/amulya
+* © 2026 Indian Type Foundry
 */
 @font-face {
-    font-family: 'Kalam-Light';
-    src: local('Kalam Light'),
-        local('Kalam');
+    font-family: 'Amulya';
+    src: url('/fonts/Amulya-Light.woff2') format('woff2'),
+         url('/fonts/Amulya-Light.woff') format('woff');
     font-weight: 300;
     font-display: swap;
     font-style: normal;
 }
 
 @font-face {
-    font-family: 'Kalam-Regular';
-    src: local('Kalam Regular'),
-        local('Kalam');
+    font-family: 'Amulya';
+    src: url('/fonts/Amulya-Regular.woff2') format('woff2'),
+         url('/fonts/Amulya-Regular.woff') format('woff');
     font-weight: 400;
     font-display: swap;
     font-style: normal;
 }
 
 @font-face {
-    font-family: 'Kalam-Bold';
-    src: local('Kalam Bold'),
-        local('Kalam');
+    font-family: 'Amulya';
+    src: url('/fonts/Amulya-Medium.woff2') format('woff2'),
+         url('/fonts/Amulya-Medium.woff') format('woff');
+    font-weight: 500;
+    font-display: swap;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Amulya';
+    src: url('/fonts/Amulya-Bold.woff2') format('woff2'),
+         url('/fonts/Amulya-Bold.woff') format('woff');
     font-weight: 700;
     font-display: swap;
     font-style: normal;
@@ -97,7 +99,7 @@
     body,
     #root,
     #root * {
-        font-family: 'Kalam-Regular', 'Kalam', cursive;
+        font-family: 'Amulya', sans-serif;
         font-weight: 400;
     }
 
@@ -107,12 +109,12 @@
     .text-xs,
     .text-sm,
     .text-muted-foreground {
-        font-family: 'Kalam-Light', 'Kalam', cursive;
+        font-family: 'Amulya', sans-serif;
         font-weight: 300;
     }
 
     h1, h2, h3, h4, h5, h6 {
-        font-family: 'Kalam-Bold', 'Kalam', cursive;
+        font-family: 'Amulya', sans-serif;
         font-weight: 700;
         letter-spacing: -0.01em;
     }
@@ -189,7 +191,7 @@
 
     .brand-logo-text {
         position: relative;
-        font-family: 'Kalam-Bold', 'Kalam', cursive;
+        font-family: 'Amulya', sans-serif;
         font-weight: 700;
         letter-spacing: 0.01em;
         color: #d8fffb;

@@ -8,8 +8,8 @@ module.exports = {
     theme: {
         extend: {
             fontFamily: {
-                sans: ['Manrope', 'sans-serif'],
-                heading: ['Chivo', 'sans-serif'],
+                sans: ['Amulya', 'Manrope', 'sans-serif'],
+                heading: ['Amulya', 'Chivo', 'sans-serif'],
                 mono: ['JetBrains Mono', 'monospace'],
             },
             borderRadius: {

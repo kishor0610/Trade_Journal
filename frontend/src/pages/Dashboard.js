@@ -160,7 +160,7 @@ const RadialGauge = ({ value, label, weeklyDelta, accentClass }) => {
   );
 };
 
-const TradingCalendar = ({ year, month, dailyData, onMonthChange }) => {
+const TradingCalendar = ({ year, month, dailyData, onMonthChange, currency = 'USD' }) => {
   const daysInMonth = getDaysInMonth(year, month);
   const firstDay = getFirstDayOfMonth(year, month);
   const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -1053,6 +1053,7 @@ export default function Dashboard() {
         month={calendarDate.month}
         dailyData={dailyData.days || []}
         onMonthChange={handleMonthChange}
+        currency={currency}
       />
         </motion.div>
       </AnimatePresence>
