@@ -1,7 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './ui/resizable';
 import { useAuth } from '../context/AuthContext';
 import { 
   LayoutDashboard, 
@@ -59,13 +58,10 @@ const MobileNavItem = ({ path, icon: Icon, label }) => (
   </NavLink>
 );
 
+const Layout = ({ children }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const sidebarMinSize = 16; // px
-  const sidebarDefaultSize = 256; // px
-  const sidebarMaxSize = 360; // px
-  const sidebarRef = useRef(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const handleLogout = () => {
     logout();
@@ -74,94 +70,71 @@ const MobileNavItem = ({ path, icon: Icon, label }) => (
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Desktop Sidebar + Main Content with Resizable */}
-      <div className="hidden md:flex h-screen w-full">
-        <ResizablePanelGroup direction="horizontal" className="w-full h-full">
-          <ResizablePanel
-            minSize={sidebarMinSize}
-            defaultSize={sidebarDefaultSize}
-            maxSize={sidebarMaxSize}
-            collapsible
-            collapsed={sidebarCollapsed}
-            onCollapse={() => setSidebarCollapsed(true)}
-            onExpand={() => setSidebarCollapsed(false)}
-            ref={sidebarRef}
-            className={`bg-card/50 border-r border-white/5 z-50 transition-all duration-300 ${sidebarCollapsed ? 'w-0 min-w-0' : 'w-64 min-w-[16px]'} overflow-x-hidden flex flex-col`}
+      {/* Desktop Sidebar */}
+      <aside className={`hidden md:flex fixed left-0 top-0 bottom-0 flex-col bg-card/50 border-r border-white/5 z-50 transition-all duration-300 ${sidebarOpen ? 'w-64' : 'w-0'} overflow-x-hidden`} style={{ minWidth: sidebarOpen ? '16rem' : 0 }}>
+        {/* Logo & Collapse Button */}
+        <div className="flex items-center justify-between p-6 border-b border-white/5">
+          <div className="flex items-center gap-3">
+            <img src="/app-icon.png" alt="TradeLedger" className="w-10 h-10 rounded-xl" />
+            {sidebarOpen && <span className="text-xl font-heading font-bold">TradeLedger</span>}
+          </div>
+          <button
+            className="ml-2 p-1 rounded-lg border border-white/10 bg-black/30 hover:bg-white/10 transition-all shadow flex items-center justify-center"
+            style={{ width: 32, height: 32 }}
+            onClick={() => setSidebarOpen((v) => !v)}
+            aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
           >
-            {/* Logo & Collapse Button */}
-            <div className="flex items-center justify-between p-6 border-b border-white/5">
-              <div className="flex items-center gap-3">
-                <img src="/app-icon.png" alt="TradeLedger" className="w-10 h-10 rounded-xl" />
-                {!sidebarCollapsed && <span className="text-xl font-heading font-bold">TradeLedger</span>}
-              </div>
-              <button
-                className="ml-2 p-1 rounded-lg border border-white/10 bg-black/30 hover:bg-white/10 transition-all shadow flex items-center justify-center"
-                style={{ width: 32, height: 32 }}
-                onClick={() => setSidebarCollapsed((v) => !v)}
-                aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-              >
-                <span className="text-white text-lg">{sidebarCollapsed ? '>' : '<'}</span>
-              </button>
+            <span className="text-white text-lg">{sidebarOpen ? '<' : '>'}</span>
+          </button>
+        </div>
+
+        {/* Navigation */}
+        <nav className={`flex-1 ${sidebarOpen ? 'p-4' : 'p-0'} space-y-2 transition-all duration-300`}>{sidebarOpen && <>
+          {navItems.map((item) => (
+            <NavItem key={item.path} {...item} />
+          ))}
+          {/* Coming Soon Items */}
+          <div className="pt-4 mt-4 border-t border-white/5">
+            <p className="text-xs text-muted-foreground mb-2 px-4">Coming Soon</p>
+            <NavLink to="/risk-calculator" className={({ isActive }) => `flex items-center gap-3 px-4 py-3 rounded-lg transition-all font-bold text-base ${isActive ? 'bg-gradient-to-r from-fuchsia-500/20 to-cyan-500/20 text-fuchsia-300 border border-fuchsia-400/40 shadow-lg' : 'text-fuchsia-300 hover:text-white hover:bg-fuchsia-500/10'}`} data-testid="nav-risk-calculator">
+              {/* <Calculator className="w-5 h-5 text-fuchsia-400 drop-shadow-glow" /> */}
+              <span className="hidden md:inline">Risk Calculator</span>
+              <span className="ml-2 px-2 py-0.5 rounded-full text-xs font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 text-black/80 shadow">New</span>
+            </NavLink>
+            <div className="flex items-center gap-3 px-4 py-3 text-muted-foreground/50 cursor-not-allowed">
+              <Bot className="w-5 h-5" />
+              <span className="hidden md:inline">Algos</span>
             </div>
-            {/* Navigation */}
-            <nav className={`flex-1 ${sidebarCollapsed ? 'p-0' : 'p-4'} space-y-2 transition-all duration-300`}>{!sidebarCollapsed && <>
-              {navItems.map((item) => (
-                <NavItem key={item.path} {...item} />
-              ))}
-              {/* Coming Soon Items */}
-              <div className="pt-4 mt-4 border-t border-white/5">
-                <p className="text-xs text-muted-foreground mb-2 px-4">Coming Soon</p>
-                <NavLink to="/risk-calculator" className={({ isActive }) => `flex items-center gap-3 px-4 py-3 rounded-lg transition-all font-bold text-base ${isActive ? 'bg-gradient-to-r from-fuchsia-500/20 to-cyan-500/20 text-fuchsia-300 border border-fuchsia-400/40 shadow-lg' : 'text-fuchsia-300 hover:text-white hover:bg-fuchsia-500/10'}`} data-testid="nav-risk-calculator">
-                  <span className="hidden md:inline">Risk Calculator</span>
-                  <span className="ml-2 px-2 py-0.5 rounded-full text-xs font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 text-black/80 shadow">New</span>
-                </NavLink>
-                <div className="flex items-center gap-3 px-4 py-3 text-muted-foreground/50 cursor-not-allowed">
-                  <Bot className="w-5 h-5" />
-                  <span className="hidden md:inline">Algos</span>
+            <div className="flex items-center gap-3 px-4 py-3 text-muted-foreground/50 cursor-not-allowed">
+              <Copy className="w-5 h-5" />
+              <span className="hidden md:inline">Trade Copier</span>
+            </div>
+          </div>
+        </>}</nav>
+
+        {/* User Section */}
+        {sidebarOpen && <div className="p-4 border-t border-white/5">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 transition-colors text-left">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-accent/20 to-blue-500/20 flex items-center justify-center">
+                  <User className="w-5 h-5 text-accent" />
                 </div>
-                <div className="flex items-center gap-3 px-4 py-3 text-muted-foreground/50 cursor-not-allowed">
-                  <Copy className="w-5 h-5" />
-                  <span className="hidden md:inline">Trade Copier</span>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium truncate">{user?.name}</p>
+                  <p className="text-sm text-muted-foreground truncate">{user?.email}</p>
                 </div>
-              </div>
-            </>}</nav>
-            {/* User Section */}
-            {!sidebarCollapsed && <div className="p-4 border-t border-white/5">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 transition-colors text-left">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-accent/20 to-blue-500/20 flex items-center justify-center">
-                      <User className="w-5 h-5 text-accent" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{user?.name}</p>
-                      <p className="text-sm text-muted-foreground truncate">{user?.email}</p>
-                    </div>
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuItem onClick={handleLogout} className="text-red-500" data-testid="logout-btn">
-                    <LogOut className="w-4 h-4 mr-2" />
-                    Sign out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>}
-          </ResizablePanel>
-          <ResizableHandle withHandle className="bg-border" />
-          <ResizablePanel minSize={100} className="flex-1 min-w-0">
-            <main className={`transition-all duration-300 pt-20 md:pt-8 pb-24 md:pb-8 px-4 md:px-8`}>
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.3 }}
-              >
-                {children}
-              </motion.div>
-            </main>
-          </ResizablePanel>
-        </ResizablePanelGroup>
-      </div>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem onClick={handleLogout} className="text-red-500" data-testid="logout-btn">
+                <LogOut className="w-4 h-4 mr-2" />
+                Sign out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>}
+      </aside>
 
       {/* Mobile Header */}
       <header className="md:hidden fixed top-0 left-0 right-0 h-16 bg-card/80 backdrop-blur-xl border-b border-white/5 z-50 flex items-center justify-between px-4">
@@ -189,9 +162,8 @@ const MobileNavItem = ({ path, icon: Icon, label }) => (
         </DropdownMenu>
       </header>
 
-
-      {/* Main Content for mobile */}
-      <main className="md:hidden pt-20 pb-24 px-4">
+      {/* Main Content */}
+      <main className={`transition-all duration-300 ${sidebarOpen ? 'md:ml-64' : 'md:ml-0'} pt-20 md:pt-8 pb-24 md:pb-8 px-4 md:px-8`}>
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -212,4 +184,6 @@ const MobileNavItem = ({ path, icon: Icon, label }) => (
       <Toaster position="top-right" richColors />
     </div>
   );
-}
+};
+
+export default Layout;
