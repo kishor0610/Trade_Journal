@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
@@ -61,6 +61,7 @@ const MobileNavItem = ({ path, icon: Icon, label }) => (
 export default function Layout({ children }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const handleLogout = () => {
     logout();
@@ -70,21 +71,28 @@ export default function Layout({ children }) {
   return (
     <div className="min-h-screen bg-background">
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex fixed left-0 top-0 bottom-0 w-64 flex-col bg-card/50 border-r border-white/5 z-50">
-        {/* Logo */}
-        <div className="p-6 border-b border-white/5">
+      <aside className={`hidden md:flex fixed left-0 top-0 bottom-0 flex-col bg-card/50 border-r border-white/5 z-50 transition-all duration-300 ${sidebarOpen ? 'w-64' : 'w-0'} overflow-x-hidden`} style={{ minWidth: sidebarOpen ? '16rem' : 0 }}>
+        {/* Logo & Collapse Button */}
+        <div className="flex items-center justify-between p-6 border-b border-white/5">
           <div className="flex items-center gap-3">
             <img src="/app-icon.png" alt="TradeLedger" className="w-10 h-10 rounded-xl" />
-            <span className="text-xl font-heading font-bold">TradeLedger</span>
+            {sidebarOpen && <span className="text-xl font-heading font-bold">TradeLedger</span>}
           </div>
+          <button
+            className="ml-2 p-1 rounded-lg border border-white/10 bg-black/30 hover:bg-white/10 transition-all shadow flex items-center justify-center"
+            style={{ width: 32, height: 32 }}
+            onClick={() => setSidebarOpen((v) => !v)}
+            aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+          >
+            <span className="text-white text-lg">{sidebarOpen ? '<' : '>'}</span>
+          </button>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-2">
+        <nav className={`flex-1 ${sidebarOpen ? 'p-4' : 'p-0'} space-y-2 transition-all duration-300`}>{sidebarOpen && <>
           {navItems.map((item) => (
             <NavItem key={item.path} {...item} />
           ))}
-          
           {/* Coming Soon Items */}
           <div className="pt-4 mt-4 border-t border-white/5">
             <p className="text-xs text-muted-foreground mb-2 px-4">Coming Soon</p>
@@ -102,10 +110,10 @@ export default function Layout({ children }) {
               <span className="hidden md:inline">Trade Copier</span>
             </div>
           </div>
-        </nav>
+        </>}</nav>
 
         {/* User Section */}
-        <div className="p-4 border-t border-white/5">
+        {sidebarOpen && <div className="p-4 border-t border-white/5">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 transition-colors text-left">
@@ -125,7 +133,7 @@ export default function Layout({ children }) {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
+        </div>}
       </aside>
 
       {/* Mobile Header */}
@@ -155,7 +163,7 @@ export default function Layout({ children }) {
       </header>
 
       {/* Main Content */}
-      <main className="md:ml-64 pt-20 md:pt-8 pb-24 md:pb-8 px-4 md:px-8">
+      <main className={`transition-all duration-300 ${sidebarOpen ? 'md:ml-64' : 'md:ml-0'} pt-20 md:pt-8 pb-24 md:pb-8 px-4 md:px-8`}>
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
