@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
-import { Plus, Edit2, Trash2, TrendingUp, TrendingDown, Filter, X, Search, SlidersHorizontal, Download, Upload, FileSpreadsheet, AlertCircle, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Plus, Edit2, Trash2, TrendingUp, TrendingDown, Filter, X, Search, SlidersHorizontal, Download, Upload, FileSpreadsheet, AlertCircle, CheckCircle, AlertTriangle, Share2, Copy, QrCode } from 'lucide-react';
 import { createChart, LineStyle, CrosshairMode } from 'lightweight-charts';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -76,6 +76,214 @@ const loadTradingViewScript = () => {
   });
 
   return tvScriptPromise;
+};
+
+// ShareTradeDialog Component
+const ShareTradeDialog = ({ trade, isOpen, onClose }) => {
+  const shareImageRef = useRef(null);
+  const [copying, setCopying] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  const isProfitable = (trade?.pnl || 0) >= 0;
+  const userName = localStorage.getItem('userName') || 'Trader';
+  const referralCode = 'F0F9C655'; // You can make this dynamic
+
+  const copyImage = async () => {
+    if (!shareImageRef.current) return;
+    setCopying(true);
+    try {
+      const canvas = await html2canvas(shareImageRef.current, {
+        backgroundColor: null,
+        scale: 2,
+        logging: false,
+      });
+      
+      canvas.toBlob(async (blob) => {
+        try {
+          await navigator.clipboard.write([
+            new ClipboardItem({ 'image/png': blob })
+          ]);
+          toast.success('Trade image copied to clipboard!');
+        } catch (err) {
+          console.error('Failed to copy:', err);
+          toast.error('Failed to copy image. Try downloading instead.');
+        }
+        setCopying(false);
+      });
+    } catch (err) {
+      console.error('Failed to generate image:', err);
+      toast.error('Failed to generate image');
+      setCopying(false);
+    }
+  };
+
+  const downloadImage = async () => {
+    if (!shareImageRef.current) return;
+    setDownloading(true);
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const canvas = await html2canvas(shareImageRef.current, {
+        backgroundColor: null,
+        scale: 2,
+        logging: false,
+      });
+      
+      canvas.toBlob((blob) => {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.download = `trade-${trade.instrument}-${new Date().getTime()}.png`;
+        link.href = url;
+        link.click();
+        URL.revokeObjectURL(url);
+        toast.success('Trade image downloaded!');
+        setDownloading(false);
+      });
+    } catch (err) {
+      console.error('Failed to download:', err);
+      toast.error('Failed to download image');
+      setDownloading(false);
+    }
+  };
+
+  if (!trade) return null;
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="bg-card border-white/10 max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="font-heading">Share Trade</DialogTitle>
+          <DialogDescription>Your trade image is ready to share or download.</DialogDescription>
+        </DialogHeader>
+        
+        <div className="space-y-4">
+          {/* Trade Share Card */}
+          <div ref={shareImageRef} className="relative rounded-2xl overflow-hidden" style={{
+            background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #1e40af 100%)',
+            padding: '32px',
+          }}>
+            {/* Background Pattern */}
+            <div className="absolute inset-0 opacity-10">
+              <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                    <path d="M 20 0 L 0 0 0 20" fill="none" stroke="white" strokeWidth="0.5"/>
+                  </pattern>
+                </defs>
+                <rect width="100%" height="100%" fill="url(#grid)" />
+              </svg>
+            </div>
+            
+            {/* Chart Visualization (decorative) */}
+            <div className="absolute right-0 top-0 w-64 h-64 opacity-20">
+              <svg viewBox="0 0 200 200" className="w-full h-full">
+                <path
+                  d={isProfitable 
+                    ? "M0,120 Q50,100 100,80 T200,40"
+                    : "M0,40 Q50,80 100,100 T200,160"
+                  }
+                  stroke="white"
+                  strokeWidth="3"
+                  fill="none"
+                  opacity="0.5"
+                />
+              </svg>
+            </div>
+
+            {/* Content */}
+            <div className="relative z-10 space-y-6">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center">
+                    <TrendingUp className="w-6 h-6 text-white" />
+                  </div>
+                  <span className="text-white/80 text-sm">Closed Trade</span>
+                </div>
+                <span className="text-white font-medium">{userName}</span>
+              </div>
+
+              {/* Profit */}
+              <div className="text-center py-4">
+                <div className="text-white/80 text-sm mb-2">PROFIT</div>
+                <div className="text-5xl font-bold text-white">
+                  {isProfitable ? '' : '-'}${Math.abs(trade.pnl || 0).toFixed(2)}
+                </div>
+              </div>
+
+              {/* Trade Details */}
+              <div className="flex items-center justify-center gap-4 flex-wrap">
+                <span className={`px-3 py-1.5 rounded-full text-sm font-medium ${
+                  trade.position === 'buy' || trade.position === 'long'
+                    ? 'bg-emerald-500 text-white'
+                    : trade.position === 'sell' || trade.position === 'short'
+                    ? 'bg-red-500 text-white'
+                    : 'bg-blue-500 text-white'
+                }`}>
+                  {trade.position?.toUpperCase() || 'UNKNOWN'}
+                </span>
+                <span className="px-3 py-1.5 rounded-full bg-white/20 text-white text-sm font-medium">
+                  {trade.quantity || 0} lots
+                </span>
+                <span className="px-3 py-1.5 rounded-full bg-white/20 text-white text-sm font-medium">
+                  {trade.instrument}
+                </span>
+              </div>
+
+              {/* Price Details */}
+              <div className="grid grid-cols-2 gap-4 pt-4">
+                <div>
+                  <div className="text-white/60 text-xs mb-1">Open price:</div>
+                  <div className="text-white font-mono">${trade.entry_price?.toFixed(2) || '0.00'}</div>
+                  <div className="text-white/60 text-xs mt-0.5">
+                    {new Date(trade.entry_date).toLocaleDateString()} {new Date(trade.entry_date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-white/60 text-xs mb-1">Close price:</div>
+                  <div className="text-white font-mono">${trade.exit_price?.toFixed(2) || '0.00'}</div>
+                  <div className="text-white/60 text-xs mt-0.5">
+                    {trade.exit_date ? new Date(trade.exit_date).toLocaleDateString() : ''} {trade.exit_date ? new Date(trade.exit_date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
+                  </div>
+                </div>
+              </div>
+
+              {/* Referral Code */}
+              <div className="flex items-center justify-between pt-4 border-t border-white/20">
+                <div>
+                  <div className="text-white/60 text-xs">Use my referral code: <strong className="text-white">{referralCode}</strong></div>
+                  <div className="text-white/50 text-xs">Sign up and receive a discount on your evaluation</div>
+                </div>
+                <div className="w-12 h-12 bg-white rounded flex items-center justify-center">
+                  <QrCode className="w-8 h-8 text-gray-800" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              className="flex-1 gap-2"
+              onClick={copyImage}
+              disabled={copying}
+            >
+              <Copy className="w-4 h-4" />
+              {copying ? 'Copying...' : 'Copy Image'}
+            </Button>
+            <Button
+              className="flex-1 gap-2 bg-accent text-black hover:bg-accent/90"
+              onClick={downloadImage}
+              disabled={downloading}
+            >
+              <Download className="w-4 h-4" />
+              {downloading ? 'Downloading...' : 'Download Image'}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 };
 
 const TradingViewEmbed = ({ symbol, interval }) => {
@@ -381,6 +589,8 @@ export default function Journal() {
   const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [shareTradeData, setShareTradeData] = useState(null);
   const [chartSymbol, setChartSymbol] = useState('BTCUSDT');
   const [chartMode, setChartMode] = useState('live');
   const [focusedInstrumentKey, setFocusedInstrumentKey] = useState('');
@@ -2129,6 +2339,19 @@ export default function Journal() {
                       size="icon"
                       onClick={(e) => {
                         e.stopPropagation();
+                        setShareTradeData(trade);
+                        setShareDialogOpen(true);
+                      }}
+                      className="h-8 w-8"
+                      data-testid={`share-trade-${trade.id}`}
+                    >
+                      <Share2 className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={(e) => {
+                        e.stopPropagation();
                         openEditDialog(trade);
                       }}
                       className="h-8 w-8"
@@ -2209,6 +2432,16 @@ export default function Journal() {
           <Plus className="w-6 h-6" />
         </Button>
       </div>
+
+      {/* Share Trade Dialog */}
+      <ShareTradeDialog
+        trade={shareTradeData}
+        isOpen={shareDialogOpen}
+        onClose={() => {
+          setShareDialogOpen(false);
+          setShareTradeData(null);
+        }}
+      />
     </div>
   );
 }
