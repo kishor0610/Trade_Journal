@@ -235,6 +235,16 @@ const FormatInsightText = ({ text }) => {
       return renderHeading(trimmed.replace(/^#{1,3}\s*/, ''), pIdx);
     }
 
+    // Heuristic: detect plain-text headings — single line, short, no period at end, mostly capitalized words
+    const isSingleLine = !trimmed.includes('\n');
+    const isShort = trimmed.length <= 80;
+    const noPeriod = !trimmed.endsWith('.');
+    const noBullet = !/^[-•*\d]/.test(trimmed);
+    const hasTitleWords = trimmed.split(/\s+/).filter(w => /^[A-Z]/.test(w)).length >= Math.ceil(trimmed.split(/\s+/).length * 0.5);
+    if (isSingleLine && isShort && noPeriod && noBullet && hasTitleWords && trimmed.split(/\s+/).length >= 2 && trimmed.split(/\s+/).length <= 10) {
+      return renderHeading(trimmed, pIdx);
+    }
+
     const lines = paragraph.split('\n');
     
     return (
