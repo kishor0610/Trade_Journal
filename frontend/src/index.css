@@ -8,8 +8,8 @@
 */
 @font-face {
     font-family: 'Amulya';
-    src: url('/fonts/Amulya-Light.woff2') format('woff2'),
-         url('/fonts/Amulya-Light.woff') format('woff');
+    src: url('./fonts/Amulya-Light.woff2') format('woff2'),
+         url('./fonts/Amulya-Light.woff') format('woff');
     font-weight: 300;
     font-display: swap;
     font-style: normal;
@@ -17,8 +17,8 @@
 
 @font-face {
     font-family: 'Amulya';
-    src: url('/fonts/Amulya-Regular.woff2') format('woff2'),
-         url('/fonts/Amulya-Regular.woff') format('woff');
+    src: url('./fonts/Amulya-Regular.woff2') format('woff2'),
+         url('./fonts/Amulya-Regular.woff') format('woff');
     font-weight: 400;
     font-display: swap;
     font-style: normal;
@@ -26,8 +26,8 @@
 
 @font-face {
     font-family: 'Amulya';
-    src: url('/fonts/Amulya-Medium.woff2') format('woff2'),
-         url('/fonts/Amulya-Medium.woff') format('woff');
+    src: url('./fonts/Amulya-Medium.woff2') format('woff2'),
+         url('./fonts/Amulya-Medium.woff') format('woff');
     font-weight: 500;
     font-display: swap;
     font-style: normal;
@@ -35,8 +35,8 @@
 
 @font-face {
     font-family: 'Amulya';
-    src: url('/fonts/Amulya-Bold.woff2') format('woff2'),
-         url('/fonts/Amulya-Bold.woff') format('woff');
+    src: url('./fonts/Amulya-Bold.woff2') format('woff2'),
+         url('./fonts/Amulya-Bold.woff') format('woff');
     font-weight: 700;
     font-display: swap;
     font-style: normal;
