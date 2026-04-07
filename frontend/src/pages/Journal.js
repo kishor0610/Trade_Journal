@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
-import { Plus, Edit2, Trash2, TrendingUp, TrendingDown, Filter, X, Search, SlidersHorizontal, Download, Upload, FileSpreadsheet, AlertCircle, CheckCircle, AlertTriangle, Share2, Copy, QrCode } from 'lucide-react';
+import { Plus, Edit2, Trash2, TrendingUp, TrendingDown, Filter, X, Search, SlidersHorizontal, Download, Upload, FileSpreadsheet, AlertCircle, CheckCircle, AlertTriangle, Share2, Copy } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import { createChart, LineStyle, CrosshairMode } from 'lightweight-charts';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -83,10 +84,10 @@ const ShareTradeDialog = ({ trade, isOpen, onClose }) => {
   const shareImageRef = useRef(null);
   const [copying, setCopying] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const { user } = useAuth();
 
   const isProfitable = (trade?.pnl || 0) >= 0;
-  const userName = localStorage.getItem('userName') || 'Trader';
-  const referralCode = 'F0F9C655'; // You can make this dynamic
+  const userName = user?.name || 'Trader';
 
   const copyImage = async () => {
     if (!shareImageRef.current) return;
@@ -244,17 +245,6 @@ const ShareTradeDialog = ({ trade, isOpen, onClose }) => {
                   <div className="text-white/60 text-xs mt-0.5">
                     {trade.exit_date ? new Date(trade.exit_date).toLocaleDateString() : ''} {trade.exit_date ? new Date(trade.exit_date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
                   </div>
-                </div>
-              </div>
-
-              {/* Referral Code */}
-              <div className="flex items-center justify-between pt-4 border-t border-white/20">
-                <div>
-                  <div className="text-white/60 text-xs">Use my referral code: <strong className="text-white">{referralCode}</strong></div>
-                  <div className="text-white/50 text-xs">Sign up and receive a discount on your evaluation</div>
-                </div>
-                <div className="w-12 h-12 bg-white rounded flex items-center justify-center">
-                  <QrCode className="w-8 h-8 text-gray-800" />
                 </div>
               </div>
             </div>
