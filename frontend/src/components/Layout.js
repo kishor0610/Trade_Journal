@@ -189,8 +189,17 @@ const MobileNavItem = ({ path, icon: Icon, label }) => (
         </DropdownMenu>
       </header>
 
-      {/* Main Content for mobile (unchanged) */}
-      {/* ...existing code... */}
+
+      {/* Main Content for mobile */}
+      <main className="md:hidden pt-20 pb-24 px-4">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.3 }}
+        >
+          {children}
+        </motion.div>
+      </main>
 
       {/* Mobile Bottom Navigation */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 h-20 bg-card/80 backdrop-blur-xl border-t border-white/5 z-50 flex items-center justify-around px-2 safe-area-inset-bottom">
