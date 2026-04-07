@@ -12,6 +12,7 @@ import Journal from './pages/Journal';
 import Analytics from './pages/Analytics';
 import AIInsights from './pages/AIInsights';
 import Accounts from './pages/Accounts';
+import RiskCalculator from './pages/RiskCalculator';
 import AdminLogin from './pages/AdminLogin';
 import AdminDashboard from './pages/AdminDashboard';
 import './App.css';
@@ -99,6 +100,11 @@ function AppRoutes() {
       <Route path="/insights" element={
         <ProtectedRoute>
           <AIInsights />
+        </ProtectedRoute>
+      } />
+      <Route path="/risk-calculator" element={
+        <ProtectedRoute>
+          <RiskCalculator />
         </ProtectedRoute>
       } />
       

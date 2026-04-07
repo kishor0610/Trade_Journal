@@ -88,6 +88,11 @@ export default function Layout({ children }) {
           {/* Coming Soon Items */}
           <div className="pt-4 mt-4 border-t border-white/5">
             <p className="text-xs text-muted-foreground mb-2 px-4">Coming Soon</p>
+            <NavLink to="/risk-calculator" className={({ isActive }) => `flex items-center gap-3 px-4 py-3 rounded-lg transition-all font-bold text-base ${isActive ? 'bg-gradient-to-r from-fuchsia-500/20 to-cyan-500/20 text-fuchsia-300 border border-fuchsia-400/40 shadow-lg' : 'text-fuchsia-300 hover:text-white hover:bg-fuchsia-500/10'}`} data-testid="nav-risk-calculator">
+              <Calculator className="w-5 h-5 text-fuchsia-400 drop-shadow-glow" />
+              <span className="hidden md:inline">Risk Calculator</span>
+              <span className="ml-2 px-2 py-0.5 rounded-full text-xs font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 text-black/80 shadow">New</span>
+            </NavLink>
             <div className="flex items-center gap-3 px-4 py-3 text-muted-foreground/50 cursor-not-allowed">
               <Bot className="w-5 h-5" />
               <span className="hidden md:inline">Algos</span>
