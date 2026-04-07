@@ -9,7 +9,7 @@ import { formatCurrency } from '../lib/utils';
 const API_URL = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 // Horizontal bar chart for instruments
-const InstrumentChart = ({ instruments }) => {
+const InstrumentChart = ({ instruments, currency = 'USD' }) => {
   if (!instruments?.length) return null;
   const maxPnl = Math.max(...instruments.map(i => Math.abs(i.pnl)), 1);
   const top = instruments.slice(0, 8);
@@ -32,7 +32,7 @@ const InstrumentChart = ({ instruments }) => {
                 <div className="flex items-center gap-3">
                   <span className="text-xs text-gray-400">{inst.wins}/{inst.trades} wins · {inst.winRate}%</span>
                   <span className={`text-sm font-mono font-bold ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {isPositive ? '+' : ''}{formatCurrency(inst.pnl)}
+                    {isPositive ? '+' : ''}{formatCurrency(inst.pnl, currency)}
                   </span>
                 </div>
               </div>
@@ -56,7 +56,7 @@ const InstrumentChart = ({ instruments }) => {
 };
 
 // Direction split (Long vs Short) donut-style visual
-const DirectionChart = ({ direction }) => {
+const DirectionChart = ({ direction, currency = 'USD' }) => {
   if (!direction) return null;
   const { long: l, short: s } = direction;
   const total = (l?.total || 0) + (s?.total || 0);
@@ -83,7 +83,7 @@ const DirectionChart = ({ direction }) => {
           <p className="text-2xl font-mono font-black text-white">{l?.total || 0}</p>
           <p className="text-xs text-gray-400 mt-1">Win Rate: <span className="text-emerald-400 font-bold">{longWinRate}%</span></p>
           <p className={`text-sm font-mono font-bold mt-1 ${(l?.pnl || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-            {(l?.pnl || 0) >= 0 ? '+' : ''}{formatCurrency(l?.pnl || 0)}
+            {(l?.pnl || 0) >= 0 ? '+' : ''}{formatCurrency(l?.pnl || 0, currency)}
           </p>
           {/* Bar */}
           <div className="mt-3 h-1.5 bg-white/10 rounded-full overflow-hidden">
@@ -100,7 +100,7 @@ const DirectionChart = ({ direction }) => {
           <p className="text-2xl font-mono font-black text-white">{s?.total || 0}</p>
           <p className="text-xs text-gray-400 mt-1">Win Rate: <span className="text-red-400 font-bold">{shortWinRate}%</span></p>
           <p className={`text-sm font-mono font-bold mt-1 ${(s?.pnl || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-            {(s?.pnl || 0) >= 0 ? '+' : ''}{formatCurrency(s?.pnl || 0)}
+            {(s?.pnl || 0) >= 0 ? '+' : ''}{formatCurrency(s?.pnl || 0, currency)}
           </p>
           <div className="mt-3 h-1.5 bg-white/10 rounded-full overflow-hidden">
             <motion.div initial={{ width: 0 }} animate={{ width: `${shortPct}%` }} transition={{ duration: 0.8, delay: 0.6 }}
@@ -113,7 +113,7 @@ const DirectionChart = ({ direction }) => {
 };
 
 // Win/Loss pie visual + best/worst trade
-const WinLossVisual = ({ summary, charts }) => {
+const WinLossVisual = ({ summary, charts, currency = 'USD' }) => {
   if (!summary) return null;
   const { winning_trades = 0, losing_trades = 0, avg_win = 0, avg_loss = 0 } = summary;
   const total = winning_trades + losing_trades;
@@ -160,8 +160,8 @@ const WinLossVisual = ({ summary, charts }) => {
             <span className="font-mono font-bold text-red-400">{losing_trades}</span>
           </div>
           <div className="border-t border-white/10 pt-2 mt-2 grid grid-cols-2 gap-2">
-            <div><p className="text-[10px] text-gray-500 uppercase tracking-wider">Avg Win</p><p className="font-mono text-sm font-bold text-emerald-400">{formatCurrency(avg_win)}</p></div>
-            <div><p className="text-[10px] text-gray-500 uppercase tracking-wider">Avg Loss</p><p className="font-mono text-sm font-bold text-red-400">{formatCurrency(avg_loss)}</p></div>
+            <div><p className="text-[10px] text-gray-500 uppercase tracking-wider">Avg Win</p><p className="font-mono text-sm font-bold text-emerald-400">{formatCurrency(avg_win, currency)}</p></div>
+            <div><p className="text-[10px] text-gray-500 uppercase tracking-wider">Avg Loss</p><p className="font-mono text-sm font-bold text-red-400">{formatCurrency(avg_loss, currency)}</p></div>
           </div>
         </div>
       </div>
@@ -172,7 +172,7 @@ const WinLossVisual = ({ summary, charts }) => {
             <Trophy className="w-5 h-5 text-emerald-400 flex-shrink-0" />
             <div>
               <p className="text-[10px] text-gray-500 uppercase tracking-wider">Best Trade</p>
-              <p className="font-mono text-sm font-bold text-emerald-400">{formatCurrency(charts.best_trade?.pnl || 0)}</p>
+              <p className="font-mono text-sm font-bold text-emerald-400">{formatCurrency(charts.best_trade?.pnl || 0, currency)}</p>
               <p className="text-xs text-gray-400">{charts.best_trade?.instrument}</p>
             </div>
           </div>
@@ -180,7 +180,7 @@ const WinLossVisual = ({ summary, charts }) => {
             <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0" />
             <div>
               <p className="text-[10px] text-gray-500 uppercase tracking-wider">Worst Trade</p>
-              <p className="font-mono text-sm font-bold text-red-400">{formatCurrency(charts.worst_trade?.pnl || 0)}</p>
+              <p className="font-mono text-sm font-bold text-red-400">{formatCurrency(charts.worst_trade?.pnl || 0, currency)}</p>
               <p className="text-xs text-gray-400">{charts.worst_trade?.instrument}</p>
             </div>
           </div>
@@ -442,7 +442,7 @@ export default function AIInsights() {
               }
               <p className="text-[10px] text-gray-500 uppercase tracking-wider">Total P&L</p>
               <p className={`text-2xl font-mono font-black ${(insight?.summary?.total_pnl || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                {formatCurrency(insight?.summary?.total_pnl || 0)}
+                {formatCurrency(insight?.summary?.total_pnl || 0, insight?.summary?.currency || 'USD')}
               </p>
             </motion.div>
 
@@ -465,17 +465,17 @@ export default function AIInsights() {
               <Zap className="w-5 h-5 text-rose-400 mb-2" />
               <p className="text-[10px] text-gray-500 uppercase tracking-wider">Expectancy</p>
               <p className={`text-2xl font-mono font-black ${(insight?.summary?.expectancy || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                {formatCurrency(insight?.summary?.expectancy || 0)}
+                {formatCurrency(insight?.summary?.expectancy || 0, insight?.summary?.currency || 'USD')}
               </p>
             </motion.div>
           </div>
 
           {/* Charts Row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <InstrumentChart instruments={insight?.charts?.instruments} />
+            <InstrumentChart instruments={insight?.charts?.instruments} currency={insight?.summary?.currency || 'USD'} />
             <div className="space-y-6">
-              <DirectionChart direction={insight?.charts?.direction} />
-              <WinLossVisual summary={insight?.summary} charts={insight?.charts} />
+              <DirectionChart direction={insight?.charts?.direction} currency={insight?.summary?.currency || 'USD'} />
+              <WinLossVisual summary={insight?.summary} charts={insight?.charts} currency={insight?.summary?.currency || 'USD'} />
             </div>
           </div>
 

@@ -113,6 +113,7 @@ class MT5AccountCreate(BaseModel):
     server: str
     platform: str = "mt5"
     metaapi_account_id: Optional[str] = None
+    currency: str = "USD"
 
 class MT5AccountResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -123,6 +124,7 @@ class MT5AccountResponse(BaseModel):
     server: str
     platform: str
     metaapi_account_id: Optional[str] = None
+    currency: str = "USD"
     is_connected: bool = False
     last_sync: Optional[str] = None
     balance: Optional[float] = None
@@ -145,6 +147,7 @@ class TradeCreate(BaseModel):
     swap: Optional[float] = 0
     mt5_ticket: Optional[str] = None
     mt5_account_id: Optional[str] = None
+    currency: str = "USD"
 
 class TradeUpdate(BaseModel):
     instrument: Optional[str] = None
@@ -180,6 +183,7 @@ class TradeResponse(BaseModel):
     pnl_percentage: Optional[float] = None
     mt5_ticket: Optional[str] = None
     mt5_account_id: Optional[str] = None
+    currency: str = "USD"
     created_at: str
 
 class CandleResponse(BaseModel):
@@ -833,6 +837,7 @@ async def add_mt5_account(account_data: MT5AccountCreate, current_user: dict = D
         "server": account_data.server,
         "platform": account_data.platform,
         "metaapi_account_id": account_data.metaapi_account_id or None,
+        "currency": account_data.currency or "USD",
         "is_connected": False,
         "last_sync": None,
         "balance": None,
@@ -988,16 +993,21 @@ async def sync_mt5_account(account_id: str, current_user: dict = Depends(get_cur
             
             # PnL: ONLY from the "out" (close) deal's profit field
             pnl = None
+            # Use the currency setting from the account (INR or USD)
+            account_currency = account.get('currency', 'USD')
             if exit_deal:
                 raw_profit = exit_deal.get('profit', 0) or 0
                 raw_pnl = raw_profit + total_commission + total_swap
                 
-                # Convert from account currency to USD if not USD
-                # MetaApi provides accountCurrencyExchangeRate (rate from USD to account currency)
-                exchange_rate = exit_deal.get('accountCurrencyExchangeRate', None)
-                if exchange_rate and base_currency != 'USD' and exchange_rate > 0:
-                    pnl = round(raw_pnl / exchange_rate, 2)
+                if account_currency == 'USD' and base_currency != 'USD':
+                    # Convert from account currency to USD
+                    exchange_rate = exit_deal.get('accountCurrencyExchangeRate', None)
+                    if exchange_rate and exchange_rate > 0:
+                        pnl = round(raw_pnl / exchange_rate, 2)
+                    else:
+                        pnl = round(raw_pnl, 2)
                 else:
+                    # Keep raw value (INR or already USD)
                     pnl = round(raw_pnl, 2)
             
             entry_time = entry.get('time', '')
@@ -1026,6 +1036,7 @@ async def sync_mt5_account(account_id: str, current_user: dict = Depends(get_cur
                 "notes": f"Auto-synced from MT5 (position: {pos_id})",
                 "mt5_ticket": str(pos_id),
                 "mt5_account_id": account_id,
+                "currency": account_currency,
                 "created_at": now,
                 "updated_at": now,
             }
@@ -1261,6 +1272,13 @@ async def get_analytics_summary(
         else:
             current_trade_streak = 0
     
+    # Detect currency from trades
+    trade_currency = 'USD'
+    for trade in trades:
+        if trade.get('currency'):
+            trade_currency = trade['currency']
+            break
+    
     return {
         "total_trades": total_trades,
         "open_trades": open_trades,
@@ -1278,7 +1296,8 @@ async def get_analytics_summary(
         "win_streak_days": max_win_streak,
         "win_streak_trades": max_trade_streak,
         "current_win_streak_days": current_win_streak,
-        "current_win_streak_trades": current_trade_streak
+        "current_win_streak_trades": current_trade_streak,
+        "currency": trade_currency
     }
 
 @api_router.get("/analytics/by-instrument")
@@ -2021,6 +2040,13 @@ Answer this question thoroughly: {user_question}"""
         best_trade = max(closed_trades, key=lambda t: t.get('pnl', 0) or 0, default={})
         worst_trade = min(closed_trades, key=lambda t: t.get('pnl', 0) or 0, default={})
         
+        # Detect currency from trades
+        ai_currency = 'USD'
+        for t in closed_trades:
+            if t.get('currency'):
+                ai_currency = t['currency']
+                break
+        
         return {
             "insight": insight_text,
             "summary": {
@@ -2035,6 +2061,7 @@ Answer this question thoroughly: {user_question}"""
                 "losing_trades": losing,
                 "gross_profit": round(gross_profit, 2),
                 "gross_loss": round(gross_loss, 2),
+                "currency": ai_currency,
             },
             "charts": {
                 "instruments": instrument_chart,

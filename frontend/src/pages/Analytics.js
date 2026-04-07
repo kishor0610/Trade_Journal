@@ -53,6 +53,9 @@ export default function Analytics() {
     );
   }
 
+  const currency = summary?.currency || 'USD';
+  const currencySymbol = currency === 'INR' ? '₹' : '$';
+
   return (
     <div className="space-y-6" data-testid="analytics-page">
       {/* Header */}
@@ -79,7 +82,7 @@ export default function Analytics() {
             <span className="text-muted-foreground text-sm">Total P&L</span>
           </div>
           <p className={`text-2xl md:text-3xl font-mono font-bold ${summary?.total_pnl >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-            {formatCurrency(summary?.total_pnl || 0)}
+            {formatCurrency(summary?.total_pnl || 0, currency)}
           </p>
         </motion.div>
 
@@ -157,7 +160,7 @@ export default function Analytics() {
                 <YAxis 
                   stroke="#A1A1AA" 
                   fontSize={12}
-                  tickFormatter={(value) => `$${value}`}
+                  tickFormatter={(value) => `${currencySymbol}${value}`}
                 />
                 <Tooltip
                   contentStyle={{
@@ -169,7 +172,7 @@ export default function Analytics() {
                   }}
                   labelStyle={{ color: '#fff' }}
                   itemStyle={{ color: '#10B981' }}
-                  formatter={(value) => [formatCurrency(value), 'Cumulative P&L']}
+                  formatter={(value) => [formatCurrency(value, currency), 'Cumulative P&L']}
                 />
                 <Area 
                   type="monotone"
@@ -207,7 +210,7 @@ export default function Analytics() {
                 <YAxis 
                   stroke="#A1A1AA" 
                   fontSize={12}
-                  tickFormatter={(value) => `$${value}`}
+                  tickFormatter={(value) => `${currencySymbol}${value}`}
                 />
                 <Tooltip
                   contentStyle={{
@@ -219,7 +222,7 @@ export default function Analytics() {
                   }}
                   labelStyle={{ color: '#fff' }}
                   itemStyle={{ color: '#10B981' }}
-                  formatter={(value) => [formatCurrency(value), 'P&L']}
+                  formatter={(value) => [formatCurrency(value, currency), 'P&L']}
                 />
                 <Bar 
                   dataKey="pnl" 
@@ -256,7 +259,7 @@ export default function Analytics() {
                   type="number"
                   stroke="#A1A1AA" 
                   fontSize={12}
-                  tickFormatter={(value) => `$${value}`}
+                  tickFormatter={(value) => `${currencySymbol}${value}`}
                 />
                 <YAxis 
                   type="category"
@@ -275,7 +278,7 @@ export default function Analytics() {
                   }}
                   labelStyle={{ color: '#fff' }}
                   itemStyle={{ color: '#10B981' }}
-                  formatter={(value) => [formatCurrency(value), 'P&L']}
+                  formatter={(value) => [formatCurrency(value, currency), 'P&L']}
                 />
                 <Bar 
                   dataKey="total_pnl" 
@@ -339,7 +342,7 @@ export default function Analytics() {
                       <td className={`py-3 text-right font-mono font-bold ${
                         item.total_pnl >= 0 ? 'text-emerald-500' : 'text-red-500'
                       }`}>
-                        {formatCurrency(item.total_pnl)}
+                        {formatCurrency(item.total_pnl, currency)}
                       </td>
                     </tr>
                   ))}

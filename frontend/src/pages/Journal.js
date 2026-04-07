@@ -1702,6 +1702,7 @@ export default function Journal() {
   }, [currentPage, totalPages]);
 
   // Calculate summary
+  const tradeCurrency = filteredTrades.find(t => t.currency)?.currency || 'USD';
   const summary = {
     totalPnl: filteredTrades.reduce((sum, t) => sum + (t.pnl || 0), 0),
     winCount: filteredTrades.filter(t => (t.pnl || 0) > 0).length,
@@ -2004,7 +2005,7 @@ export default function Journal() {
         <div className="flex items-center gap-2">
           <span className="text-muted-foreground text-sm">Total P&L:</span>
           <span className={`font-mono font-bold ${summary.totalPnl >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-            {formatCurrency(summary.totalPnl)}
+            {formatCurrency(summary.totalPnl, tradeCurrency)}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -2101,11 +2102,11 @@ export default function Journal() {
                   <div className="flex items-center gap-4 md:gap-6 font-mono text-sm flex-wrap">
                     <div>
                       <span className="text-muted-foreground text-xs block">Entry</span>
-                      <span>{formatCurrency(trade.entry_price)}</span>
+                      <span>{formatCurrency(trade.entry_price, trade.currency || tradeCurrency)}</span>
                     </div>
                     <div>
                       <span className="text-muted-foreground text-xs block">Exit</span>
-                      <span>{trade.exit_price ? formatCurrency(trade.exit_price) : '-'}</span>
+                      <span>{trade.exit_price ? formatCurrency(trade.exit_price, trade.currency || tradeCurrency) : '-'}</span>
                     </div>
                     <div>
                       <span className="text-muted-foreground text-xs block">Lots</span>
@@ -2115,7 +2116,7 @@ export default function Journal() {
                       <div>
                         <span className="text-muted-foreground text-xs block">P&L</span>
                         <span className={`font-bold ${trade.pnl >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                          {formatCurrency(trade.pnl)}
+                          {formatCurrency(trade.pnl, trade.currency || tradeCurrency)}
                         </span>
                       </div>
                     )}

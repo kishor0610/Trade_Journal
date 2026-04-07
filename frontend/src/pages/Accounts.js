@@ -19,7 +19,8 @@ const AccountForm = ({ onSubmit, onClose }) => {
     password: '',
     server: '',
     platform: 'mt5',
-    metaapi_account_id: ''
+    metaapi_account_id: '',
+    currency: 'USD'
   });
   const [loading, setLoading] = useState(false);
 
@@ -78,16 +79,31 @@ const AccountForm = ({ onSubmit, onClose }) => {
         </div>
       </div>
 
-      <div className="space-y-2">
-        <Label>Broker Server</Label>
-        <Input
-          value={formData.server}
-          onChange={(e) => setFormData({ ...formData, server: e.target.value })}
-          className="bg-secondary border-white/10"
-          placeholder="e.g., ICMarkets-Demo, Exness-Real"
-          required
-          data-testid="account-server-input"
-        />
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Broker Server</Label>
+          <Input
+            value={formData.server}
+            onChange={(e) => setFormData({ ...formData, server: e.target.value })}
+            className="bg-secondary border-white/10"
+            placeholder="e.g., ICMarkets-Demo, Exness-Real"
+            required
+            data-testid="account-server-input"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Account Currency</Label>
+          <Select value={formData.currency} onValueChange={(v) => setFormData({ ...formData, currency: v })}>
+            <SelectTrigger className="bg-secondary border-white/10">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="USD">USD ($)</SelectItem>
+              <SelectItem value="INR">INR (₹)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div className="space-y-2">
@@ -431,11 +447,11 @@ export default function Accounts() {
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div className="p-3 rounded-lg bg-secondary/50">
                     <p className="text-xs text-muted-foreground mb-1">Balance</p>
-                    <p className="font-mono font-bold">{formatCurrency(account.balance)}</p>
+                    <p className="font-mono font-bold">{formatCurrency(account.balance, account.currency || 'USD')}</p>
                   </div>
                   <div className="p-3 rounded-lg bg-secondary/50">
                     <p className="text-xs text-muted-foreground mb-1">Equity</p>
-                    <p className="font-mono font-bold">{formatCurrency(account.equity)}</p>
+                    <p className="font-mono font-bold">{formatCurrency(account.equity, account.currency || 'USD')}</p>
                   </div>
                 </div>
               )}

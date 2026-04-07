@@ -253,7 +253,7 @@ const TradingCalendar = ({ year, month, dailyData, onMonthChange }) => {
         </div>
 
         <div className="flex items-center gap-3 text-sm rounded-xl bg-blue-500/10 border border-blue-500/25 px-3 py-2">
-          <span className={monthPnl >= 0 ? 'text-emerald-300 font-mono' : 'text-red-300 font-mono'}>PnL: {formatCurrency(monthPnl)}</span>
+          <span className={monthPnl >= 0 ? 'text-emerald-300 font-mono' : 'text-red-300 font-mono'}>PnL: {formatCurrency(monthPnl, currency)}</span>
           <span className="text-muted-foreground">|</span>
           <span className="text-muted-foreground">Days: <span className="text-white font-mono">{monthDays}</span></span>
         </div>
@@ -287,7 +287,7 @@ const TradingCalendar = ({ year, month, dailyData, onMonthChange }) => {
                             <div className="mt-2 min-h-[38px]">
                               <p className="text-xs text-slate-200">{cell.trades} trades</p>
                               <p className={`text-sm font-mono font-bold ${cell.pnl >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
-                                {formatCurrency(cell.pnl)}
+                                {formatCurrency(cell.pnl, currency)}
                               </p>
                             </div>
                           ) : (
@@ -314,7 +314,7 @@ const TradingCalendar = ({ year, month, dailyData, onMonthChange }) => {
                 <p className="text-xs text-muted-foreground">{week.range}</p>
               </div>
               <p className={`text-sm mt-1 font-mono ${week.pnl > 0 ? 'text-emerald-300' : week.pnl < 0 ? 'text-red-300' : 'text-muted-foreground'}`}>
-                PnL: {week.pnl === 0 ? 'No trades' : formatCurrency(week.pnl)}
+                PnL: {week.pnl === 0 ? 'No trades' : formatCurrency(week.pnl, currency)}
               </p>
               <p className="text-xs text-muted-foreground">Days: {week.tradingDays}</p>
             </div>
@@ -338,6 +338,8 @@ export default function Dashboard() {
   const [periodTransition, setPeriodTransition] = useState(false);
   const [pnlFlash, setPnlFlash] = useState(null);
   const [streakGlow, setStreakGlow] = useState(false);
+  const currency = summary?.currency || 'USD';
+  const currencySymbol = currency === 'INR' ? '₹' : '$';
   const [calendarDate, setCalendarDate] = useState({ year: new Date().getFullYear(), month: new Date().getMonth() });
   const firstLoadRef = useRef(true);
   const prevTotalPnl = useRef(null);
@@ -707,7 +709,7 @@ export default function Dashboard() {
             <div>
               <div className="flex justify-between text-xs mb-1">
                 <span className="text-blue-300">Avg Win</span>
-                <span className="font-mono text-emerald-300">+{formatCurrency(summary?.avg_win || 0)}</span>
+                <span className="font-mono text-emerald-300">+{formatCurrency(summary?.avg_win || 0, currency)}</span>
               </div>
               <div className="h-2 rounded-full bg-white/10 overflow-hidden">
                 <motion.div
@@ -721,7 +723,7 @@ export default function Dashboard() {
             <div>
               <div className="flex justify-between text-xs mb-1">
                 <span className="text-red-300">Avg Loss</span>
-                <span className="font-mono text-red-300">-{formatCurrency(summary?.avg_loss || 0)}</span>
+                <span className="font-mono text-red-300">-{formatCurrency(summary?.avg_loss || 0, currency)}</span>
               </div>
               <div className="h-2 rounded-full bg-white/10 overflow-hidden">
                 <motion.div
@@ -819,7 +821,7 @@ export default function Dashboard() {
               <AnimatedNumber
                 value={summary?.total_pnl || 0}
                 decimals={2}
-                prefix="$"
+                prefix={currencySymbol}
                 className={`text-3xl font-mono font-bold ${(summary?.total_pnl || 0) >= 0 ? 'text-emerald-300' : 'text-red-300'}`}
               />
               {(summary?.total_pnl || 0) >= 0 ? <TrendingUp className="w-4 h-4 text-emerald-400" /> : <TrendingDown className="w-4 h-4 text-red-400" />}
@@ -934,8 +936,8 @@ export default function Dashboard() {
             <p className="text-xs text-muted-foreground">Account growth, drawdown, and recovery</p>
           </div>
           <div className="flex items-center gap-2 text-xs">
-            <span className="px-2 py-1 rounded bg-emerald-500/10 border border-emerald-500/25 text-emerald-300">Peak {formatCurrency(riskMetrics.peakBalance)}</span>
-            <span className="px-2 py-1 rounded bg-blue-500/10 border border-blue-500/25 text-blue-300">Current {formatCurrency(riskMetrics.currentBalance)}</span>
+            <span className="px-2 py-1 rounded bg-emerald-500/10 border border-emerald-500/25 text-emerald-300">Peak {formatCurrency(riskMetrics.peakBalance, currency)}</span>
+            <span className="px-2 py-1 rounded bg-blue-500/10 border border-blue-500/25 text-blue-300">Current {formatCurrency(riskMetrics.currentBalance, currency)}</span>
           </div>
         </div>
 
@@ -954,7 +956,7 @@ export default function Dashboard() {
                   </linearGradient>
                 </defs>
                 <XAxis dataKey="date" stroke="#A1A1AA" fontSize={11} />
-                <YAxis yAxisId="left" stroke="#A1A1AA" fontSize={11} tickFormatter={(v) => `$${Math.round(v)}`} />
+                <YAxis yAxisId="left" stroke="#A1A1AA" fontSize={11} tickFormatter={(v) => `${currencySymbol}${Math.round(v)}`} />
                 <YAxis yAxisId="right" orientation="right" stroke="#A1A1AA" fontSize={11} tickFormatter={(v) => `${Math.round(v)}%`} />
                 <Tooltip
                   contentStyle={{ backgroundColor: '#121212', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' }}
@@ -1033,7 +1035,7 @@ export default function Dashboard() {
             </div>
             <div className="rounded-lg border border-white/10 p-3 bg-secondary/20">
               <p className="text-xs text-muted-foreground">Expectancy</p>
-              <p className={`text-lg font-mono font-bold ${riskMetrics.expectancy >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{formatCurrency(riskMetrics.expectancy)}</p>
+              <p className={`text-lg font-mono font-bold ${riskMetrics.expectancy >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{formatCurrency(riskMetrics.expectancy, currency)}</p>
             </div>
             <div className="rounded-lg border border-white/10 p-3 bg-secondary/20 col-span-2">
               <p className="text-xs text-muted-foreground mb-1">Sharpe Ratio</p>
