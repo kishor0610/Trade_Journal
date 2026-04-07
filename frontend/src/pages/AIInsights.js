@@ -196,48 +196,43 @@ const FormatInsightText = ({ text }) => {
   
   const paragraphs = text.split('\n\n').filter(p => p.trim());
   
-  // Gradient colors for section headings
+  // Vibrant gradient colors for section headings
   const gradients = [
-    'from-violet-400 to-fuchsia-400',
-    'from-cyan-400 to-blue-400',
-    'from-emerald-400 to-teal-400',
-    'from-amber-400 to-orange-400',
-    'from-rose-400 to-pink-400',
-    'from-indigo-400 to-violet-400',
+    { text: 'from-yellow-300 via-amber-400 to-orange-500', bar: 'from-yellow-400 to-orange-500', glow: 'rgba(251,191,36,0.3)' },
+    { text: 'from-cyan-300 via-sky-400 to-blue-500', bar: 'from-cyan-400 to-blue-500', glow: 'rgba(34,211,238,0.3)' },
+    { text: 'from-emerald-300 via-green-400 to-teal-500', bar: 'from-emerald-400 to-teal-500', glow: 'rgba(52,211,153,0.3)' },
+    { text: 'from-fuchsia-300 via-pink-400 to-rose-500', bar: 'from-fuchsia-400 to-rose-500', glow: 'rgba(232,121,249,0.3)' },
+    { text: 'from-violet-300 via-purple-400 to-indigo-500', bar: 'from-violet-400 to-indigo-500', glow: 'rgba(167,139,250,0.3)' },
+    { text: 'from-rose-300 via-red-400 to-orange-500', bar: 'from-rose-400 to-orange-500', glow: 'rgba(251,113,133,0.3)' },
   ];
   let headingIndex = 0;
   
+  const renderHeading = (title, pIdx) => {
+    const g = gradients[headingIndex % gradients.length];
+    headingIndex++;
+    return (
+      <motion.div key={pIdx} initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 * pIdx, type: 'spring', stiffness: 120 }}
+        className="mt-8 mb-4 flex items-center gap-3">
+        <div className={`w-1.5 h-8 rounded-full bg-gradient-to-b ${g.bar}`} style={{ boxShadow: `0 0 12px ${g.glow}` }} />
+        <h4 className={`font-extrabold text-xl tracking-tight bg-gradient-to-r ${g.text} bg-clip-text text-transparent drop-shadow-sm`}
+          style={{ textShadow: `0 0 20px ${g.glow}`, filter: 'brightness(1.15)' }}>
+          {title}
+        </h4>
+      </motion.div>
+    );
+  };
+
   return paragraphs.map((paragraph, pIdx) => {
     const trimmed = paragraph.trim();
     
     // Section heading (bold text on its own line)
     if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
-      const gradient = gradients[headingIndex % gradients.length];
-      headingIndex++;
-      return (
-        <motion.div key={pIdx} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 * pIdx }}
-          className="mt-6 mb-3 flex items-center gap-2">
-          <div className={`w-1 h-6 rounded-full bg-gradient-to-b ${gradient}`} />
-          <h4 className={`font-bold text-lg bg-gradient-to-r ${gradient} bg-clip-text text-transparent`}>
-            {trimmed.replace(/\*\*/g, '')}
-          </h4>
-        </motion.div>
-      );
+      return renderHeading(trimmed.replace(/\*\*/g, ''), pIdx);
     }
 
     // Heading with # or ##
     if (/^#{1,3}\s/.test(trimmed)) {
-      const gradient = gradients[headingIndex % gradients.length];
-      headingIndex++;
-      return (
-        <motion.div key={pIdx} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 * pIdx }}
-          className="mt-6 mb-3 flex items-center gap-2">
-          <div className={`w-1 h-6 rounded-full bg-gradient-to-b ${gradient}`} />
-          <h4 className={`font-bold text-lg bg-gradient-to-r ${gradient} bg-clip-text text-transparent`}>
-            {trimmed.replace(/^#{1,3}\s*/, '')}
-          </h4>
-        </motion.div>
-      );
+      return renderHeading(trimmed.replace(/^#{1,3}\s*/, ''), pIdx);
     }
 
     const lines = paragraph.split('\n');
