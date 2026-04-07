@@ -59,6 +59,7 @@ const MobileNavItem = ({ path, icon: Icon, label }) => (
   </NavLink>
 );
 
+export default function Layout({ children }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
