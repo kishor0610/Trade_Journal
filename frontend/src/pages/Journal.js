@@ -80,7 +80,7 @@ const loadTradingViewScript = () => {
 };
 
 // ShareTradeDialog Component
-const ShareTradeDialog = ({ trade, isOpen, onClose }) => {
+const ShareTradeDialog = ({ trade, isOpen, onClose, currency = 'USD' }) => {
   const shareImageRef = useRef(null);
   const [copying, setCopying] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -88,6 +88,7 @@ const ShareTradeDialog = ({ trade, isOpen, onClose }) => {
 
   const isProfitable = (trade?.pnl || 0) >= 0;
   const userName = user?.name || 'Trader';
+  const currencySymbol = currency === 'INR' ? '₹' : '$';
 
   const copyImage = async () => {
     if (!shareImageRef.current) return;
@@ -206,7 +207,7 @@ const ShareTradeDialog = ({ trade, isOpen, onClose }) => {
               {/* Profit */}
               <div className="text-center py-4">
                 <div className="text-white/80 text-sm mb-2">PROFIT</div>
-                <div className="text-5xl font-bold text-white">
+                <div className="text-5xl fo{currencySymbol}t-bold text-white">
                   {isProfitable ? '' : '-'}${Math.abs(trade.pnl || 0).toFixed(2)}
                 </div>
               </div>
@@ -234,14 +235,14 @@ const ShareTradeDialog = ({ trade, isOpen, onClose }) => {
               <div className="grid grid-cols-2 gap-4 pt-4">
                 <div>
                   <div className="text-white/60 text-xs mb-1">Open price:</div>
-                  <div className="text-white font-mono">${trade.entry_price?.toFixed(2) || '0.00'}</div>
+                  <div className="text-white font-mono">{currencySymbol}{trade.entry_price?.toFixed(2) || '0.00'}</div>
                   <div className="text-white/60 text-xs mt-0.5">
                     {new Date(trade.entry_date).toLocaleDateString()} {new Date(trade.entry_date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                   </div>
                 </div>
                 <div className="text-right">
                   <div className="text-white/60 text-xs mb-1">Close price:</div>
-                  <div className="text-white font-mono">${trade.exit_price?.toFixed(2) || '0.00'}</div>
+                  <div className="text-white font-mono">{currencySymbol}{trade.exit_price?.toFixed(2) || '0.00'}</div>
                   <div className="text-white/60 text-xs mt-0.5">
                     {trade.exit_date ? new Date(trade.exit_date).toLocaleDateString() : ''} {trade.exit_date ? new Date(trade.exit_date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
                   </div>
@@ -597,6 +598,7 @@ export default function Journal() {
   const [fvgLowInput, setFvgLowInput] = useState('');
   const [fvgHighInput, setFvgHighInput] = useState('');
   const [annotations, setAnnotations] = useState({ liquidity: [], fvgs: [] });
+  const [userCurrency, setUserCurrency] = useState('USD');
 
   const chartContainerRef = useRef(null);
   const chartPanelRef = useRef(null);
@@ -830,6 +832,24 @@ export default function Journal() {
 
   useEffect(() => {
     fetchTrades();
+  }, []);
+
+  useEffect(() => {
+    const fetchUserCurrency = async () => {
+      try {
+        const response = await axios.get(`${API_URL}/mt5/accounts`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        if (response.data && response.data.length > 0) {
+          setUserCurrency(response.data[0].currency || 'USD');
+        }
+      } catch (error) {
+        console.error('Failed to fetch user currency:', error);
+      }
+    };
+    fetchUserCurrency();
   }, []);
 
   const fetchTrades = async () => {
@@ -2431,6 +2451,7 @@ export default function Journal() {
           setShareDialogOpen(false);
           setShareTradeData(null);
         }}
+        currency={userCurrency}
       />
     </div>
   );

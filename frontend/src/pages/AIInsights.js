@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { Sparkles, Send, TrendingUp, TrendingDown, Activity, Target, Loader2, BarChart3, ArrowUpRight, ArrowDownRight, Trophy, AlertTriangle, Zap, PieChart } from 'lucide-react';
@@ -337,6 +337,26 @@ export default function AIInsights() {
   const [question, setQuestion] = useState('');
   const [insight, setInsight] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [userCurrency, setUserCurrency] = useState('USD');
+
+  // Fetch user's currency from their MT5 account
+  useEffect(() => {
+    const fetchUserCurrency = async () => {
+      try {
+        const response = await axios.get(`${API_URL}/mt5/accounts`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        if (response.data && response.data.length > 0) {
+          setUserCurrency(response.data[0].currency || 'USD');
+        }
+      } catch (error) {
+        console.error('Failed to fetch user currency:', error);
+      }
+    };
+    fetchUserCurrency();
+  }, []);
 
   const suggestedQuestions = [
     "What are my biggest trading mistakes?",
@@ -468,7 +488,7 @@ export default function AIInsights() {
               }
               <p className="text-[10px] text-gray-500 uppercase tracking-wider">Total P&L</p>
               <p className={`text-2xl font-mono font-black ${(insight?.summary?.total_pnl || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                {formatCurrency(insight?.summary?.total_pnl || 0, insight?.summary?.currency || 'USD')}
+                {formatCurrency(insight?.summary?.total_pnl || 0, userCurrency)}
               </p>
             </motion.div>
 
@@ -491,17 +511,17 @@ export default function AIInsights() {
               <Zap className="w-5 h-5 text-rose-400 mb-2" />
               <p className="text-[10px] text-gray-500 uppercase tracking-wider">Expectancy</p>
               <p className={`text-2xl font-mono font-black ${(insight?.summary?.expectancy || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                {formatCurrency(insight?.summary?.expectancy || 0, insight?.summary?.currency || 'USD')}
+                {formatCurrency(insight?.summary?.expectancy || 0, userCurrency)}
               </p>
             </motion.div>
           </div>
 
           {/* Charts Row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <InstrumentChart instruments={insight?.charts?.instruments} currency={insight?.summary?.currency || 'USD'} />
+            <InstrumentChart instruments={insight?.charts?.instruments} currency={userCurrency} />
             <div className="space-y-6">
-              <DirectionChart direction={insight?.charts?.direction} currency={insight?.summary?.currency || 'USD'} />
-              <WinLossVisual summary={insight?.summary} charts={insight?.charts} currency={insight?.summary?.currency || 'USD'} />
+              <DirectionChart direction={insight?.charts?.direction} currency={userCurrency} />
+              <WinLossVisual summary={insight?.summary} charts={insight?.charts} currency={userCurrency} />
             </div>
           </div>
 

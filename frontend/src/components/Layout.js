@@ -11,7 +11,8 @@ import {
   User,
   Wallet,
   Bot,
-  Copy
+  Copy,
+  Calculator
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '../components/ui/dropdown-menu';
 import { Toaster } from '../components/ui/sonner';
@@ -22,6 +23,7 @@ const navItems = [
   { path: '/accounts', icon: Wallet, label: 'Accounts' },
   { path: '/analytics', icon: BarChart3, label: 'Analytics' },
   { path: '/insights', icon: Sparkles, label: 'AI Insights' },
+  { path: '/risk-calculator', icon: Calculator, label: 'Risk Calculator' },
 ];
 
 const NavItem = ({ path, icon: Icon, label }) => (
@@ -72,11 +74,12 @@ const Layout = ({ children }) => {
     <div className="min-h-screen bg-background">
       {/* Sidebar Toggle Button */}
       <button
-        className="hidden md:flex fixed z-50 items-center justify-center w-6 h-12 bg-card/80 border border-white/10 hover:bg-white/10 transition-all shadow-lg rounded-r-lg"
+        className="hidden md:flex fixed z-50 items-center justify-center w-6 h-12 bg-card/80 border-2 border-accent hover:bg-white/10 transition-all rounded-r-lg"
         style={{ 
           left: sidebarOpen ? '15.5rem' : '0',
           top: '50%',
-          transform: 'translateY(-50%)'
+          transform: 'translateY(-50%)',
+          boxShadow: '0 0 20px rgba(147, 51, 234, 0.6), 0 0 40px rgba(147, 51, 234, 0.4), 0 4px 8px rgba(0, 0, 0, 0.3)'
         }}
         onClick={() => setSidebarOpen((v) => !v)}
         aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
@@ -84,7 +87,21 @@ const Layout = ({ children }) => {
         <span className="text-white text-sm">{sidebarOpen ? '‹' : '›'}</span>
       </button>
 
-      {/* Desktop Sidebar */}
+      {/* Desktop Sidebar */}-4 border-transparent z-40 transition-all duration-300 ${sidebarOpen ? 'w-64' : 'w-0'} overflow-hidden`}
+        style={{
+          backgroundImage: 'linear-gradient(#1a1a1a, #1a1a1a), linear-gradient(180deg, #ec4899, #8b5cf6, #3b82f6, #06b6d4, #10b981, #f59e0b, #ef4444, #ec4899)',
+          backgroundOrigin: 'border-box',
+          backgroundClip: 'padding-box, border-box',
+          animation: 'rotate-sidebar-border 4s linear infinite',
+        }}
+      >
+        <style>{`
+          @keyframes rotate-sidebar-border {
+            0% { background-position: 0% 50%, 0% 0%; }
+            50% { background-position: 0% 50%, 0% 100%; }
+            100% { background-position: 0% 50%, 0% 200%; }
+          }
+        `}</style
       <aside className={`hidden md:flex fixed left-0 top-0 bottom-0 flex-col bg-card/50 border-r border-white/5 z-40 transition-all duration-300 ${sidebarOpen ? 'w-64' : 'w-0'} overflow-hidden`}>
         {/* Logo */}
         <div className="flex items-center gap-3 p-6 border-b border-white/5">
@@ -100,11 +117,6 @@ const Layout = ({ children }) => {
           {/* Coming Soon Items */}
           <div className="pt-4 mt-4 border-t border-white/5">
             <p className="text-xs text-muted-foreground mb-2 px-4">Coming Soon</p>
-            <NavLink to="/risk-calculator" className={({ isActive }) => `flex items-center gap-3 px-4 py-3 rounded-lg transition-all font-bold text-base ${isActive ? 'bg-gradient-to-r from-fuchsia-500/20 to-cyan-500/20 text-fuchsia-300 border border-fuchsia-400/40 shadow-lg' : 'text-fuchsia-300 hover:text-white hover:bg-fuchsia-500/10'}`} data-testid="nav-risk-calculator">
-              {/* <Calculator className="w-5 h-5 text-fuchsia-400 drop-shadow-glow" /> */}
-              <span className="hidden md:inline">Risk Calculator</span>
-              <span className="ml-2 px-2 py-0.5 rounded-full text-xs font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 text-black/80 shadow">New</span>
-            </NavLink>
             <div className="flex items-center gap-3 px-4 py-3 text-muted-foreground/50 cursor-not-allowed">
               <Bot className="w-5 h-5" />
               <span className="hidden md:inline">Algos</span>
