@@ -87,7 +87,8 @@ const Layout = ({ children }) => {
         <span className="text-white text-sm">{sidebarOpen ? '‹' : '›'}</span>
       </button>
 
-      {/* Desktop Sidebar */}-4 border-transparent z-40 transition-all duration-300 ${sidebarOpen ? 'w-64' : 'w-0'} overflow-hidden`}
+      {/* Desktop Sidebar */}
+      <aside className={`hidden md:flex fixed left-0 top-0 bottom-0 flex-col bg-card/50 border-r-4 border-transparent z-40 transition-all duration-300 ${sidebarOpen ? 'w-64' : 'w-0'} overflow-hidden`}
         style={{
           backgroundImage: 'linear-gradient(#1a1a1a, #1a1a1a), linear-gradient(180deg, #ec4899, #8b5cf6, #3b82f6, #06b6d4, #10b981, #f59e0b, #ef4444, #ec4899)',
           backgroundOrigin: 'border-box',
@@ -101,8 +102,7 @@ const Layout = ({ children }) => {
             50% { background-position: 0% 50%, 0% 100%; }
             100% { background-position: 0% 50%, 0% 200%; }
           }
-        `}</style
-      <aside className={`hidden md:flex fixed left-0 top-0 bottom-0 flex-col bg-card/50 border-r border-white/5 z-40 transition-all duration-300 ${sidebarOpen ? 'w-64' : 'w-0'} overflow-hidden`}>
+        `}</style>
         {/* Logo */}
         <div className="flex items-center gap-3 p-6 border-b border-white/5">
           <img src="/app-icon.png" alt="TradeLedger" className="w-10 h-10 rounded-xl" />
