@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
-import { Plus, Trash2, RefreshCw, Link2, Unlink, Server, Key, Check, Eye, EyeOff } from 'lucide-react';
+import { Plus, Trash2, RefreshCw, Link2, Unlink, Server, Key, Check, Eye, EyeOff, Edit } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -410,6 +410,15 @@ export default function Accounts() {
                     data-testid={`sync-account-${account.id}`}
                   >
                     <RefreshCw className={`w-4 h-4 ${syncing[account.id] ? 'animate-spin' : ''}`} />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => toast.info('Edit functionality coming soon!')}
+                    className="h-8 w-8 text-blue-500 hover:text-blue-400"
+                    title="Edit Account"
+                  >
+                    <Edit className="w-4 h-4" />
                   </Button>
                   <Button
                     variant="ghost"
