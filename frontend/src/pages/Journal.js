@@ -207,8 +207,8 @@ const ShareTradeDialog = ({ trade, isOpen, onClose, currency = 'USD' }) => {
               {/* Profit */}
               <div className="text-center py-4">
                 <div className="text-white/80 text-sm mb-2">PROFIT</div>
-                <div className="text-5xl fo{currencySymbol}t-bold text-white">
-                  {isProfitable ? '' : '-'}${Math.abs(trade.pnl || 0).toFixed(2)}
+                <div className="text-5xl font-bold text-white">
+                  {isProfitable ? '' : '-'}{currencySymbol}{Math.abs(trade.pnl || 0).toFixed(2)}
                 </div>
               </div>
 
