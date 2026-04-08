@@ -2733,32 +2733,56 @@ async def get_economic_calendar():
     # Fetch fresh calendar data
     try:
         today = date.today()
+        url = f"https://finnhub.io/api/v1/calendar/economic?from={today}&to={today}&token={FINNHUB_API_KEY}"
+        logging.info(f"Fetching economic calendar for {today}")
+        
         async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"https://finnhub.io/api/v1/calendar/economic?from={today}&to={today}&token={FINNHUB_API_KEY}",
-                timeout=10.0
-            )
+            response = await client.get(url, timeout=10.0)
             response.raise_for_status()
             calendar_data = response.json()
+        
+        logging.info(f"Calendar API response keys: {calendar_data.keys() if isinstance(calendar_data, dict) else 'Not a dict'}")
         
         events = calendar_data.get('economicCalendar', [])
         
         # Filter for high-impact events only
         filtered_events = []
         for event in events:
-            if event.get('impact') == 'high':  # Only high-impact events
+            impact = str(event.get('impact', '')).lower()
+            
+            # Accept both 'high' and '3' (some APIs use numeric impact levels)
+            if impact in ['high', '3']:
                 # Format time (event time is in UTC)
                 event_time = event.get('time', '')
                 
+                # Get country/currency - try multiple fields
+                currency = event.get('country') or event.get('currency') or 'N/A'
+                
                 filtered_events.append({
-                    'time': event_time,
-                    'currency': event.get('country', 'N/A'),
+                    'time': event_time if event_time else 'TBA',
+                    'currency': currency,
                     'event': event.get('event', 'Economic Event')
                 })
+        
+        # If no high-impact events, include medium impact as fallback
+        if not filtered_events:
+            for event in events[:10]:  # Limit to 10 events
+                impact = str(event.get('impact', '')).lower()
+                if impact in ['medium', '2', 'high', '3']:
+                    event_time = event.get('time', '')
+                    currency = event.get('country') or event.get('currency') or 'N/A'
+                    
+                    filtered_events.append({
+                        'time': event_time if event_time else 'TBA',
+                        'currency': currency,
+                        'event': event.get('event', 'Economic Event')
+                    })
         
         # Update cache
         calendar_cache['data'] = filtered_events
         calendar_cache['timestamp'] = datetime.now(timezone.utc)
+        
+        logging.info(f"Economic calendar: Found {len(filtered_events)} events for {today}")
         
         return filtered_events
         
