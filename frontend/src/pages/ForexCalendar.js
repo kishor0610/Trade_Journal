@@ -135,15 +135,30 @@ const CalendarTicker = () => {
 
   const fetchEvents = async () => {
     try {
+      console.log('=== STEP 7: Fetching calendar from:', `${API_URL}/calendar`);
+      
       const response = await axios.get(`${API_URL}/calendar`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
-      setEvents(response.data);
+      
+      console.log('Calendar response status:', response.status);
+      console.log('Calendar data:', response.data);
+      console.log('Number of events:', response.data?.length || 0);
+      
+      setEvents(response.data || []);
       setLoading(false);
     } catch (error) {
-      console.error('Failed to fetch calendar:', error);
+      console.error('=== Calendar fetch error ===');
+      console.error('Error type:', error.name);
+      console.error('Error message:', error.message);
+      console.error('Full error:', error);
+      
+      // Set loading to false even on error
+      setLoading(false);
+      
+      // Only show toast if we don't have cached events
       if (!events.length) {
         toast.error('Failed to load economic calendar');
       }

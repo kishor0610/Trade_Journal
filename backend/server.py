@@ -2734,64 +2734,83 @@ async def get_economic_calendar():
     try:
         today = date.today()
         url = f"https://finnhub.io/api/v1/calendar/economic?from={today}&to={today}&token={FINNHUB_API_KEY}"
-        logging.info(f"Fetching economic calendar for {today}")
+        print(f"\n=== STEP 2: Calling Finnhub Calendar API ===")
+        print(f"Date: {today}")
+        print(f"URL: {url[:80]}...")
         
         async with httpx.AsyncClient() as client:
             response = await client.get(url, timeout=10.0)
             response.raise_for_status()
             calendar_data = response.json()
         
-        logging.info(f"Calendar API response keys: {calendar_data.keys() if isinstance(calendar_data, dict) else 'Not a dict'}")
+        print(f"Response status: {response.status_code}")
+        print(f"Response type: {type(calendar_data)}")
+        print(f"Response keys: {calendar_data.keys() if isinstance(calendar_data, dict) else 'Not a dict'}")
         
         events = calendar_data.get('economicCalendar', [])
+        print(f"Total events in response: {len(events)}")
         
-        # Filter for high-impact events only
+        # STEP 4: Remove over-filtering - show ALL events with impact levels
         filtered_events = []
-        for event in events:
-            impact = str(event.get('impact', '')).lower()
-            
-            # Accept both 'high' and '3' (some APIs use numeric impact levels)
-            if impact in ['high', '3']:
-                # Format time (event time is in UTC)
-                event_time = event.get('time', '')
-                
-                # Get country/currency - try multiple fields
-                currency = event.get('country') or event.get('currency') or 'N/A'
-                
-                filtered_events.append({
-                    'time': event_time if event_time else 'TBA',
-                    'currency': currency,
-                    'event': event.get('event', 'Economic Event')
-                })
         
-        # If no high-impact events, include medium impact as fallback
+        # First try to get any events regardless of impact
+        for idx, event in enumerate(events[:15]):  # Show up to 15 events
+            event_time = event.get('time', '')
+            currency = event.get('country') or event.get('currency') or 'N/A'
+            impact = event.get('impact', 'N/A')
+            
+            if idx < 3:  # Log first 3 events for debugging
+                print(f"Event {idx + 1}: {event}")
+            
+            filtered_events.append({
+                'time': event_time if event_time else 'TBA',
+                'currency': currency,
+                'event': event.get('event', 'Economic Event'),
+                'impact': impact  # Include impact in response
+            })
+        
+        print(f"\n=== STEP 4: Filtered events ===")
+        print(f"Total filtered: {len(filtered_events)}")
+        
+        # STEP 3: Handle empty data case with fallback
         if not filtered_events:
-            for event in events[:10]:  # Limit to 10 events
-                impact = str(event.get('impact', '')).lower()
-                if impact in ['medium', '2', 'high', '3']:
-                    event_time = event.get('time', '')
-                    currency = event.get('country') or event.get('currency') or 'N/A'
-                    
-                    filtered_events.append({
-                        'time': event_time if event_time else 'TBA',
-                        'currency': currency,
-                        'event': event.get('event', 'Economic Event')
-                    })
+            print("No events found - returning fallback message")
+            filtered_events = [{
+                'time': 'All Day',
+                'currency': 'GLOBAL',
+                'event': 'No major economic events scheduled for today',
+                'impact': 'low'
+            }]
         
         # Update cache
         calendar_cache['data'] = filtered_events
         calendar_cache['timestamp'] = datetime.now(timezone.utc)
         
-        logging.info(f"Economic calendar: Found {len(filtered_events)} events for {today}")
+        print(f"=== SUCCESS: Returning {len(filtered_events)} events ===")
+        print(f"Sample event: {filtered_events[0] if filtered_events else 'None'}\n")
         
         return filtered_events
         
     except Exception as e:
-        logging.error(f"Failed to fetch economic calendar: {str(e)}")
+        print(f"\n=== ERROR in calendar endpoint ===")
+        print(f"Error type: {type(e).__name__}")
+        print(f"Error message: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        
         # Return cached data if available, even if expired
         if calendar_cache['data']:
+            print("Returning cached data instead")
             return calendar_cache['data']
-        raise HTTPException(status_code=503, detail="Failed to fetch economic calendar")
+        
+        # Return fallback instead of error
+        print("No cache available - returning fallback")
+        return [{
+            'time': 'N/A',
+            'currency': 'SYSTEM',
+            'event': 'Unable to fetch calendar data - please try again later',
+            'impact': 'low'
+        }]
 
 
 # Include routers
