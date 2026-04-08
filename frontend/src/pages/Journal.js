@@ -842,8 +842,11 @@ export default function Journal() {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
           }
         });
+        console.log('MT5 Accounts Response (Journal):', response.data);
         if (response.data && response.data.length > 0) {
-          setUserCurrency(response.data[0].currency || 'USD');
+          const currency = response.data[0].currency || 'USD';
+          console.log('Setting user currency to (Journal):', currency);
+          setUserCurrency(currency);
         }
       } catch (error) {
         console.error('Failed to fetch user currency:', error);

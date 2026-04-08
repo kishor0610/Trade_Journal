@@ -104,7 +104,21 @@ const Layout = ({ children }) => {
           }
         `}</style>
         {/* Logo */}
-        <div className="flex items-center gap-3 p-6 border-b border-white/5">
+        <div className="flex items-center gap-3 p-6 border-b-4 border-transparent relative"
+          style={{
+            backgroundImage: 'linear-gradient(#1a1a1a, #1a1a1a), linear-gradient(90deg, #ec4899, #8b5cf6, #3b82f6, #06b6d4, #10b981, #f59e0b, #ef4444, #ec4899)',
+            backgroundOrigin: 'border-box',
+            backgroundClip: 'padding-box, border-box',
+            animation: 'rotate-logo-border 4s linear infinite',
+          }}
+        >
+          <style>{`
+            @keyframes rotate-logo-border {
+              0% { background-position: 0% 50%, 0% 50%; }
+              50% { background-position: 0% 50%, 100% 50%; }
+              100% { background-position: 0% 50%, 200% 50%; }
+            }
+          `}</style>
           <img src="/app-icon.png" alt="TradeLedger" className="w-10 h-10 rounded-xl" />
           <span className="text-xl font-heading font-bold whitespace-nowrap">TradeLedger</span>
         </div>
@@ -115,7 +129,21 @@ const Layout = ({ children }) => {
             <NavItem key={item.path} {...item} />
           ))}
           {/* Coming Soon Items */}
-          <div className="pt-4 mt-4 border-t border-white/5">
+          <div className="pt-4 mt-4 border-t-4 border-transparent relative"
+            style={{
+              backgroundImage: 'linear-gradient(#1a1a1a, #1a1a1a), linear-gradient(90deg, #ec4899, #8b5cf6, #3b82f6, #06b6d4, #10b981, #f59e0b, #ef4444, #ec4899)',
+              backgroundOrigin: 'border-box',
+              backgroundClip: 'padding-box, border-box',
+              animation: 'rotate-coming-soon-border 4s linear infinite',
+            }}
+          >
+            <style>{`
+              @keyframes rotate-coming-soon-border {
+                0% { background-position: 0% 50%, 0% 50%; }
+                50% { background-position: 0% 50%, 100% 50%; }
+                100% { background-position: 0% 50%, 200% 50%; }
+              }
+            `}</style>
             <p className="text-xs text-muted-foreground mb-2 px-4">Coming Soon</p>
             <div className="flex items-center gap-3 px-4 py-3 text-muted-foreground/50 cursor-not-allowed">
               <Bot className="w-5 h-5" />
@@ -129,7 +157,21 @@ const Layout = ({ children }) => {
         </nav>
 
         {/* User Section */}
-        <div className="p-4 border-t border-white/5">
+        <div className="p-4 border-t-4 border-transparent relative"
+          style={{
+            backgroundImage: 'linear-gradient(#1a1a1a, #1a1a1a), linear-gradient(90deg, #ec4899, #8b5cf6, #3b82f6, #06b6d4, #10b981, #f59e0b, #ef4444, #ec4899)',
+            backgroundOrigin: 'border-box',
+            backgroundClip: 'padding-box, border-box',
+            animation: 'rotate-user-border 4s linear infinite',
+          }}
+        >
+          <style>{`
+            @keyframes rotate-user-border {
+              0% { background-position: 0% 50%, 0% 50%; }
+              50% { background-position: 0% 50%, 100% 50%; }
+              100% { background-position: 0% 50%, 200% 50%; }
+            }
+          `}</style>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 transition-colors text-left">

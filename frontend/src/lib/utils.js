@@ -7,7 +7,11 @@ export function cn(...inputs) {
 
 export function formatCurrency(value, currency = 'USD') {
   if (value === null || value === undefined) return '-';
-  return new Intl.NumberFormat('en-US', {
+  
+  // Use appropriate locale for currency
+  const locale = currency === 'INR' ? 'en-IN' : 'en-US';
+  
+  return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency: currency,
     minimumFractionDigits: 2,
