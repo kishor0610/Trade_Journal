@@ -12,7 +12,8 @@ import {
   Wallet,
   Bot,
   Copy,
-  Calculator
+  Calculator,
+  Calendar
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '../components/ui/dropdown-menu';
 import { Toaster } from '../components/ui/sonner';
@@ -24,6 +25,7 @@ const navItems = [
   { path: '/analytics', icon: BarChart3, label: 'Analytics' },
   { path: '/insights', icon: Sparkles, label: 'AI Insights' },
   { path: '/risk-calculator', icon: Calculator, label: 'Risk Calculator' },
+  { path: '/forex-calendar', icon: Calendar, label: 'Forex Calendar' },
 ];
 
 const NavItem = ({ path, icon: Icon, label }) => (

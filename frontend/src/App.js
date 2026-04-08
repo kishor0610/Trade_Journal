@@ -13,6 +13,7 @@ import Analytics from './pages/Analytics';
 import AIInsights from './pages/AIInsights';
 import Accounts from './pages/Accounts';
 import RiskCalculator from './pages/RiskCalculator';
+import ForexCalendar from './pages/ForexCalendar';
 import AdminLogin from './pages/AdminLogin';
 import AdminDashboard from './pages/AdminDashboard';
 import './App.css';
@@ -105,6 +106,11 @@ function AppRoutes() {
       <Route path="/risk-calculator" element={
         <ProtectedRoute>
           <RiskCalculator />
+        </ProtectedRoute>
+      } />
+      <Route path="/forex-calendar" element={
+        <ProtectedRoute>
+          <ForexCalendar />
         </ProtectedRoute>
       } />
       

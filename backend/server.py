@@ -43,6 +43,7 @@ METAAPI_TOKEN = os.environ.get('METAAPI_TOKEN', '')
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
 SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev')
 TWELVE_DATA_API_KEY = os.environ.get('TWELVE_DATA_API_KEY', '')
+FINNHUB_API_KEY = os.environ.get('FINNHUB_API_KEY', 'd7bdvvhr01qgc9t72sc0d7bdvvhr01qgc9t72scg')
 
 # Admin credentials
 ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'admin@tradeledger.com')
@@ -58,6 +59,13 @@ if RESEND_API_KEY:
 # Initialize Groq
 GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')
 groq_client = None
+
+# News cache (in-memory)
+news_cache = {
+    'data': None,
+    'timestamp': None
+}
+NEWS_CACHE_TTL = 60  # 60 seconds
 if GROQ_API_KEY:
     groq_client = Groq(api_key=GROQ_API_KEY)
 
@@ -2625,6 +2633,83 @@ async def root():
 @api_router.get("/health")
 async def health_check():
     return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}
+
+# Forex News endpoint
+@api_router.get("/news")
+async def get_forex_news():
+    """Fetch latest forex news from Finnhub API with caching"""
+    global news_cache
+    
+    # Check if cache is valid
+    if news_cache['data'] and news_cache['timestamp']:
+        elapsed = (datetime.now(timezone.utc) - news_cache['timestamp']).total_seconds()
+        if elapsed < NEWS_CACHE_TTL:
+            return news_cache['data']
+    
+    # Fetch fresh news
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"https://finnhub.io/api/v1/news?category=forex&token={FINNHUB_API_KEY}",
+                timeout=10.0
+            )
+            response.raise_for_status()
+            news_data = response.json()
+        
+        # Filter and format news
+        forex_keywords = [
+            "USD", "EUR", "GBP", "JPY", "XAU", "Gold", "Fed", "ECB", "BOJ", "BOE",
+            "Inflation", "Interest Rate", "CPI", "NFP", "Dollar", "Forex", "FX",
+            "Central Bank", "Rate Hike", "Rate Cut", "FOMC", "Monetary Policy"
+        ]
+        
+        filtered_news = []
+        for item in news_data[:20]:  # Process more to get enough filtered results
+            headline = item.get('headline', '')
+            
+            # Check if headline contains forex keywords
+            if any(keyword.lower() in headline.lower() for keyword in forex_keywords):
+                # Calculate relative time
+                news_time = datetime.fromtimestamp(item.get('datetime', 0), tz=timezone.utc)
+                now = datetime.now(timezone.utc)
+                diff = now - news_time
+                
+                if diff.days > 0:
+                    time_str = f"{diff.days}d ago"
+                elif diff.seconds >= 3600:
+                    time_str = f"{diff.seconds // 3600}h ago"
+                elif diff.seconds >= 60:
+                    time_str = f"{diff.seconds // 60}m ago"
+                else:
+                    time_str = "Just now"
+                
+                # Check for high-impact keywords
+                high_impact = any(word.lower() in headline.lower() 
+                                for word in ["Fed", "Interest Rate", "CPI", "NFP", "FOMC", "Rate Hike", "Rate Cut"])
+                
+                filtered_news.append({
+                    "headline": headline,
+                    "source": item.get('source', 'Unknown'),
+                    "time": time_str,
+                    "url": item.get('url', ''),
+                    "highImpact": high_impact
+                })
+                
+                if len(filtered_news) >= 15:
+                    break
+        
+        # Update cache
+        news_cache['data'] = filtered_news
+        news_cache['timestamp'] = datetime.now(timezone.utc)
+        
+        return filtered_news
+        
+    except Exception as e:
+        logging.error(f"Failed to fetch forex news: {str(e)}")
+        # Return cached data if available, even if expired
+        if news_cache['data']:
+            return news_cache['data']
+        raise HTTPException(status_code=503, detail="Failed to fetch forex news")
 
 # Include routers
 app.include_router(api_router)
