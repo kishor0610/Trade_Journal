@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
-import { Calendar, ExternalLink, TrendingUp, AlertCircle } from 'lucide-react';
+import { Calendar, ExternalLink, TrendingUp, AlertCircle, Bell } from 'lucide-react';
 import { toast } from 'sonner';
 
 const API_URL = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -127,6 +127,118 @@ const NewsTicker = () => {
   );
 };
 
+const CalendarTicker = () => {
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [isPaused, setIsPaused] = useState(false);
+  const tickerRef = useRef(null);
+
+  const fetchEvents = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/calendar`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      setEvents(response.data);
+      setLoading(false);
+    } catch (error) {
+      console.error('Failed to fetch calendar:', error);
+      if (!events.length) {
+        toast.error('Failed to load economic calendar');
+      }
+    }
+  };
+
+  useEffect(() => {
+    fetchEvents();
+    
+    // Refresh calendar every 60 seconds
+    const interval = setInterval(fetchEvents, 60000);
+    
+    return () => clearInterval(interval);
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="w-full bg-card/50 border-b border-white/5 py-3 px-4">
+        <div className="flex items-center gap-3">
+          <Bell className="w-5 h-5 text-red-500 animate-pulse" />
+          <span className="text-sm text-muted-foreground">Loading economic events...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!events.length) {
+    return (
+      <div className="w-full bg-card/50 border-b border-white/5 py-3 px-4">
+        <div className="flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 text-yellow-500" />
+          <span className="text-sm text-muted-foreground">No high-impact events scheduled for today</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full bg-gradient-to-r from-red-950/30 via-red-900/20 to-red-950/30 border-b border-red-500/20 overflow-hidden relative">
+      {/* Gradient overlays for fade effect */}
+      <div className="absolute left-0 top-0 bottom-0 w-20 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
+      <div className="absolute right-0 top-0 bottom-0 w-20 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
+      
+      <div 
+        className="flex items-center py-3 px-4"
+        onMouseEnter={() => setIsPaused(true)}
+        onMouseLeave={() => setIsPaused(false)}
+      >
+        <div className="flex items-center gap-2 mr-6 flex-shrink-0">
+          <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+          <span className="text-sm font-semibold text-red-400">HIGH IMPACT EVENTS</span>
+        </div>
+        
+        <div className="overflow-hidden flex-1">
+          <motion.div
+            ref={tickerRef}
+            className="flex items-center gap-8 whitespace-nowrap"
+            animate={{
+              x: isPaused ? 0 : [0, -2000]
+            }}
+            transition={{
+              x: {
+                repeat: Infinity,
+                repeatType: "loop",
+                duration: 45,
+                ease: "linear"
+              }
+            }}
+          >
+            {/* Duplicate events for seamless loop */}
+            {[...events, ...events].map((item, index) => (
+              <div
+                key={`${item.event}-${index}`}
+                className="flex items-center gap-3 group"
+              >
+                <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
+                <span className="text-sm text-gray-300">
+                  {item.time}
+                </span>
+                <span className="text-sm font-semibold text-red-400">
+                  {item.currency}
+                </span>
+                <span className="text-sm text-gray-200">
+                  {item.event}
+                </span>
+                <span className="text-red-500 mx-4">•</span>
+              </div>
+            ))}
+          </motion.div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function ForexCalendar() {
   return (
     <div className="space-y-6" data-testid="forex-calendar-page">
@@ -148,27 +260,45 @@ export default function ForexCalendar() {
       {/* News Ticker */}
       <NewsTicker />
 
-      {/* Coming Soon Content */}
+      {/* Economic Calendar Ticker */}
+      <CalendarTicker />
+
+      {/* Info Card */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="glass-card p-12 text-center"
+        className="glass-card p-8"
       >
-        <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-accent/20 to-blue-600/20 flex items-center justify-center">
-          <Calendar className="w-10 h-10 text-accent" />
-        </div>
-        <h3 className="text-xl font-heading font-bold mb-2">Economic Calendar Coming Soon</h3>
-        <p className="text-muted-foreground max-w-md mx-auto mb-6">
-          Stay tuned for an interactive economic calendar showing upcoming events, news releases, and market-moving announcements.
-        </p>
-        <div className="flex flex-wrap gap-4 justify-center">
-          <div className="px-4 py-2 rounded-lg bg-white/5 border border-white/10">
-            <p className="text-xs text-muted-foreground mb-1">Planned Features</p>
-            <ul className="text-sm text-left space-y-1">
+        <div className="grid md:grid-cols-2 gap-6">
+          <div className="p-6 rounded-lg bg-gradient-to-br from-accent/10 to-blue-600/10 border border-white/10">
+            <div className="flex items-center gap-3 mb-4">
+              <TrendingUp className="w-6 h-6 text-accent" />
+              <h3 className="text-lg font-heading font-bold">Forex News</h3>
+            </div>
+            <p className="text-sm text-muted-foreground mb-3">
+              Real-time forex market news filtered by relevant keywords (USD, EUR, GBP, JPY, Gold, Fed, ECB, etc.)
+            </p>
+            <ul className="text-sm space-y-1 text-gray-300">
+              <li>• Auto-refresh every 60 seconds</li>
+              <li>• Click headlines to read full articles</li>
+              <li>• Pause on hover for easier reading</li>
+              <li>• High-impact news marked with red dot</li>
+            </ul>
+          </div>
+          
+          <div className="p-6 rounded-lg bg-gradient-to-br from-red-600/10 to-orange-600/10 border border-red-500/20">
+            <div className="flex items-center gap-3 mb-4">
+              <Bell className="w-6 h-6 text-red-400" />
+              <h3 className="text-lg font-heading font-bold text-red-400">High-Impact Events</h3>
+            </div>
+            <p className="text-sm text-muted-foreground mb-3">
+              Today's high-impact economic events that could move the forex market
+            </p>
+            <ul className="text-sm space-y-1 text-gray-300">
               <li>• NFP, CPI, FOMC announcements</li>
-              <li>• Central bank decisions</li>
-              <li>• Real-time event notifications</li>
-              <li>• Impact level indicators</li>
+              <li>• Central bank interest rate decisions</li>
+              <li>• Major economic releases</li>
+              <li>• Live updates throughout the day</li>
             </ul>
           </div>
         </div>

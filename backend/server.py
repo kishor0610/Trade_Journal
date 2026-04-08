@@ -9,7 +9,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
 from typing import List, Optional, Dict, Any
 import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
 import jwt
 import bcrypt
 from fastapi.responses import StreamingResponse
@@ -66,6 +66,12 @@ news_cache = {
     'timestamp': None
 }
 NEWS_CACHE_TTL = 60  # 60 seconds
+
+calendar_cache = {
+    'data': None,
+    'timestamp': None
+}
+CALENDAR_CACHE_TTL = 60  # 60 seconds
 if GROQ_API_KEY:
     groq_client = Groq(api_key=GROQ_API_KEY)
 
@@ -2710,6 +2716,59 @@ async def get_forex_news():
         if news_cache['data']:
             return news_cache['data']
         raise HTTPException(status_code=503, detail="Failed to fetch forex news")
+
+
+# Economic Calendar endpoint
+@api_router.get("/calendar")
+async def get_economic_calendar():
+    """Fetch high-impact economic events for today from Finnhub API with caching"""
+    global calendar_cache
+    
+    # Check if cache is valid
+    if calendar_cache['data'] and calendar_cache['timestamp']:
+        elapsed = (datetime.now(timezone.utc) - calendar_cache['timestamp']).total_seconds()
+        if elapsed < CALENDAR_CACHE_TTL:
+            return calendar_cache['data']
+    
+    # Fetch fresh calendar data
+    try:
+        today = date.today()
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"https://finnhub.io/api/v1/calendar/economic?from={today}&to={today}&token={FINNHUB_API_KEY}",
+                timeout=10.0
+            )
+            response.raise_for_status()
+            calendar_data = response.json()
+        
+        events = calendar_data.get('economicCalendar', [])
+        
+        # Filter for high-impact events only
+        filtered_events = []
+        for event in events:
+            if event.get('impact') == 'high':  # Only high-impact events
+                # Format time (event time is in UTC)
+                event_time = event.get('time', '')
+                
+                filtered_events.append({
+                    'time': event_time,
+                    'currency': event.get('country', 'N/A'),
+                    'event': event.get('event', 'Economic Event')
+                })
+        
+        # Update cache
+        calendar_cache['data'] = filtered_events
+        calendar_cache['timestamp'] = datetime.now(timezone.utc)
+        
+        return filtered_events
+        
+    except Exception as e:
+        logging.error(f"Failed to fetch economic calendar: {str(e)}")
+        # Return cached data if available, even if expired
+        if calendar_cache['data']:
+            return calendar_cache['data']
+        raise HTTPException(status_code=503, detail="Failed to fetch economic calendar")
+
 
 # Include routers
 app.include_router(api_router)
