@@ -327,7 +327,7 @@ const INTERVAL_SECONDS = {
   '1d': 86400,
 };
 
-const TradeForm = ({ trade, onSubmit, onClose }) => {
+const TradeForm = ({ trade, onSubmit, onClose, currency = 'USD' }) => {
   const [formData, setFormData] = useState({
     instrument: trade?.instrument || 'XAU/USD',
     position: trade?.position || 'buy',
@@ -342,6 +342,7 @@ const TradeForm = ({ trade, onSubmit, onClose }) => {
     take_profit: trade?.take_profit || '',
     commission: trade?.commission || '',
     swap: trade?.swap || '',
+    currency: trade?.currency || currency,
     // Trading journal fields
     pre_trade_analysis: trade?.pre_trade_analysis || '',
     post_trade_review: trade?.post_trade_review || '',
@@ -435,7 +436,7 @@ const TradeForm = ({ trade, onSubmit, onClose }) => {
               </span>
               {trade.pnl !== undefined && (
                 <span className={`font-mono text-lg ${trade.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {trade.pnl >= 0 ? '+' : ''}{formatCurrency(trade.pnl)}
+                  {trade.pnl >= 0 ? '+' : ''}{formatCurrency(trade.pnl, currency)}
                 </span>
               )}
             </div>
@@ -2012,9 +2013,13 @@ export default function Journal() {
   };
 
   const handleUpdateTrade = async (data) => {
-    await axios.put(`${API_URL}/trades/${editingTrade.id}`, data);
+    const response = await axios.put(`${API_URL}/trades/${editingTrade.id}`, data);
     toast.success('Trade updated successfully');
-    fetchTrades();
+    
+    // Update trade in-place to maintain position
+    setTrades(prevTrades => 
+      prevTrades.map(t => t.id === editingTrade.id ? response.data : t)
+    );
   };
 
   const handleDeleteTrade = async (tradeId) => {
@@ -2256,7 +2261,7 @@ export default function Journal() {
                 <span className="hidden sm:inline">Add Trade</span>
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-card border-white/10 max-w-lg max-h-[90vh]">
+            <DialogContent className="bg-card border-white/10 w-[95vw] max-w-7xl h-[95vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle className="font-heading">{editingTrade ? 'Edit Trade' : 'Add New Trade'}</DialogTitle>
               </DialogHeader>
@@ -2264,6 +2269,7 @@ export default function Journal() {
                 trade={editingTrade}
                 onSubmit={editingTrade ? handleUpdateTrade : handleAddTrade}
                 onClose={closeDialog}
+                currency={userCurrency}
               />
             </DialogContent>
           </Dialog>

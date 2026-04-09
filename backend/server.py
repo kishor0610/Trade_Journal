@@ -198,6 +198,7 @@ class TradeUpdate(BaseModel):
     status: Optional[str] = None
     stop_loss: Optional[float] = None
     take_profit: Optional[float] = None
+    currency: Optional[str] = None
     # Trading journal fields
     pre_trade_analysis: Optional[str] = None
     post_trade_review: Optional[str] = None
