@@ -116,8 +116,7 @@ export default function MarketTicker() {
                 </div>
               );
             })}
-          </motion.div>);
-          })
+          </motion.div>
         )}
       </div>
     </div>
