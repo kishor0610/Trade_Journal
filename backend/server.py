@@ -2850,20 +2850,21 @@ async def get_market_quotes():
             return quotes_cache['data']
     
     # Symbols to fetch (Crypto, Metals, Oil, US Indices)
+    # Using US stock symbols which Finnhub free tier supports
     SYMBOLS = [
         # Crypto
         {"symbol": "BINANCE:BTCUSDT", "display": "BTC"},
         {"symbol": "BINANCE:ETHUSDT", "display": "ETH"},
         {"symbol": "BINANCE:SOLUSDT", "display": "SOL"},
-        # Metals
-        {"symbol": "OANDA:XAU_USD", "display": "GOLD"},
-        {"symbol": "OANDA:XAG_USD", "display": "SILVER"},
-        # Oil
-        {"symbol": "OANDA:WTICO_USD", "display": "OIL"},
-        # US Indices
-        {"symbol": "OANDA:SPX500_USD", "display": "S&P500"},
-        {"symbol": "OANDA:NAS100_USD", "display": "NASDAQ"},
-        {"symbol": "OANDA:US30_USD", "display": "DOW"}
+        # Metals (ETFs tracking gold and silver)
+        {"symbol": "GLD", "display": "GOLD"},  # SPDR Gold Trust ETF
+        {"symbol": "SLV", "display": "SILVER"},  # iShares Silver Trust
+        # Oil (ETF tracking crude oil)
+        {"symbol": "USO", "display": "OIL"},  # United States Oil Fund
+        # US Indices (ETFs tracking major indices)
+        {"symbol": "SPY", "display": "S&P500"},  # SPDR S&P 500 ETF
+        {"symbol": "QQQ", "display": "NASDAQ"},  # Invesco QQQ (NASDAQ-100)
+        {"symbol": "DIA", "display": "DOW"}  # SPDR Dow Jones Industrial Average ETF
     ]
     
     try:
