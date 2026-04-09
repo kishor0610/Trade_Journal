@@ -968,13 +968,23 @@ const TradeForm = ({ trade, onSubmit, onClose, currency = 'USD' }) => {
   );
 };
 
+// Helper function to check if a trade has journal data
+const isTradeJournaled = (trade) => {
+  return !!(
+    (trade.notes && trade.notes.trim()) ||
+    (trade.tags && trade.tags.trim()) ||
+    (trade.emotions && trade.emotions.trim()) ||
+    (trade.screenshots && trade.screenshots.length > 0)
+  );
+};
+
 export default function Journal() {
   const PAGE_SIZE = 10;
   const [trades, setTrades] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTrade, setEditingTrade] = useState(null);
-  const [filters, setFilters] = useState({ status: '', instrument: '', search: '' });
+  const [filters, setFilters] = useState({ status: '', instrument: '', search: '', journalStatus: 'all' });
   const [sortBy, setSortBy] = useState('entry_date');
   const [sortOrder, setSortOrder] = useState('desc'); // Always desc - newest first
   const [importDialogOpen, setImportDialogOpen] = useState(false);
@@ -1167,6 +1177,10 @@ export default function Journal() {
       if (selected !== instrument) return false;
     }
 
+    // Filter by journal status
+    if (filters.journalStatus === 'journaled' && !isTradeJournaled(trade)) return false;
+    if (filters.journalStatus === 'not-journaled' && isTradeJournaled(trade)) return false;
+
     if (!filters.search) return true;
 
     const rawSearch = filters.search.toLowerCase().trim();
@@ -1202,21 +1216,23 @@ export default function Journal() {
       });
   }, [trades, chartSymbol, instrumentToChartSymbol, focusedInstrumentKey]);
 
-  // Sort trades
+  // Sort trades - STRICTLY by entry_date, never by created_at/updated_at
   const sortedTrades = [...filteredTrades].sort((a, b) => {
     let comparison = 0;
 
     if (sortBy === 'pnl') {
       comparison = (a.pnl || 0) - (b.pnl || 0);
     } else if (sortBy === 'entry_date') {
+      // Always sort by entry_date only, ignore created_at
       comparison = new Date(a.entry_date || 0) - new Date(b.entry_date || 0);
-
-      // For imported rows with same trade date, keep newer imports first.
+      
+      // If entry dates are identical, use trade ID to maintain stable order
       if (comparison === 0) {
-        comparison = new Date(a.created_at || 0) - new Date(b.created_at || 0);
+        comparison = (a.id || 0) - (b.id || 0);
       }
     } else {
-      comparison = new Date(a.created_at || 0) - new Date(b.created_at || 0);
+      // For other sort modes, still use entry_date as primary
+      comparison = new Date(a.entry_date || 0) - new Date(b.entry_date || 0);
     }
 
     return sortOrder === 'desc' ? -comparison : comparison;
@@ -2249,7 +2265,7 @@ export default function Journal() {
       }
 
       setImportResult(finalResult);
-      const hasActiveFilters = Boolean(filters.status || filters.instrument || filters.search);
+      const hasActiveFilters = Boolean(filters.status || filters.instrument || filters.search || (filters.journalStatus && filters.journalStatus !== 'all'));
       if (latestTrades.length > 0 && hasActiveFilters) {
         setFilters({ status: '', instrument: '', search: '' });
         toast.info('Filters were cleared so all imported trades are visible.');
@@ -2323,7 +2339,7 @@ export default function Journal() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filters.status, filters.instrument, filters.search, sortBy, sortOrder]);
+  }, [filters.status, filters.instrument, filters.search, filters.journalStatus, sortBy, sortOrder]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -2333,11 +2349,18 @@ export default function Journal() {
 
   // Calculate summary
   const tradeCurrency = filteredTrades.find(t => t.currency)?.currency || 'USD';
+  const journaledCount = filteredTrades.filter(t => isTradeJournaled(t)).length;
+  const journaledPercentage = filteredTrades.length > 0 
+    ? Math.round((journaledCount / filteredTrades.length) * 100) 
+    : 0;
+  
   const summary = {
     totalPnl: filteredTrades.reduce((sum, t) => sum + (t.pnl || 0), 0),
     winCount: filteredTrades.filter(t => (t.pnl || 0) > 0).length,
     lossCount: filteredTrades.filter(t => (t.pnl || 0) < 0).length,
-    openCount: filteredTrades.filter(t => t.status === 'open').length
+    openCount: filteredTrades.filter(t => t.status === 'open').length,
+    journaledCount,
+    journaledPercentage
   };
 
   return (
@@ -2367,7 +2390,7 @@ export default function Journal() {
               <Button variant="outline" className="gap-2" data-testid="filter-btn">
                 <SlidersHorizontal className="w-4 h-4" />
                 <span className="hidden md:inline">Filters</span>
-                {(filters.status || filters.instrument) && (
+                {(filters.status || filters.instrument || (filters.journalStatus && filters.journalStatus !== 'all')) && (
                   <span className="w-2 h-2 bg-accent rounded-full" />
                 )}
               </Button>
@@ -2402,11 +2425,24 @@ export default function Journal() {
                     </SelectContent>
                   </Select>
                 </div>
-                {(filters.status || filters.instrument) && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Journal Status</Label>
+                  <Select value={filters.journalStatus || "all"} onValueChange={(v) => setFilters({ ...filters, journalStatus: v })}>
+                    <SelectTrigger className="bg-secondary border-white/10 h-9">
+                      <SelectValue placeholder="All" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Trades</SelectItem>
+                      <SelectItem value="journaled">Journaled Only</SelectItem>
+                      <SelectItem value="not-journaled">Not Journaled</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {(filters.status || filters.instrument || (filters.journalStatus && filters.journalStatus !== 'all')) && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setFilters({ status: '', instrument: '', search: filters.search })}
+                    onClick={() => setFilters({ status: '', instrument: '', search: filters.search, journalStatus: 'all' })}
                     className="w-full text-xs"
                   >
                     <X className="w-3 h-3 mr-1" /> Clear filters
@@ -2654,6 +2690,12 @@ export default function Journal() {
         <div className="flex items-center gap-2">
           <span className="text-muted-foreground text-sm">Total:</span>
           <span className="font-mono font-bold">{filteredTrades.length}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-muted-foreground text-sm">Journaled:</span>
+          <span className="font-mono font-bold text-purple-400">
+            {summary.journaledCount} <span className="text-xs text-muted-foreground">({summary.journaledPercentage}%)</span>
+          </span>
         </div>
       </div>
 
