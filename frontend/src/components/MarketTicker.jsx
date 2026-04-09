@@ -35,7 +35,8 @@ export default function MarketTicker() {
   }, []);
 
   // Always show the ticker bar, even when loading or no data
-  return ( overflow-hidden relative">
+  return (
+    <div className="w-full bg-black border-b border-slate-800 overflow-hidden relative">
       {/* Gradient overlays for fade effect */}
       <div className="absolute left-0 top-0 bottom-0 w-20 bg-gradient-to-r from-black to-transparent z-10 pointer-events-none" />
       <div className="absolute right-0 top-0 bottom-0 w-20 bg-gradient-to-l from-black to-transparent z-10 pointer-events-none" />
