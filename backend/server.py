@@ -44,6 +44,7 @@ RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
 SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev')
 TWELVE_DATA_API_KEY = os.environ.get('TWELVE_DATA_API_KEY', '')
 FINNHUB_API_KEY = os.environ.get('FINNHUB_API_KEY', 'd7bdvvhr01qgc9t72sc0d7bdvvhr01qgc9t72scg')
+ALPHA_VANTAGE_API_KEY = os.environ.get('ALPHA_VANTAGE_API_KEY', 'PGLKVQ8VQQ8QRU61')
 
 # Admin credentials
 ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'admin@tradeledger.com')
@@ -2837,10 +2838,10 @@ async def get_economic_calendar():
         }]
 
 
-# Market Quotes endpoint
+# Market Quotes endpoint - Hybrid approach using Finnhub + Alpha Vantage
 @api_router.get("/quotes")
 async def get_market_quotes():
-    """Fetch live market quotes for major forex and crypto pairs from Finnhub API with caching"""
+    """Fetch live market quotes using Finnhub (crypto) + Alpha Vantage (commodities/indices)"""
     global quotes_cache
     
     # Check if cache is valid
@@ -2849,65 +2850,112 @@ async def get_market_quotes():
         if elapsed < QUOTES_CACHE_TTL:
             return quotes_cache['data']
     
-    # Symbols to fetch (Crypto, Metals, Oil, US Indices)
-    # Using US stock symbols which Finnhub free tier supports
-    SYMBOLS = [
-        # Crypto
-        {"symbol": "BINANCE:BTCUSDT", "display": "BTC"},
-        {"symbol": "BINANCE:ETHUSDT", "display": "ETH"},
-        {"symbol": "BINANCE:SOLUSDT", "display": "SOL"},
-        # Metals (ETFs tracking gold and silver)
-        {"symbol": "GLD", "display": "GOLD"},  # SPDR Gold Trust ETF
-        {"symbol": "SLV", "display": "SILVER"},  # iShares Silver Trust
-        # Oil (ETF tracking crude oil)
-        {"symbol": "USO", "display": "OIL"},  # United States Oil Fund
-        # US Indices (ETFs tracking major indices)
-        {"symbol": "SPY", "display": "S&P500"},  # SPDR S&P 500 ETF
-        {"symbol": "QQQ", "display": "NASDAQ"},  # Invesco QQQ (NASDAQ-100)
-        {"symbol": "DIA", "display": "DOW"}  # SPDR Dow Jones Industrial Average ETF
-    ]
-    
     try:
         print(f"\n{'='*60}")
-        print(f"📊 Fetching market quotes from Finnhub")
+        print(f"📊 Fetching market quotes from multiple sources")
         print(f"{'='*60}")
         
         results = []
         
         async with httpx.AsyncClient() as client:
-            for item in SYMBOLS:
+            # 1. CRYPTO from Finnhub (fast and reliable)
+            crypto_symbols = [
+                {"symbol": "BINANCE:BTCUSDT", "display": "BTC"},
+                {"symbol": "BINANCE:ETHUSDT", "display": "ETH"},
+                {"symbol": "BINANCE:SOLUSDT", "display": "SOL"}
+            ]
+            
+            for item in crypto_symbols:
                 try:
                     url = f"https://finnhub.io/api/v1/quote?symbol={item['symbol']}&token={FINNHUB_API_KEY}"
                     response = await client.get(url, timeout=5.0)
                     
                     if response.status_code == 200:
                         data = response.json()
-                        
-                        # Finnhub returns: c (current), d (change), dp (percent change)
                         current_price = data.get('c', 0)
                         change = data.get('d', 0)
                         percent = data.get('dp', 0)
                         
-                        results.append({
-                            "symbol": item['display'],
-                            "price": round(current_price, 5) if current_price else 0,
-                            "change": round(change, 5) if change else 0,
-                            "percent": round(percent, 2) if percent else 0
-                        })
-                        
-                        print(f"✅ {item['display']}: ${current_price} ({percent:+.2f}%)")
-                    else:
-                        print(f"⚠️ Failed to fetch {item['display']}: Status {response.status_code}")
-                        
+                        if current_price > 0:
+                            results.append({
+                                "symbol": item['display'],
+                                "price": round(current_price, 2),
+                                "change": round(change, 2),
+                                "percent": round(percent, 2)
+                            })
+                            print(f"✅ [Finnhub] {item['display']}: ${current_price:,.2f} ({percent:+.2f}%)")
                 except Exception as e:
                     print(f"❌ Error fetching {item['display']}: {str(e)}")
-                    continue
+            
+            # 2. COMMODITIES & FOREX from Alpha Vantage (real spot prices)
+            alpha_symbols = [
+                {"from": "XAU", "to": "USD", "display": "GOLD"},  # Gold per troy ounce
+                {"from": "XAG", "to": "USD", "display": "SILVER"},  # Silver per troy ounce
+                {"from": "WTI", "to": "USD", "display": "OIL"}  # WTI Crude Oil per barrel
+            ]
+            
+            for item in alpha_symbols:
+                try:
+                    url = f"https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency={item['from']}&to_currency={item['to']}&apikey={ALPHA_VANTAGE_API_KEY}"
+                    response = await client.get(url, timeout=10.0)
+                    
+                    if response.status_code == 200:
+                        data = response.json()
+                        
+                        if "Realtime Currency Exchange Rate" in data:
+                            rate_data = data["Realtime Currency Exchange Rate"]
+                            price = float(rate_data.get("5. Exchange Rate", 0))
+                            
+                            # Alpha Vantage doesn't provide change/percent directly
+                            # So we'll show 0 for now (could calculate from previous cache)
+                            if price > 0:
+                                results.append({
+                                    "symbol": item['display'],
+                                    "price": round(price, 2),
+                                    "change": 0,
+                                    "percent": 0
+                                })
+                                print(f"✅ [Alpha Vantage] {item['display']}: ${price:,.2f}")
+                        else:
+                            print(f"⚠️ Alpha Vantage response issue for {item['display']}: {data}")
+                            
+                except Exception as e:
+                    print(f"❌ Error fetching {item['display']}: {str(e)}")
+            
+            # 3. US INDICES - using major ETFs from Finnhub (these work)
+            index_symbols = [
+                {"symbol": "SPY", "display": "S&P500"},  # SPDR S&P 500 ETF
+                {"symbol": "QQQ", "display": "NASDAQ"},  # Invesco QQQ
+                {"symbol": "DIA", "display": "DOW"}  # SPDR Dow Jones
+            ]
+            
+            for item in index_symbols:
+                try:
+                    url = f"https://finnhub.io/api/v1/quote?symbol={item['symbol']}&token={FINNHUB_API_KEY}"
+                    response = await client.get(url, timeout=5.0)
+                    
+                    if response.status_code == 200:
+                        data = response.json()
+                        current_price = data.get('c', 0)
+                        change = data.get('d', 0)
+                        percent = data.get('dp', 0)
+                        
+                        if current_price > 0:
+                            results.append({
+                                "symbol": item['display'],
+                                "price": round(current_price, 2),
+                                "change": round(change, 2),
+                                "percent": round(percent, 2)
+                            })
+                            print(f"✅ [Finnhub] {item['display']}: ${current_price:,.2f} ({percent:+.2f}%)")
+                except Exception as e:
+                    print(f"❌ Error fetching {item['display']}: {str(e)}")
         
-        # If we got at least some data, cache and return it
+        # Cache and return results
         if results:
             quotes_cache['data'] = results
             quotes_cache['timestamp'] = datetime.now(timezone.utc)
-            print(f"✅ Successfully fetched {len(results)}/{len(SYMBOLS)} quotes")
+            print(f"✅ Successfully fetched {len(results)}/9 quotes")
             print(f"{'='*60}\n")
             return results
         else:
@@ -2916,7 +2964,6 @@ async def get_market_quotes():
                 print("⚠️ No new data, returning cached quotes")
                 return quotes_cache['data']
             
-            # Return empty array (frontend should handle gracefully)
             print("⚠️ No quotes available")
             return []
             

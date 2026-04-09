@@ -29,3 +29,6 @@ jobs:
           region: asia-south1
           project_id: project-347898d6-1551-4abf-803
           flags: '--no-clear-env-vars'
+          env_vars: |
+            FINNHUB_API_KEY=d7bdvvhr01qgc9t72sc0d7bdvvhr01qgc9t72scg
+            ALPHA_VANTAGE_API_KEY=PGLKVQ8VQQ8QRU61
