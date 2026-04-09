@@ -2899,7 +2899,7 @@ async def get_market_quotes():
                     commodity_map = {
                         "XAU/USD": "GOLD",
                         "XAG/USD": "SILVER",
-                        "WTI": "OIL"
+                        "USOil": "OIL"  # Live-Rates uses "USOil" not "WTI"
                     }
                     
                     for item in data:
