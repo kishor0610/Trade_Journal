@@ -136,6 +136,10 @@ class MT5AccountCreate(BaseModel):
     metaapi_account_id: Optional[str] = None
     currency: str = "USD"
 
+class MT5AccountUpdate(BaseModel):
+    currency: Optional[str] = None
+    metaapi_account_id: Optional[str] = None
+
 class MT5AccountResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str
@@ -938,6 +942,34 @@ async def delete_mt5_account(account_id: str, current_user: dict = Depends(get_c
         raise HTTPException(status_code=404, detail="Account not found")
     return {"message": "Account deleted successfully"}
 
+@api_router.put("/mt5/accounts/{account_id}", response_model=MT5AccountResponse)
+async def update_mt5_account(account_id: str, account_data: MT5AccountUpdate, current_user: dict = Depends(get_current_user)):
+    """Update MT5 account (only currency and metaapi_account_id can be changed)"""
+    # Verify account exists and belongs to user
+    existing = await db.mt5_accounts.find_one({"id": account_id, "user_id": current_user['id']})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    # Build update fields
+    update_fields = {}
+    if account_data.currency is not None:
+        update_fields["currency"] = account_data.currency
+    if account_data.metaapi_account_id is not None:
+        update_fields["metaapi_account_id"] = account_data.metaapi_account_id
+    
+    if not update_fields:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    
+    # Update the account
+    await db.mt5_accounts.update_one(
+        {"id": account_id, "user_id": current_user['id']},
+        {"$set": update_fields}
+    )
+    
+    # Fetch and return updated account
+    updated_account = await db.mt5_accounts.find_one({"id": account_id}, {"_id": 0, "password": 0})
+    return MT5AccountResponse(**updated_account)
+
 @api_router.post("/mt5/accounts/{account_id}/sync")
 async def sync_mt5_account(account_id: str, current_user: dict = Depends(get_current_user)):
     """Sync trades from MT5 account via MetaApi REST API"""
@@ -1425,12 +1457,17 @@ async def get_analytics_summary(
         else:
             current_trade_streak = 0
     
-    # Detect currency from trades
+    # Detect currency from MT5 account first, then from trades
     trade_currency = 'USD'
-    for trade in trades:
-        if trade.get('currency'):
-            trade_currency = trade['currency']
-            break
+    mt5_account = await db.mt5_accounts.find_one({"user_id": current_user['id']}, {"_id": 0, "currency": 1})
+    if mt5_account and mt5_account.get('currency'):
+        trade_currency = mt5_account['currency']
+    else:
+        # Fallback to currency from trades
+        for trade in trades:
+            if trade.get('currency'):
+                trade_currency = trade['currency']
+                break
     
     return {
         "total_trades": total_trades,

@@ -12,15 +12,17 @@ import { formatDateTime, formatCurrency } from '../lib/utils';
 
 const API_URL = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
-const AccountForm = ({ onSubmit, onClose }) => {
+const AccountForm = ({ account, onSubmit, onClose }) => {
+  const isEditMode = !!account;
+  
   const [formData, setFormData] = useState({
-    name: '',
-    login: '',
+    name: account?.name || '',
+    login: account?.login || '',
     password: '',
-    server: '',
-    platform: 'mt5',
-    metaapi_account_id: '',
-    currency: 'USD'
+    server: account?.server || '',
+    platform: account?.platform || 'mt5',
+    metaapi_account_id: account?.metaapi_account_id || '',
+    currency: account?.currency || 'USD'
   });
   const [loading, setLoading] = useState(false);
 
@@ -29,10 +31,19 @@ const AccountForm = ({ onSubmit, onClose }) => {
     setLoading(true);
     
     try {
-      await onSubmit(formData);
+      if (isEditMode) {
+        // Only send editable fields for update
+        await onSubmit({
+          currency: formData.currency,
+          metaapi_account_id: formData.metaapi_account_id
+        });
+      } else {
+        // Send all fields for create
+        await onSubmit(formData);
+      }
       onClose();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to add account');
+      toast.error(error.response?.data?.detail || `Failed to ${isEditMode ? 'update' : 'add'} account`);
     } finally {
       setLoading(false);
     }
@@ -47,9 +58,13 @@ const AccountForm = ({ onSubmit, onClose }) => {
           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
           className="bg-secondary border-white/10"
           placeholder="My MT5 Account"
-          required
+          required={!isEditMode}
+          disabled={isEditMode}
           data-testid="account-name-input"
         />
+        {isEditMode && (
+          <p className="text-xs text-muted-foreground">Account name cannot be changed after creation</p>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -60,14 +75,19 @@ const AccountForm = ({ onSubmit, onClose }) => {
             onChange={(e) => setFormData({ ...formData, login: e.target.value })}
             className="bg-secondary border-white/10 font-mono"
             placeholder="12345678"
-            required
+            required={!isEditMode}
+            disabled={isEditMode}
             data-testid="account-login-input"
           />
         </div>
         
         <div className="space-y-2">
           <Label>Platform</Label>
-          <Select value={formData.platform} onValueChange={(v) => setFormData({ ...formData, platform: v })}>
+          <Select 
+            value={formData.platform} 
+            onValueChange={(v) => setFormData({ ...formData, platform: v })}
+            disabled={isEditMode}
+          >
             <SelectTrigger className="bg-secondary border-white/10">
               <SelectValue />
             </SelectTrigger>
@@ -87,7 +107,8 @@ const AccountForm = ({ onSubmit, onClose }) => {
             onChange={(e) => setFormData({ ...formData, server: e.target.value })}
             className="bg-secondary border-white/10"
             placeholder="e.g., ICMarkets-Demo, Exness-Real"
-            required
+            required={!isEditMode}
+            disabled={isEditMode}
             data-testid="account-server-input"
           />
         </div>
@@ -128,7 +149,7 @@ const AccountForm = ({ onSubmit, onClose }) => {
           Cancel
         </Button>
         <Button type="submit" disabled={loading} className="flex-1 bg-white text-black hover:bg-gray-200">
-          {loading ? 'Adding...' : 'Add Account'}
+          {loading ? (isEditMode ? 'Updating...' : 'Adding...') : (isEditMode ? 'Update Account' : 'Add Account')}
         </Button>
       </div>
     </form>
@@ -139,6 +160,7 @@ export default function Accounts() {
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingAccount, setEditingAccount] = useState(null);
   const [syncing, setSyncing] = useState({});
   const [hasToken, setHasToken] = useState(false);
   const [tokenInput, setTokenInput] = useState('');
@@ -204,6 +226,12 @@ export default function Accounts() {
     fetchAccounts();
   };
 
+  const handleUpdateAccount = async (accountId, data) => {
+    await axios.put(`${API_URL}/mt5/accounts/${accountId}`, data);
+    toast.success('Account updated successfully');
+    fetchAccounts();
+  };
+
   const handleDeleteAccount = async (accountId) => {
     if (!window.confirm('Are you sure you want to delete this account?')) return;
     
@@ -252,20 +280,33 @@ export default function Accounts() {
           <p className="text-muted-foreground">Connect and manage your MT5/MT4 trading accounts</p>
         </div>
         
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog open={dialogOpen} onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) setEditingAccount(null);
+        }}>
           <DialogTrigger asChild>
-            <Button className="bg-white text-black hover:bg-gray-200 gap-2" data-testid="add-account-btn">
+            <Button 
+              className="bg-white text-black hover:bg-gray-200 gap-2" 
+              data-testid="add-account-btn"
+              onClick={() => setEditingAccount(null)}
+            >
               <Plus className="w-4 h-4" />
               Add Account
             </Button>
           </DialogTrigger>
           <DialogContent className="bg-card border-white/10 max-w-md">
             <DialogHeader>
-              <DialogTitle className="font-heading">Connect MT5 Account</DialogTitle>
+              <DialogTitle className="font-heading">
+                {editingAccount ? 'Edit MT5 Account' : 'Connect MT5 Account'}
+              </DialogTitle>
             </DialogHeader>
             <AccountForm
-              onSubmit={handleAddAccount}
-              onClose={() => setDialogOpen(false)}
+              account={editingAccount}
+              onSubmit={(data) => editingAccount ? handleUpdateAccount(editingAccount.id, data) : handleAddAccount(data)}
+              onClose={() => {
+                setDialogOpen(false);
+                setEditingAccount(null);
+              }}
             />
           </DialogContent>
         </Dialog>
@@ -414,9 +455,13 @@ export default function Accounts() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => toast.info('Edit functionality coming soon!')}
+                    onClick={() => {
+                      setEditingAccount(account);
+                      setDialogOpen(true);
+                    }}
                     className="h-8 w-8 text-blue-500 hover:text-blue-400"
                     title="Edit Account"
+                    data-testid={`edit-account-${account.id}`}
                   >
                     <Edit className="w-4 h-4" />
                   </Button>
