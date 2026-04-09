@@ -75,8 +75,8 @@ const Layout = ({ children }) => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Market Ticker - Top Strip (Always visible on all devices) */}
-      <div className="fixed top-0 left-0 right-0 z-50">
+      {/* Market Ticker - Top Strip */}
+      <div className={`fixed top-0 right-0 z-50 transition-all duration-300 ${sidebarOpen ? 'md:left-64' : 'left-0'}`}>
         <MarketTicker />
       </div>
       
