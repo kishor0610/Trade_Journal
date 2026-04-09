@@ -2849,24 +2849,21 @@ async def get_market_quotes():
         if elapsed < QUOTES_CACHE_TTL:
             return quotes_cache['data']
     
-    # Symbols to fetch (Crypto, Metals, Forex, Stocks)
+    # Symbols to fetch (Crypto, Metals, Oil, US Indices)
     SYMBOLS = [
         # Crypto
-        {"symbol": "BINANCE:BTCUSDT", "display": "BTC-USD"},
-        {"symbol": "BINANCE:ETHUSDT", "display": "ETH-USD"},
-        {"symbol": "BINANCE:SOLUSDT", "display": "SOL-USD"},
+        {"symbol": "BINANCE:BTCUSDT", "display": "BTC"},
+        {"symbol": "BINANCE:ETHUSDT", "display": "ETH"},
+        {"symbol": "BINANCE:SOLUSDT", "display": "SOL"},
         # Metals
-        {"symbol": "OANDA:XAU_USD", "display": "XAUUSD"},
-        {"symbol": "OANDA:XAG_USD", "display": "XAGUSD"},
-        # Forex
-        {"symbol": "OANDA:EUR_USD", "display": "EUR/USD"},
-        {"symbol": "OANDA:GBP_USD", "display": "GBP/USD"},
-        {"symbol": "OANDA:USD_JPY", "display": "USD/JPY"},
-        # Stocks
-        {"symbol": "AAPL", "display": "AAPL"},
-        {"symbol": "MSFT", "display": "MSFT"},
-        {"symbol": "AMZN", "display": "AMZN"},
-        {"symbol": "GOOGL", "display": "GOOGL"}
+        {"symbol": "OANDA:XAU_USD", "display": "GOLD"},
+        {"symbol": "OANDA:XAG_USD", "display": "SILVER"},
+        # Oil
+        {"symbol": "OANDA:WTICO_USD", "display": "OIL"},
+        # US Indices
+        {"symbol": "OANDA:SPX500_USD", "display": "S&P500"},
+        {"symbol": "OANDA:NAS100_USD", "display": "NASDAQ"},
+        {"symbol": "OANDA:US30_USD", "display": "DOW"}
     ]
     
     try:
