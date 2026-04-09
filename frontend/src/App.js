@@ -12,6 +12,7 @@ import Journal from './pages/Journal';
 import Analytics from './pages/Analytics';
 import AIInsights from './pages/AIInsights';
 import Accounts from './pages/Accounts';
+import Leaderboard from './pages/Leaderboard';
 import RiskCalculator from './pages/RiskCalculator';
 import ForexCalendar from './pages/ForexCalendar';
 import AdminLogin from './pages/AdminLogin';
@@ -96,6 +97,11 @@ function AppRoutes() {
       <Route path="/analytics" element={
         <ProtectedRoute>
           <Analytics />
+        </ProtectedRoute>
+      } />
+      <Route path="/leaderboard" element={
+        <ProtectedRoute>
+          <Leaderboard />
         </ProtectedRoute>
       } />
       <Route path="/insights" element={

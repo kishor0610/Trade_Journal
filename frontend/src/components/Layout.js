@@ -12,18 +12,19 @@ import {
   Wallet,
   Copy,
   Calculator,
-  Calendar
+  Calendar,
+  Trophy
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '../components/ui/dropdown-menu';
 import { Toaster } from '../components/ui/sonner';
 import MarketTicker from './MarketTicker';
-import Leaderboard from './Leaderboard';
 
 const navItems = [
   { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/journal', icon: BookOpen, label: 'Journal' },
   { path: '/accounts', icon: Wallet, label: 'Accounts' },
   { path: '/analytics', icon: BarChart3, label: 'Analytics' },
+  { path: '/leaderboard', icon: Trophy, label: 'Leaderboard' },
   { path: '/insights', icon: Sparkles, label: 'AI Insights' },
   { path: '/risk-calculator', icon: Calculator, label: 'Risk Calculator' },
   { path: '/forex-calendar', icon: Calendar, label: 'Forex Calendar' },
@@ -136,11 +137,6 @@ const Layout = ({ children }) => {
           {navItems.map((item) => (
             <NavItem key={item.path} {...item} />
           ))}
-          
-          {/* Leaderboard */}
-          <div className="pt-4 mt-4">
-            <Leaderboard />
-          </div>
           
           {/* Coming Soon Items */}
           <div className="pt-4 mt-4 border-t-2 border-transparent relative -mx-4 px-4"
