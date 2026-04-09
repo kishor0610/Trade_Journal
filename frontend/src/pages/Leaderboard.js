@@ -83,34 +83,34 @@ const Leaderboard = () => {
     switch (rank) {
       case 1:
         return {
-          height: 'h-48',
+          height: 'h-56',
           bgGradient: 'from-yellow-600/40 via-yellow-500/30 to-amber-600/40',
           glowColor: 'rgba(251, 191, 36, 0.6)',
           borderColor: 'border-yellow-500/50',
           textColor: 'text-yellow-400',
-          avatarSize: 'w-[90px] h-[90px]',
+          avatarSize: 'w-[110px] h-[110px]',
           avatarGlow: 'shadow-[0_0_30px_rgba(251,191,36,0.7)]',
           avatarBorder: 'border-yellow-400/60'
         };
       case 2:
         return {
-          height: 'h-40',
+          height: 'h-48',
           bgGradient: 'from-gray-400/40 via-gray-300/30 to-gray-500/40',
           glowColor: 'rgba(156, 163, 175, 0.5)',
           borderColor: 'border-gray-400/50',
           textColor: 'text-gray-300',
-          avatarSize: 'w-[70px] h-[70px]',
+          avatarSize: 'w-[85px] h-[85px]',
           avatarGlow: 'shadow-[0_0_25px_rgba(156,163,175,0.6)]',
           avatarBorder: 'border-gray-300/60'
         };
       case 3:
         return {
-          height: 'h-40',
+          height: 'h-48',
           bgGradient: 'from-orange-700/40 via-orange-600/30 to-orange-800/40',
           glowColor: 'rgba(234, 88, 12, 0.5)',
           borderColor: 'border-orange-600/50',
           textColor: 'text-orange-400',
-          avatarSize: 'w-[70px] h-[70px]',
+          avatarSize: 'w-[85px] h-[85px]',
           avatarGlow: 'shadow-[0_0_25px_rgba(234,88,12,0.6)]',
           avatarBorder: 'border-orange-500/60'
         };
@@ -176,7 +176,7 @@ const Leaderboard = () => {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: "easeOut" }}
-          className="relative min-h-[320px]"
+          className="relative min-h-[400px]"
         >
           {/* Subtle background particles (sparkles) */}
           <div className="absolute inset-0 overflow-hidden rounded-3xl pointer-events-none">
@@ -261,9 +261,9 @@ const Leaderboard = () => {
                           variants={crownBounce}
                           initial="initial"
                           animate="animate"
-                          className="absolute -top-6 left-1/2 transform -translate-x-1/2 z-20"
+                          className="absolute -top-8 left-1/2 transform -translate-x-1/2 z-20"
                         >
-                          <Crown className="w-10 h-10 text-yellow-400 fill-yellow-400 drop-shadow-[0_0_20px_rgba(251,191,36,1)]" />
+                          <Crown className="w-12 h-12 text-yellow-400 fill-yellow-400 drop-shadow-[0_0_20px_rgba(251,191,36,1)]" />
                         </motion.div>
                       )}
                       
@@ -305,7 +305,7 @@ const Leaderboard = () => {
                           
                           {/* Rank badge */}
                           <motion.div
-                            className={`absolute -bottom-1 -right-1 z-30 ${actualRank === 1 ? 'w-9 h-9' : 'w-8 h-8'} rounded-full flex items-center justify-center ${actualRank === 1 ? 'text-lg' : 'text-base'} font-bold bg-gradient-to-br ${
+                            className={`absolute -bottom-1 -right-1 z-30 ${actualRank === 1 ? 'w-11 h-11' : 'w-10 h-10'} rounded-full flex items-center justify-center ${actualRank === 1 ? 'text-xl' : 'text-lg'} font-bold bg-gradient-to-br ${
                               actualRank === 1 
                                 ? 'from-yellow-400 via-yellow-500 to-yellow-600 shadow-lg shadow-yellow-500/80'
                                 : actualRank === 2
@@ -384,7 +384,7 @@ const Leaderboard = () => {
                     
                     {/* Podium with 3D effect */}
                     <motion.div
-                      className={`w-36 ${styles.height} bg-gradient-to-b ${styles.bgGradient} border-2 ${styles.borderColor} rounded-t-3xl flex flex-col items-center justify-center relative overflow-hidden`}
+                      className={`w-44 ${styles.height} bg-gradient-to-b ${styles.bgGradient} border-2 ${styles.borderColor} rounded-t-3xl flex flex-col items-center justify-center relative overflow-hidden`}
                       style={{
                         boxShadow: `0 0 40px ${styles.glowColor}, inset 0 -20px 40px rgba(0,0,0,0.3)`
                       }}
