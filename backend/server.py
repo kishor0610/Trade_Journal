@@ -2838,10 +2838,10 @@ async def get_economic_calendar():
         }]
 
 
-# Market Quotes endpoint - Hybrid approach using Finnhub + Alpha Vantage
+# Market Quotes endpoint - Hybrid approach using Finnhub + Yahoo Finance
 @api_router.get("/quotes")
 async def get_market_quotes():
-    """Fetch live market quotes using Finnhub (crypto) + Alpha Vantage (commodities/indices)"""
+    """Fetch live market quotes using Finnhub (crypto/indices) + Yahoo Finance (commodities)"""
     global quotes_cache
     
     # Check if cache is valid
@@ -2887,38 +2887,47 @@ async def get_market_quotes():
                 except Exception as e:
                     print(f"❌ Error fetching {item['display']}: {str(e)}")
             
-            # 2. COMMODITIES & FOREX from Alpha Vantage (real spot prices)
-            alpha_symbols = [
-                {"from": "XAU", "to": "USD", "display": "GOLD"},  # Gold per troy ounce
-                {"from": "XAG", "to": "USD", "display": "SILVER"},  # Silver per troy ounce
-                {"from": "WTI", "to": "USD", "display": "OIL"}  # WTI Crude Oil per barrel
+            # 2. COMMODITIES from Yahoo Finance (no API key needed!)
+            commodity_symbols = [
+                {"symbol": "GC=F", "display": "GOLD"},  # Gold Futures
+                {"symbol": "SI=F", "display": "SILVER"},  # Silver Futures
+                {"symbol": "CL=F", "display": "OIL"}  # Crude Oil Futures
             ]
             
-            for item in alpha_symbols:
+            for item in commodity_symbols:
                 try:
-                    url = f"https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency={item['from']}&to_currency={item['to']}&apikey={ALPHA_VANTAGE_API_KEY}"
-                    response = await client.get(url, timeout=10.0)
+                    # Yahoo Finance API endpoint (free, public)
+                    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{item['symbol']}?interval=1d&range=1d"
+                    response = await client.get(url, timeout=10.0, headers={'User-Agent': 'Mozilla/5.0'})
                     
                     if response.status_code == 200:
                         data = response.json()
                         
-                        if "Realtime Currency Exchange Rate" in data:
-                            rate_data = data["Realtime Currency Exchange Rate"]
-                            price = float(rate_data.get("5. Exchange Rate", 0))
+                        if "chart" in data and "result" in data["chart"] and len(data["chart"]["result"]) > 0:
+                            result = data["chart"]["result"][0]
+                            meta = result.get("meta", {})
                             
-                            # Alpha Vantage doesn't provide change/percent directly
-                            # So we'll show 0 for now (could calculate from previous cache)
-                            if price > 0:
+                            current_price = meta.get("regularMarketPrice", 0)
+                            previous_close = meta.get("previousClose", 0)
+                            
+                            if current_price > 0 and previous_close > 0:
+                                change = current_price - previous_close
+                                percent = (change / previous_close) * 100
+                                
                                 results.append({
                                     "symbol": item['display'],
-                                    "price": round(price, 2),
-                                    "change": 0,
-                                    "percent": 0
+                                    "price": round(current_price, 2),
+                                    "change": round(change, 2),
+                                    "percent": round(percent, 2)
                                 })
-                                print(f"✅ [Alpha Vantage] {item['display']}: ${price:,.2f}")
+                                print(f"✅ [Yahoo Finance] {item['display']}: ${current_price:,.2f} ({percent:+.2f}%)")
+                            else:
+                                print(f"⚠️ Invalid price data for {item['display']}")
                         else:
-                            print(f"⚠️ Alpha Vantage response issue for {item['display']}: {data}")
-                            
+                            print(f"⚠️ No chart data for {item['display']}")
+                    else:
+                        print(f"⚠️ Yahoo Finance returned {response.status_code} for {item['display']}")
+                        
                 except Exception as e:
                     print(f"❌ Error fetching {item['display']}: {str(e)}")
             
