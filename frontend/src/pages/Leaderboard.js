@@ -294,8 +294,19 @@ const Leaderboard = () => {
                           {/* Inner shine effect */}
                           <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent" />
                           
-                          {/* Astronaut emoji */}
-                          <div className={`${actualRank === 1 ? 'text-4xl' : 'text-3xl'} relative z-10`}>
+                          {/* Astronaut image */}
+                          <img 
+                            src={`/astronaut-rank${actualRank}.png`}
+                            alt={`Rank ${actualRank}`}
+                            className="w-full h-full object-contain relative z-10 p-1"
+                            onError={(e) => {
+                              // Fallback to emoji if image fails to load
+                              e.target.style.display = 'none';
+                              e.target.nextElementSibling.style.display = 'block';
+                            }}
+                          />
+                          {/* Fallback emoji (hidden by default) */}
+                          <div className={`${actualRank === 1 ? 'text-4xl' : 'text-3xl'} relative z-10`} style={{ display: 'none' }}>
                             🧑‍🚀
                           </div>
                           
