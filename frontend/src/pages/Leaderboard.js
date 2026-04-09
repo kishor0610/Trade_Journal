@@ -83,34 +83,34 @@ const Leaderboard = () => {
     switch (rank) {
       case 1:
         return {
-          height: 'h-80',
+          height: 'h-48',
           bgGradient: 'from-yellow-600/40 via-yellow-500/30 to-amber-600/40',
           glowColor: 'rgba(251, 191, 36, 0.6)',
           borderColor: 'border-yellow-500/50',
           textColor: 'text-yellow-400',
-          medalSize: 'w-36 h-36',
+          medalSize: 'w-20 h-20',
           avatarBg: 'from-yellow-500 to-amber-600',
           avatarShadow: 'shadow-2xl shadow-yellow-500/60'
         };
       case 2:
         return {
-          height: 'h-64',
+          height: 'h-40',
           bgGradient: 'from-gray-400/40 via-gray-300/30 to-gray-500/40',
           glowColor: 'rgba(156, 163, 175, 0.5)',
           borderColor: 'border-gray-400/50',
           textColor: 'text-gray-300',
-          medalSize: 'w-28 h-28',
+          medalSize: 'w-16 h-16',
           avatarBg: 'from-gray-300 to-gray-500',
           avatarShadow: 'shadow-xl shadow-gray-400/50'
         };
       case 3:
         return {
-          height: 'h-64',
+          height: 'h-40',
           bgGradient: 'from-orange-700/40 via-orange-600/30 to-orange-800/40',
           glowColor: 'rgba(234, 88, 12, 0.5)',
           borderColor: 'border-orange-600/50',
           textColor: 'text-orange-400',
-          medalSize: 'w-28 h-28',
+          medalSize: 'w-16 h-16',
           avatarBg: 'from-orange-600 to-orange-800',
           avatarShadow: 'shadow-xl shadow-orange-600/50'
         };
@@ -172,20 +172,50 @@ const Leaderboard = () => {
 
       {/* Top 3 Podium */}
       {topThree.length >= 3 && (
-        <div className="relative min-h-[600px]">
-          {/* Animated background particles */}
-          <div className="absolute inset-0 overflow-hidden rounded-3xl">
-            <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-purple-500/20 rounded-full blur-3xl animate-pulse" />
-            <div className="absolute top-1/3 right-1/4 w-48 h-48 bg-pink-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
-            <div className="absolute bottom-1/4 left-1/3 w-56 h-56 bg-blue-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }} />
+        <div className="relative min-h-[320px]">
+          {/* Subtle background particles (sparkles) */}
+          <div className="absolute inset-0 overflow-hidden rounded-3xl pointer-events-none">
+            {/* Floating sparkle particles */}
+            {[...Array(20)].map((_, i) => (
+              <motion.div
+                key={i}
+                className={`absolute w-1 h-1 rounded-full ${
+                  i % 3 === 0 ? 'bg-emerald-400' : i % 3 === 1 ? 'bg-blue-400' : 'bg-orange-400'
+                }`}
+                style={{
+                  left: `${Math.random() * 100}%`,
+                  top: `${Math.random() * 100}%`,
+                  opacity: 0.2 + Math.random() * 0.2
+                }}
+                animate={{
+                  y: [-10, 10, -10],
+                  x: [-5, 5, -5],
+                  opacity: [0.2, 0.4, 0.2]
+                }}
+                transition={{
+                  duration: 4 + Math.random() * 2,
+                  repeat: Infinity,
+                  delay: Math.random() * 2,
+                  ease: "easeInOut"
+                }}
+              />
+            ))}
+            
+            {/* Depth blur layers */}
+            <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl" />
+            <div className="absolute top-1/3 right-1/4 w-48 h-48 bg-pink-500/10 rounded-full blur-3xl" style={{ animationDelay: '1s' }} />
+            <div className="absolute bottom-1/4 left-1/3 w-56 h-56 bg-blue-500/10 rounded-full blur-3xl" style={{ animationDelay: '2s' }} />
           </div>
+          
+          {/* Radial gradient background for depth */}
+          <div className="absolute inset-0 bg-gradient-radial from-transparent via-purple-900/5 to-black/20 rounded-3xl" />
 
           {/* Spotlight for rank 1 */}
           <motion.div
-            className="absolute top-0 left-1/2 transform -translate-x-1/2 w-96 h-96 bg-gradient-radial from-yellow-500/30 via-yellow-500/10 to-transparent rounded-full blur-3xl"
+            className="absolute top-0 left-1/2 transform -translate-x-1/2 w-64 h-64 bg-gradient-radial from-yellow-500/20 via-yellow-500/10 to-transparent rounded-full blur-3xl"
             animate={{
               scale: [1, 1.1, 1],
-              opacity: [0.3, 0.5, 0.3]
+              opacity: [0.2, 0.4, 0.2]
             }}
             transition={{
               duration: 3,
@@ -194,8 +224,8 @@ const Leaderboard = () => {
             }}
           />
           
-          <div className="relative glass-card p-12 rounded-3xl backdrop-blur-xl">
-            <div className="flex items-end justify-center gap-8">
+          <div className="relative glass-card p-6 rounded-3xl backdrop-blur-xl shadow-2xl">
+            <div className="flex items-end justify-center gap-4">
               {topThree.map((leader, index) => {
                 const actualRank = leader.rank;
                 const styles = getPodiumStyles(actualRank);
@@ -224,26 +254,26 @@ const Leaderboard = () => {
                           variants={crownBounce}
                           initial="initial"
                           animate="animate"
-                          className="mb-4"
+                          className="mb-2"
                         >
-                          <Crown className="w-12 h-12 text-yellow-400 fill-yellow-400 drop-shadow-[0_0_15px_rgba(251,191,36,0.8)]" />
+                          <Crown className="w-8 h-8 text-yellow-400 fill-yellow-400 drop-shadow-[0_0_15px_rgba(251,191,36,0.8)]" />
                         </motion.div>
                       )}
                       
                       {/* Stars decoration */}
                       {actualRank <= 3 && (
-                        <div className="absolute -top-2 -left-4 animate-pulse">
-                          <Star className="w-6 h-6 text-yellow-400 fill-yellow-400" />
+                        <div className="absolute -top-1 -left-3 animate-pulse">
+                          <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
                         </div>
                       )}
                       {actualRank <= 2 && (
-                        <div className="absolute -top-2 -right-4 animate-pulse" style={{ animationDelay: '0.5s' }}>
-                          <Star className="w-6 h-6 text-yellow-400 fill-yellow-400" />
+                        <div className="absolute -top-1 -right-3 animate-pulse" style={{ animationDelay: '0.5s' }}>
+                          <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
                         </div>
                       )}
                       
                       {/* Astronaut Avatar with glow */}
-                      <div className="relative mb-6">
+                      <div className="relative mb-3">
                         {/* Outer glow */}
                         <motion.div
                           className={`absolute inset-0 rounded-3xl blur-xl`}
@@ -258,13 +288,13 @@ const Leaderboard = () => {
                           <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent" />
                           
                           {/* Astronaut emoji */}
-                          <div className={`${actualRank === 1 ? 'text-7xl' : 'text-6xl'} relative z-10`}>
+                          <div className={`${actualRank === 1 ? 'text-4xl' : 'text-3xl'} relative z-10`}>
                             🧑‍🚀
                           </div>
                           
                           {/* Rank badge with better styling */}
                           <motion.div
-                            className={`absolute -top-3 -right-3 ${actualRank === 1 ? 'w-14 h-14' : 'w-12 h-12'} rounded-full flex items-center justify-center ${actualRank === 1 ? 'text-3xl' : 'text-2xl'} font-bold bg-gradient-to-br ${
+                            className={`absolute -top-2 -right-2 ${actualRank === 1 ? 'w-10 h-10' : 'w-8 h-8'} rounded-full flex items-center justify-center ${actualRank === 1 ? 'text-xl' : 'text-lg'} font-bold bg-gradient-to-br ${
                               actualRank === 1 
                                 ? 'from-yellow-400 via-yellow-500 to-yellow-600 shadow-lg shadow-yellow-500/60'
                                 : actualRank === 2
@@ -280,32 +310,32 @@ const Leaderboard = () => {
                       </div>
                       
                       {/* User info */}
-                      <div className="text-center mb-4">
-                        <p className={`font-black ${actualRank === 1 ? 'text-2xl' : 'text-xl'} ${
+                      <div className="text-center mb-2">
+                        <p className={`font-black ${actualRank === 1 ? 'text-lg' : 'text-base'} ${
                           isUser ? 'text-emerald-400 drop-shadow-[0_0_10px_rgba(52,211,153,0.8)]' : styles.textColor
                         }`}>
                           {leader.name}
                         </p>
                         {isUser && (
                           <motion.span
-                            className="inline-block text-sm text-emerald-400 mt-1 px-3 py-1 bg-emerald-500/20 rounded-full"
+                            className="inline-block text-xs text-emerald-400 mt-1 px-2 py-0.5 bg-emerald-500/20 rounded-full"
                             animate={{ scale: [1, 1.1, 1] }}
                             transition={{ duration: 2, repeat: Infinity }}
                           >
                             (You) ⭐
                           </motion.span>
                         )}
-                        <p className={`text-lg font-mono mt-2 font-bold ${
+                        <p className={`text-sm font-mono mt-1 font-bold ${
                           leader.total_pnl >= 0 ? 'text-emerald-400' : 'text-red-400'
                         }`}>
                           {leader.total_pnl >= 0 ? '+' : ''}{leader.total_pnl.toFixed(0)} {leader.total_pnl >= 0 ? '🪙' : ''}
                         </p>
                         
                         {/* Gamification elements */}
-                        <div className="flex items-center justify-center gap-3 mt-3">
+                        <div className="flex items-center justify-center gap-2 mt-2">
                           {/* XP Points */}
-                          <div className="flex items-center gap-1 px-2 py-1 bg-purple-500/20 rounded-full">
-                            <Zap className="w-4 h-4 text-purple-400" />
+                          <div className="flex items-center gap-1 px-2 py-0.5 bg-purple-500/20 rounded-full">
+                            <Zap className="w-3 h-3 text-purple-400" />
                             <span className="text-xs font-bold text-purple-400">
                               {(leader.score * 100).toFixed(0)} XP
                             </span>
@@ -313,8 +343,8 @@ const Leaderboard = () => {
                           
                           {/* Win Streak */}
                           {leader.wins >= 3 && (
-                            <div className="flex items-center gap-1 px-2 py-1 bg-orange-500/20 rounded-full">
-                              <Flame className="w-4 h-4 text-orange-400" />
+                            <div className="flex items-center gap-1 px-2 py-0.5 bg-orange-500/20 rounded-full">
+                              <Flame className="w-3 h-3 text-orange-400" />
                               <span className="text-xs font-bold text-orange-400">
                                 {leader.wins}
                               </span>
@@ -324,17 +354,17 @@ const Leaderboard = () => {
                         
                         {/* Badge */}
                         {actualRank === 1 && (
-                          <div className="mt-2 px-3 py-1 bg-yellow-500/20 rounded-full">
+                          <div className="mt-1 px-2 py-0.5 bg-yellow-500/20 rounded-full">
                             <span className="text-xs font-bold text-yellow-400">👑 Top Performer</span>
                           </div>
                         )}
                         {actualRank === 2 && (
-                          <div className="mt-2 px-3 py-1 bg-blue-500/20 rounded-full">
+                          <div className="mt-1 px-2 py-0.5 bg-blue-500/20 rounded-full">
                             <span className="text-xs font-bold text-blue-400">💎 Consistent Trader</span>
                           </div>
                         )}
                         {actualRank === 3 && (
-                          <div className="mt-2 px-3 py-1 bg-orange-500/20 rounded-full">
+                          <div className="mt-1 px-2 py-0.5 bg-orange-500/20 rounded-full">
                             <span className="text-xs font-bold text-orange-400">🔥 Rising Star</span>
                           </div>
                         )}
@@ -343,7 +373,7 @@ const Leaderboard = () => {
                     
                     {/* Podium with 3D effect */}
                     <motion.div
-                      className={`w-40 ${styles.height} bg-gradient-to-b ${styles.bgGradient} border-2 ${styles.borderColor} rounded-t-3xl flex flex-col items-center justify-center relative overflow-hidden`}
+                      className={`w-36 ${styles.height} bg-gradient-to-b ${styles.bgGradient} border-2 ${styles.borderColor} rounded-t-3xl flex flex-col items-center justify-center relative overflow-hidden`}
                       style={{
                         boxShadow: `0 0 40px ${styles.glowColor}, inset 0 -20px 40px rgba(0,0,0,0.3)`
                       }}
@@ -384,14 +414,20 @@ const Leaderboard = () => {
         </div>
       )}
 
-      {/* Rest of the leaderboard - Enhanced Table */}
+      {/* Rest of the leaderboard - Enhanced Table (Scrollable) */}
       {restOfLeaders.length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: 50 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
+          transition={{ delay: 0.3 }}
           className="glass-card rounded-2xl overflow-hidden"
         >
+          <div className="max-h-[400px] overflow-y-auto"
+            style={{
+              scrollbarWidth: 'thin',
+              scrollbarColor: 'rgba(255,255,255,0.2) transparent'
+            }}
+          >
           <table className="w-full">
             <thead className="bg-gradient-to-r from-purple-500/20 via-pink-500/20 to-blue-500/20 border-b border-white/10">
               <tr>
@@ -544,6 +580,7 @@ const Leaderboard = () => {
               </AnimatePresence>
             </tbody>
           </table>
+          </div>
         </motion.div>
       )}
 
