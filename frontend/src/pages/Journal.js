@@ -968,13 +968,36 @@ const TradeForm = ({ trade, onSubmit, onClose, currency = 'USD' }) => {
   );
 };
 
-// Helper function to check if a trade has journal data
+// Helper function to check if a trade has USER-ENTERED journal data
+// Excludes auto-sync/import default values
 const isTradeJournaled = (trade) => {
+  // Check if notes contains actual user input (not auto-sync/import messages)
+  const noteText = (trade.notes || '').trim();
+  const hasUserNotes = noteText && 
+    !noteText.includes('Auto-synced from MT5') && 
+    !noteText.includes('Imported from CSV');
+  
+  // Check other journal-specific fields
+  const hasTags = trade.tags && trade.tags.trim();
+  const hasEmotions = trade.emotions && trade.emotions.trim();
+  const hasLessons = trade.lessons && trade.lessons.trim();
+  const hasPreTradeAnalysis = trade.pre_trade_analysis && trade.pre_trade_analysis.trim();
+  const hasPostTradeReview = trade.post_trade_review && trade.post_trade_review.trim();
+  const hasScreenshots = trade.screenshots && trade.screenshots.length > 0;
+  
+  // Check if any execution checklist items are checked (these require user action)
+  const hasChecklistItems = trade.check_htf || trade.check_risk || trade.check_plan || 
+                            trade.check_levels || trade.check_news;
+  
   return !!(
-    (trade.notes && trade.notes.trim()) ||
-    (trade.tags && trade.tags.trim()) ||
-    (trade.emotions && trade.emotions.trim()) ||
-    (trade.screenshots && trade.screenshots.length > 0)
+    hasUserNotes ||
+    hasTags ||
+    hasEmotions ||
+    hasLessons ||
+    hasPreTradeAnalysis ||
+    hasPostTradeReview ||
+    hasScreenshots ||
+    hasChecklistItems
   );
 };
 
