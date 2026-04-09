@@ -135,7 +135,7 @@ const CalendarTicker = () => {
 
   const fetchEvents = async () => {
     try {
-      console.log('=== STEP 7: Fetching calendar from:', `${API_URL}/calendar`);
+      console.log('🔥 STEP 5: Fetching calendar from:', `${API_URL}/calendar`);
       
       const response = await axios.get(`${API_URL}/calendar`, {
         headers: {
@@ -143,24 +143,37 @@ const CalendarTicker = () => {
         }
       });
       
-      console.log('Calendar response status:', response.status);
-      console.log('Calendar data:', response.data);
-      console.log('Number of events:', response.data?.length || 0);
+      console.log('✅ Calendar response status:', response.status);
+      console.log('📊 Calendar data:', response.data);
+      console.log('📈 Number of events:', response.data?.length || 0);
       
-      setEvents(response.data || []);
+      // Always set events, even if empty (empty is NOT an error)
+      const eventData = Array.isArray(response.data) ? response.data : [];
+      setEvents(eventData);
       setLoading(false);
+      
+      // Log if it's a fallback message
+      if (eventData.length === 1 && eventData[0].currency === 'SYSTEM') {
+        console.log('⚠️ Received fallback/error message from API');
+      } else if (eventData.length === 1 && eventData[0].currency === 'GLOBAL') {
+        console.log('ℹ️ No events scheduled today (this is normal)');
+      }
+      
     } catch (error) {
-      console.error('=== Calendar fetch error ===');
+      console.error('❌ Calendar fetch error');
       console.error('Error type:', error.name);
       console.error('Error message:', error.message);
-      console.error('Full error:', error);
+      console.error('Response status:', error.response?.status);
+      console.error('Response data:', error.response?.data);
       
       // Set loading to false even on error
       setLoading(false);
       
-      // Only show toast if we don't have cached events
-      if (!events.length) {
-        toast.error('Failed to load economic calendar');
+      // Only show toast on actual network errors (not 404, 503, etc.)
+      if (!error.response) {
+        toast.error('Network error - check your connection');
+      } else {
+        console.log('ℹ️ API returned an error response, but not showing toast');
       }
     }
   };
@@ -209,7 +222,7 @@ const CalendarTicker = () => {
       >
         <div className="flex items-center gap-2 mr-6 flex-shrink-0">
           <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-          <span className="text-sm font-semibold text-red-400">HIGH IMPACT EVENTS</span>
+          <span className="text-sm font-semibold text-red-400">ECONOMIC CALENDAR</span>
         </div>
         
         <div className="overflow-hidden flex-1">
@@ -229,24 +242,33 @@ const CalendarTicker = () => {
             }}
           >
             {/* Duplicate events for seamless loop */}
-            {[...events, ...events].map((item, index) => (
-              <div
-                key={`${item.event}-${index}`}
-                className="flex items-center gap-3 group"
-              >
-                <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
-                <span className="text-sm text-gray-300">
-                  {item.time}
-                </span>
-                <span className="text-sm font-semibold text-red-400">
-                  {item.currency}
-                </span>
-                <span className="text-sm text-gray-200">
-                  {item.event}
-                </span>
-                <span className="text-red-500 mx-4">•</span>
-              </div>
-            ))}
+            {[...events, ...events].map((item, index) => {
+              // Color code impact levels
+              const impactColor = 
+                item.impact === 'high' || item.impact === '3' ? 'bg-red-500' :
+                item.impact === 'medium' || item.impact === '2' ? 'bg-yellow-500' :
+                item.impact === 'low' || item.impact === '1' ? 'bg-green-500' :
+                'bg-gray-500';
+              
+              return (
+                <div
+                  key={`${item.event}-${index}`}
+                  className="flex items-center gap-3 group"
+                >
+                  <span className={`w-2 h-2 rounded-full ${impactColor} flex-shrink-0`} />
+                  <span className="text-sm text-gray-300">
+                    {item.time}
+                  </span>
+                  <span className="text-sm font-semibold text-red-400">
+                    {item.currency}
+                  </span>
+                  <span className="text-sm text-gray-200">
+                    {item.event}
+                  </span>
+                  <span className="text-red-500 mx-4">•</span>
+                </div>
+              );
+            })}
           </motion.div>
         </div>
       </div>

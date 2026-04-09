@@ -2721,95 +2721,113 @@ async def get_forex_news():
 # Economic Calendar endpoint
 @api_router.get("/calendar")
 async def get_economic_calendar():
-    """Fetch high-impact economic events for today from Finnhub API with caching"""
+    """Fetch economic events for today from Finnhub API with caching"""
     global calendar_cache
     
     # Check if cache is valid
     if calendar_cache['data'] and calendar_cache['timestamp']:
         elapsed = (datetime.now(timezone.utc) - calendar_cache['timestamp']).total_seconds()
         if elapsed < CALENDAR_CACHE_TTL:
+            print(f"Returning cached calendar data ({len(calendar_cache['data'])} events)")
             return calendar_cache['data']
     
     # Fetch fresh calendar data
+    today = date.today()
+    url = f"https://finnhub.io/api/v1/calendar/economic?from={today}&to={today}&token={FINNHUB_API_KEY}"
+    
     try:
-        today = date.today()
-        url = f"https://finnhub.io/api/v1/calendar/economic?from={today}&to={today}&token={FINNHUB_API_KEY}"
-        print(f"\n=== STEP 2: Calling Finnhub Calendar API ===")
+        print(f"\n{'='*60}")
+        print(f"🔥 STEP 1: Calling Finnhub Calendar API")
+        print(f"{'='*60}")
         print(f"Date: {today}")
-        print(f"URL: {url[:80]}...")
+        print(f"URL: {url[:100]}...")
         
         async with httpx.AsyncClient() as client:
             response = await client.get(url, timeout=10.0)
-            response.raise_for_status()
-            calendar_data = response.json()
         
-        print(f"Response status: {response.status_code}")
-        print(f"Response type: {type(calendar_data)}")
-        print(f"Response keys: {calendar_data.keys() if isinstance(calendar_data, dict) else 'Not a dict'}")
+        print(f"\n🔥 STEP 2: Response received")
+        print(f"Status Code: {response.status_code}")
         
-        events = calendar_data.get('economicCalendar', [])
+        if response.status_code != 200:
+            print(f"❌ Non-200 status code: {response.status_code}")
+            print(f"Response text: {response.text[:500]}")
+            raise Exception(f"API returned status {response.status_code}")
+        
+        data = response.json()
+        print(f"Response Type: {type(data)}")
+        print(f"Response Keys: {list(data.keys()) if isinstance(data, dict) else 'Not a dict'}")
+        
+        # Check for API errors
+        if isinstance(data, dict) and 'error' in data:
+            print(f"❌ API Error: {data.get('error')}")
+            raise Exception(f"API error: {data.get('error')}")
+        
+        events = data.get("economicCalendar", [])
+        print(f"\n🔥 STEP 3: Events extracted")
         print(f"Total events in response: {len(events)}")
         
-        # STEP 4: Remove over-filtering - show ALL events with impact levels
-        filtered_events = []
+        if not events:
+            print("⚠️ No events returned from API (this is NORMAL, not an error)")
+            fallback = [{
+                "time": "All Day",
+                "currency": "GLOBAL",
+                "event": "No major economic events scheduled for today",
+                "impact": "low"
+            }]
+            calendar_cache['data'] = fallback
+            calendar_cache['timestamp'] = datetime.now(timezone.utc)
+            return fallback
         
-        # First try to get any events regardless of impact
-        for idx, event in enumerate(events[:15]):  # Show up to 15 events
-            event_time = event.get('time', '')
-            currency = event.get('country') or event.get('currency') or 'N/A'
-            impact = event.get('impact', 'N/A')
+        # Process events (show first 3 for debugging)
+        filtered = []
+        for idx, e in enumerate(events[:15]):
+            if idx < 3:
+                print(f"\nEvent {idx + 1} sample:")
+                print(f"  Time: {e.get('time', 'N/A')}")
+                print(f"  Country: {e.get('country', 'N/A')}")
+                print(f"  Currency: {e.get('currency', 'N/A')}")
+                print(f"  Event: {e.get('event', 'N/A')}")
+                print(f"  Impact: {e.get('impact', 'N/A')}")
             
-            if idx < 3:  # Log first 3 events for debugging
-                print(f"Event {idx + 1}: {event}")
-            
-            filtered_events.append({
-                'time': event_time if event_time else 'TBA',
-                'currency': currency,
-                'event': event.get('event', 'Economic Event'),
-                'impact': impact  # Include impact in response
+            filtered.append({
+                "time": e.get("time", "TBA"),
+                "currency": e.get("country") or e.get("currency") or "N/A",
+                "event": e.get("event", "Economic Event"),
+                "impact": e.get("impact", "N/A")
             })
         
-        print(f"\n=== STEP 4: Filtered events ===")
-        print(f"Total filtered: {len(filtered_events)}")
-        
-        # STEP 3: Handle empty data case with fallback
-        if not filtered_events:
-            print("No events found - returning fallback message")
-            filtered_events = [{
-                'time': 'All Day',
-                'currency': 'GLOBAL',
-                'event': 'No major economic events scheduled for today',
-                'impact': 'low'
-            }]
+        print(f"\n🔥 STEP 4: Filtered events")
+        print(f"Total filtered: {len(filtered)}")
         
         # Update cache
-        calendar_cache['data'] = filtered_events
+        calendar_cache['data'] = filtered
         calendar_cache['timestamp'] = datetime.now(timezone.utc)
         
-        print(f"=== SUCCESS: Returning {len(filtered_events)} events ===")
-        print(f"Sample event: {filtered_events[0] if filtered_events else 'None'}\n")
+        print(f"✅ SUCCESS: Returning {len(filtered)} events")
+        print(f"{'='*60}\n")
         
-        return filtered_events
+        return filtered
         
     except Exception as e:
-        print(f"\n=== ERROR in calendar endpoint ===")
-        print(f"Error type: {type(e).__name__}")
-        print(f"Error message: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        print(f"\n{'='*60}")
+        print(f"❌ ERROR in fetch_calendar")
+        print(f"{'='*60}")
+        print(f"Error Type: {type(e).__name__}")
+        print(f"Error Message: {str(e)}")
+        print(f"{'='*60}\n")
         
-        # Return cached data if available, even if expired
+        # Return cached data if available (even if expired)
         if calendar_cache['data']:
-            print("Returning cached data instead")
+            print(f"⚠️ Returning cached data instead ({len(calendar_cache['data'])} events)")
             return calendar_cache['data']
         
-        # Return fallback instead of error
-        print("No cache available - returning fallback")
+        # Return user-friendly fallback (NOT an error message)
+        print("⚠️ No cache available - returning fallback message")
         return [{
-            'time': 'N/A',
-            'currency': 'SYSTEM',
-            'event': 'Unable to fetch calendar data - please try again later',
-            'impact': 'low'
+            "time": "N/A",
+            "currency": "SYSTEM",
+            "event": "Calendar temporarily unavailable - please refresh",
+            "impact": "low"
         }]
 
 
