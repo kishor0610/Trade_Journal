@@ -267,18 +267,6 @@ const Leaderboard = () => {
                         </motion.div>
                       )}
                       
-                      {/* Stars decoration */}
-                      {actualRank <= 3 && (
-                        <div className="absolute -top-1 -left-3 animate-pulse">
-                          <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-                        </div>
-                      )}
-                      {actualRank <= 2 && (
-                        <div className="absolute -top-1 -right-3 animate-pulse" style={{ animationDelay: '0.5s' }}>
-                          <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-                        </div>
-                      )}
-                      
                       {/* Astronaut Avatar with glow */}
                       <div className="relative mb-4">
                         {/* Avatar container with glow effect */}
@@ -317,7 +305,7 @@ const Leaderboard = () => {
                           
                           {/* Rank badge */}
                           <motion.div
-                            className={`absolute -bottom-1 -right-1 ${actualRank === 1 ? 'w-9 h-9' : 'w-8 h-8'} rounded-full flex items-center justify-center ${actualRank === 1 ? 'text-lg' : 'text-base'} font-bold bg-gradient-to-br ${
+                            className={`absolute -bottom-1 -right-1 z-30 ${actualRank === 1 ? 'w-9 h-9' : 'w-8 h-8'} rounded-full flex items-center justify-center ${actualRank === 1 ? 'text-lg' : 'text-base'} font-bold bg-gradient-to-br ${
                               actualRank === 1 
                                 ? 'from-yellow-400 via-yellow-500 to-yellow-600 shadow-lg shadow-yellow-500/80'
                                 : actualRank === 2
