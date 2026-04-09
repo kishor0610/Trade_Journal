@@ -169,6 +169,22 @@ class TradeCreate(BaseModel):
     mt5_ticket: Optional[str] = None
     mt5_account_id: Optional[str] = None
     currency: str = "USD"
+    # Trading journal fields
+    pre_trade_analysis: Optional[str] = ""
+    post_trade_review: Optional[str] = ""
+    emotions: Optional[str] = ""
+    lessons: Optional[str] = ""
+    tags: Optional[str] = ""
+    rating: Optional[int] = None
+    risk_reward: Optional[int] = None
+    # Execution checklist
+    check_htf: Optional[bool] = False
+    check_risk: Optional[bool] = False
+    check_plan: Optional[bool] = False
+    check_levels: Optional[bool] = False
+    check_news: Optional[bool] = False
+    # Screenshots
+    screenshots: Optional[List[str]] = []
 
 class TradeUpdate(BaseModel):
     instrument: Optional[str] = None
@@ -182,6 +198,22 @@ class TradeUpdate(BaseModel):
     status: Optional[str] = None
     stop_loss: Optional[float] = None
     take_profit: Optional[float] = None
+    # Trading journal fields
+    pre_trade_analysis: Optional[str] = None
+    post_trade_review: Optional[str] = None
+    emotions: Optional[str] = None
+    lessons: Optional[str] = None
+    tags: Optional[str] = None
+    rating: Optional[int] = None
+    risk_reward: Optional[int] = None
+    # Execution checklist
+    check_htf: Optional[bool] = None
+    check_risk: Optional[bool] = None
+    check_plan: Optional[bool] = None
+    check_levels: Optional[bool] = None
+    check_news: Optional[bool] = None
+    # Screenshots
+    screenshots: Optional[List[str]] = None
 
 class TradeResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -206,6 +238,22 @@ class TradeResponse(BaseModel):
     mt5_account_id: Optional[str] = None
     currency: str = "USD"
     created_at: str
+    # Trading journal fields
+    pre_trade_analysis: str = ""
+    post_trade_review: str = ""
+    emotions: str = ""
+    lessons: str = ""
+    tags: str = ""
+    rating: Optional[int] = None
+    risk_reward: Optional[int] = None
+    # Execution checklist
+    check_htf: bool = False
+    check_risk: bool = False
+    check_plan: bool = False
+    check_levels: bool = False
+    check_news: bool = False
+    # Screenshots
+    screenshots: List[str] = []
 
 class CandleResponse(BaseModel):
     time: int

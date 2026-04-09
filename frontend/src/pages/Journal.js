@@ -341,9 +341,53 @@ const TradeForm = ({ trade, onSubmit, onClose }) => {
     stop_loss: trade?.stop_loss || '',
     take_profit: trade?.take_profit || '',
     commission: trade?.commission || '',
-    swap: trade?.swap || ''
+    swap: trade?.swap || '',
+    // Trading journal fields
+    pre_trade_analysis: trade?.pre_trade_analysis || '',
+    post_trade_review: trade?.post_trade_review || '',
+    emotions: trade?.emotions || '',
+    lessons: trade?.lessons || '',
+    tags: trade?.tags || '',
+    rating: trade?.rating || 5,
+    risk_reward: trade?.risk_reward || null,
+    // Execution checklist
+    check_htf: trade?.check_htf || false,
+    check_risk: trade?.check_risk || false,
+    check_plan: trade?.check_plan || false,
+    check_levels: trade?.check_levels || false,
+    check_news: trade?.check_news || false,
+    // Screenshots
+    screenshots: trade?.screenshots || []
   });
   const [loading, setLoading] = useState(false);
+  const [expandedSections, setExpandedSections] = useState({
+    basic: true,
+    checklist: true,
+    preAnalysis: false,
+    postReview: false,
+    psychology: false,
+    screenshots: false
+  });
+
+  // Calculate checklist completion
+  const checklistItems = [
+    { key: 'check_htf', label: 'Checked higher timeframe' },
+    { key: 'check_risk', label: 'Risk within limits' },
+    { key: 'check_plan', label: 'Fits my trading plan' },
+    { key: 'check_levels', label: 'Key levels identified' },
+    { key: 'check_news', label: 'Economic calendar checked' }
+  ];
+  
+  const completedChecks = checklistItems.filter(item => formData[item.key]).length;
+  const checklistProgress = `${completedChecks}/${checklistItems.length}`;
+
+  const toggleSection = (section) => {
+    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
+  };
+
+  const handleChecklistToggle = (key) => {
+    setFormData(prev => ({ ...prev, [key]: !prev[key] }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -359,11 +403,14 @@ const TradeForm = ({ trade, onSubmit, onClose }) => {
         take_profit: formData.take_profit ? parseFloat(formData.take_profit) : null,
         commission: formData.commission ? parseFloat(formData.commission) : 0,
         swap: formData.swap ? parseFloat(formData.swap) : 0,
-        exit_date: formData.exit_date || null
+        exit_date: formData.exit_date || null,
+        rating: formData.rating ? parseInt(formData.rating) : null,
+        risk_reward: formData.risk_reward ? parseInt(formData.risk_reward) : null
       };
       
       await onSubmit(payload);
       onClose();
+      toast.success(trade ? 'Trade updated successfully!' : 'Trade added successfully!');
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to save trade');
     } finally {
@@ -372,192 +419,380 @@ const TradeForm = ({ trade, onSubmit, onClose }) => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>Instrument</Label>
-          <Select value={formData.instrument} onValueChange={(v) => setFormData({ ...formData, instrument: v })}>
-            <SelectTrigger className="bg-secondary border-white/10" data-testid="trade-instrument-select">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {INSTRUMENTS.map((i) => (
-                <SelectItem key={i.value} value={i.value}>
-                  <span className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: i.color }} />
-                    {i.label}
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+    <form onSubmit={handleSubmit} className="space-y-6 max-h-[75vh] overflow-y-auto pr-2">
+      {/* Header - Trade Info */}
+      {trade && (
+        <div className="bg-secondary/50 p-4 rounded-lg border border-white/10">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl font-bold">{formData.instrument}</span>
+              <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                formData.position === 'buy' || formData.position === 'long'
+                  ? 'bg-emerald-500/20 text-emerald-400'
+                  : 'bg-red-500/20 text-red-400'
+              }`}>
+                {formData.position?.toUpperCase()}
+              </span>
+              {trade.pnl !== undefined && (
+                <span className={`font-mono text-lg ${trade.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {trade.pnl >= 0 ? '+' : ''}{formatCurrency(trade.pnl)}
+                </span>
+              )}
+            </div>
+            <div className="text-sm text-white/60">
+              {formData.quantity} lots
+            </div>
+          </div>
         </div>
+      )}
+
+      {/* Execution Checklist Section */}
+      <div className="space-y-3">
+        <button
+          type="button"
+          onClick={() => toggleSection('checklist')}
+          className="w-full flex items-center justify-between p-3 bg-secondary/30 rounded-lg hover:bg-secondary/50 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <span className="font-semibold">✅ EXECUTION CHECKLIST</span>
+            <span className="text-xs px-2 py-1 bg-accent/20 text-accent rounded-full">{checklistProgress}</span>
+          </div>
+          <span className="text-white/60">{expandedSections.checklist ? '▼' : '▶'}</span>
+        </button>
         
-        <div className="space-y-2">
-          <Label>Position</Label>
-          <Select value={formData.position} onValueChange={(v) => setFormData({ ...formData, position: v })}>
-            <SelectTrigger className="bg-secondary border-white/10" data-testid="trade-position-select">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {POSITIONS.map((p) => (
-                <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {expandedSections.checklist && (
+          <div className="space-y-2 pl-4">
+            {checklistItems.map((item) => (
+              <label key={item.key} className="flex items-center gap-3 p-2 hover:bg-secondary/30 rounded cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData[item.key]}
+                  onChange={() => handleChecklistToggle(item.key)}
+                  className="w-5 h-5 rounded border-white/20 bg-secondary"
+                />
+                <span className="text-sm">{item.label}</span>
+              </label>
+            ))}
+          </div>
+        )}
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>Entry Price</Label>
-          <Input
-            type="number"
-            step="0.00001"
-            value={formData.entry_price}
-            onChange={(e) => setFormData({ ...formData, entry_price: e.target.value })}
-            className="bg-secondary border-white/10 font-mono"
-            placeholder="0.00"
-            required
-            data-testid="trade-entry-price-input"
-          />
-        </div>
+      {/* Basic Trade Details Section */}
+      <div className="space-y-3">
+        <button
+          type="button"
+          onClick={() => toggleSection('basic')}
+          className="w-full flex items-center justify-between p-3 bg-secondary/30 rounded-lg hover:bg-secondary/50 transition-colors"
+        >
+          <span className="font-semibold">📊 TRADE DETAILS</span>
+          <span className="text-white/60">{expandedSections.basic ? '▼' : '▶'}</span>
+        </button>
         
-        <div className="space-y-2">
-          <Label>Exit Price</Label>
-          <Input
-            type="number"
-            step="0.00001"
-            value={formData.exit_price}
-            onChange={(e) => setFormData({ ...formData, exit_price: e.target.value })}
-            className="bg-secondary border-white/10 font-mono"
-            placeholder="0.00"
-            data-testid="trade-exit-price-input"
-          />
-        </div>
+        {expandedSections.basic && (
+          <div className="space-y-4 pl-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Instrument</Label>
+                <Select value={formData.instrument} onValueChange={(v) => setFormData({ ...formData, instrument: v })}>
+                  <SelectTrigger className="bg-secondary border-white/10">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {INSTRUMENTS.map((i) => (
+                      <SelectItem key={i.value} value={i.value}>
+                        <span className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: i.color }} />
+                          {i.label}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Position</Label>
+                <Select value={formData.position} onValueChange={(v) => setFormData({ ...formData, position: v })}>
+                  <SelectTrigger className="bg-secondary border-white/10">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {POSITIONS.map((p) => (
+                      <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Entry Price</Label>
+                <Input
+                  type="number"
+                  step="0.00001"
+                  value={formData.entry_price}
+                  onChange={(e) => setFormData({ ...formData, entry_price: e.target.value })}
+                  className="bg-secondary border-white/10 font-mono"
+                  placeholder="0.00"
+                  required
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Exit Price</Label>
+                <Input
+                  type="number"
+                  step="0.00001"
+                  value={formData.exit_price}
+                  onChange={(e) => setFormData({ ...formData, exit_price: e.target.value })}
+                  className="bg-secondary border-white/10 font-mono"
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>Lot Size</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={formData.quantity}
+                  onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                  className="bg-secondary border-white/10 font-mono"
+                  placeholder="0.01"
+                  required
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Stop Loss</Label>
+                <Input
+                  type="number"
+                  step="0.00001"
+                  value={formData.stop_loss}
+                  onChange={(e) => setFormData({ ...formData, stop_loss: e.target.value })}
+                  className="bg-secondary border-white/10 font-mono"
+                  placeholder="0.00"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Take Profit</Label>
+                <Input
+                  type="number"
+                  step="0.00001"
+                  value={formData.take_profit}
+                  onChange={(e) => setFormData({ ...formData, take_profit: e.target.value })}
+                  className="bg-secondary border-white/10 font-mono"
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Entry Date</Label>
+                <Input
+                  type="date"
+                  value={formData.entry_date}
+                  onChange={(e) => setFormData({ ...formData, entry_date: e.target.value })}
+                  className="bg-secondary border-white/10"
+                  required
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Exit Date</Label>
+                <Input
+                  type="date"
+                  value={formData.exit_date}
+                  onChange={(e) => setFormData({ ...formData, exit_date: e.target.value })}
+                  className="bg-secondary border-white/10"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v })}>
+                  <SelectTrigger className="bg-secondary border-white/10">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATUSES.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Risk / Reward</Label>
+                <Select value={formData.risk_reward?.toString() || ''} onValueChange={(v) => setFormData({ ...formData, risk_reward: v ? parseInt(v) : null })}>
+                  <SelectTrigger className="bg-secondary border-white/10">
+                    <SelectValue placeholder="Select R:R" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1:1</SelectItem>
+                    <SelectItem value="2">1:2</SelectItem>
+                    <SelectItem value="3">1:3</SelectItem>
+                    <SelectItem value="4">1:4</SelectItem>
+                    <SelectItem value="5">1:5</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <div className="space-y-2">
-          <Label>Lot Size</Label>
-          <Input
-            type="number"
-            step="0.01"
-            value={formData.quantity}
-            onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-            className="bg-secondary border-white/10 font-mono"
-            placeholder="0.01"
-            required
-            data-testid="trade-quantity-input"
-          />
-        </div>
+      {/* Pre-Trade Analysis Section */}
+      <div className="space-y-3">
+        <button
+          type="button"
+          onClick={() => toggleSection('preAnalysis')}
+          className="w-full flex items-center justify-between p-3 bg-secondary/30 rounded-lg hover:bg-secondary/50 transition-colors"
+        >
+          <span className="font-semibold">🧠 PRE-TRADE ANALYSIS</span>
+          <span className="text-white/60">{expandedSections.preAnalysis ? '▼' : '▶'}</span>
+        </button>
         
-        <div className="space-y-2">
-          <Label>Stop Loss</Label>
-          <Input
-            type="number"
-            step="0.00001"
-            value={formData.stop_loss}
-            onChange={(e) => setFormData({ ...formData, stop_loss: e.target.value })}
-            className="bg-secondary border-white/10 font-mono"
-            placeholder="0.00"
-          />
-        </div>
-        
-        <div className="space-y-2">
-          <Label>Take Profit</Label>
-          <Input
-            type="number"
-            step="0.00001"
-            value={formData.take_profit}
-            onChange={(e) => setFormData({ ...formData, take_profit: e.target.value })}
-            className="bg-secondary border-white/10 font-mono"
-            placeholder="0.00"
-          />
-        </div>
+        {expandedSections.preAnalysis && (
+          <div className="space-y-2 pl-4">
+            <Label className="text-white/80">What did you see? Plan, thesis, levels, risk...</Label>
+            <textarea
+              value={formData.pre_trade_analysis}
+              onChange={(e) => setFormData({ ...formData, pre_trade_analysis: e.target.value })}
+              className="w-full h-24 px-3 py-2 bg-secondary border border-white/10 rounded-lg resize-none focus:border-accent focus:ring-1 focus:ring-accent text-sm"
+              placeholder="Market structure, support/resistance levels, trading thesis..."
+            />
+          </div>
+        )}
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <div className="space-y-2">
-          <Label>Status</Label>
-          <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v })}>
-            <SelectTrigger className="bg-secondary border-white/10" data-testid="trade-status-select">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {STATUSES.map((s) => (
-                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+      {/* Post-Trade Review Section */}
+      <div className="space-y-3">
+        <button
+          type="button"
+          onClick={() => toggleSection('postReview')}
+          className="w-full flex items-center justify-between p-3 bg-secondary/30 rounded-lg hover:bg-secondary/50 transition-colors"
+        >
+          <span className="font-semibold">📊 POST-TRADE REVIEW</span>
+          <span className="text-white/60">{expandedSections.postReview ? '▼' : '▶'}</span>
+        </button>
         
-        <div className="space-y-2">
-          <Label>Commission</Label>
-          <Input
-            type="number"
-            step="0.01"
-            value={formData.commission}
-            onChange={(e) => setFormData({ ...formData, commission: e.target.value })}
-            className="bg-secondary border-white/10 font-mono"
-            placeholder="0.00"
-          />
-        </div>
-        
-        <div className="space-y-2">
-          <Label>Swap</Label>
-          <Input
-            type="number"
-            step="0.01"
-            value={formData.swap}
-            onChange={(e) => setFormData({ ...formData, swap: e.target.value })}
-            className="bg-secondary border-white/10 font-mono"
-            placeholder="0.00"
-          />
-        </div>
+        {expandedSections.postReview && (
+          <div className="space-y-2 pl-4">
+            <Label className="text-white/80">What happened? Execution, slippage, improvements...</Label>
+            <textarea
+              value={formData.post_trade_review}
+              onChange={(e) => setFormData({ ...formData, post_trade_review: e.target.value })}
+              className="w-full h-24 px-3 py-2 bg-secondary border border-white/10 rounded-lg resize-none focus:border-accent focus:ring-1 focus:ring-accent text-sm"
+              placeholder="Trade execution, what went well, what to improve..."
+            />
+          </div>
+        )}
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>Entry Date</Label>
-          <Input
-            type="date"
-            value={formData.entry_date}
-            onChange={(e) => setFormData({ ...formData, entry_date: e.target.value })}
-            className="bg-secondary border-white/10"
-            required
-            data-testid="trade-entry-date-input"
-          />
-        </div>
+      {/* Psychology Section */}
+      <div className="space-y-3">
+        <button
+          type="button"
+          onClick={() => toggleSection('psychology')}
+          className="w-full flex items-center justify-between p-3 bg-secondary/30 rounded-lg hover:bg-secondary/50 transition-colors"
+        >
+          <span className="font-semibold">😵 EMOTIONS & LESSONS</span>
+          <span className="text-white/60">{expandedSections.psychology ? '▼' : '▶'}</span>
+        </button>
         
-        <div className="space-y-2">
-          <Label>Exit Date</Label>
-          <Input
-            type="date"
-            value={formData.exit_date}
-            onChange={(e) => setFormData({ ...formData, exit_date: e.target.value })}
-            className="bg-secondary border-white/10"
-            data-testid="trade-exit-date-input"
-          />
-        </div>
+        {expandedSections.psychology && (
+          <div className="space-y-4 pl-4">
+            <div className="space-y-2">
+              <Label className="text-white/80">Emotions</Label>
+              <textarea
+                value={formData.emotions}
+                onChange={(e) => setFormData({ ...formData, emotions: e.target.value })}
+                className="w-full h-20 px-3 py-2 bg-secondary border border-white/10 rounded-lg resize-none focus:border-accent focus:ring-1 focus:ring-accent text-sm"
+                placeholder="Calm, anxious, FOMO, confident..."
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-white/80">Lessons Learned</Label>
+              <textarea
+                value={formData.lessons}
+                onChange={(e) => setFormData({ ...formData, lessons: e.target.value })}
+                className="w-full h-20 px-3 py-2 bg-secondary border border-white/10 rounded-lg resize-none focus:border-accent focus:ring-1 focus:ring-accent text-sm"
+                placeholder="Key takeaways to repeat or avoid..."
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-white/80">Tags</Label>
+              <Input
+                value={formData.tags}
+                onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+                className="bg-secondary border-white/10"
+                placeholder="breakout, trend, news (comma separated)"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-white/80">Rating ({formData.rating}/10)</Label>
+              <input
+                type="range"
+                min="1"
+                max="10"
+                value={formData.rating}
+                onChange={(e) => setFormData({ ...formData, rating: parseInt(e.target.value) })}
+                className="w-full h-2 bg-secondary rounded-lg appearance-none cursor-pointer accent-accent"
+              />
+              <div className="flex justify-between text-xs text-white/60">
+                <span>1</span>
+                <span>5</span>
+                <span>10</span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      <div className="space-y-2">
-        <Label>Notes</Label>
-        <textarea
-          value={formData.notes}
-          onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-          className="w-full h-20 px-3 py-2 bg-secondary border border-white/10 rounded-lg resize-none focus:border-accent focus:ring-1 focus:ring-accent text-sm"
-          placeholder="Trade notes, strategy, observations..."
-          data-testid="trade-notes-input"
-        />
+      {/* Screenshots Section */}
+      <div className="space-y-3">
+        <button
+          type="button"
+          onClick={() => toggleSection('screenshots')}
+          className="w-full flex items-center justify-between p-3 bg-secondary/30 rounded-lg hover:bg-secondary/50 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <span className="font-semibold">🖼️ SCREENSHOTS</span>
+            {formData.screenshots.length > 0 && (
+              <span className="text-xs px-2 py-1 bg-accent/20 text-accent rounded-full">{formData.screenshots.length}</span>
+            )}
+          </div>
+          <span className="text-white/60">{expandedSections.screenshots ? '▼' : '▶'}</span>
+        </button>
+        
+        {expandedSections.screenshots && (
+          <div className="space-y-2 pl-4">
+            <div className="p-4 border-2 border-dashed border-white/10 rounded-lg text-center">
+              <Upload className="w-8 h-8 mx-auto mb-2 text-white/40" />
+              <p className="text-sm text-white/60">Screenshot upload coming soon</p>
+              <p className="text-xs text-white/40 mt-1">Drag & drop or click to upload trading screenshots</p>
+            </div>
+          </div>
+        )}
       </div>
 
-      <div className="flex gap-3 pt-4 sticky bottom-0 bg-card">
-        <Button type="button" variant="outline" onClick={onClose} className="flex-1" data-testid="trade-form-cancel-btn">
+      {/* Action Buttons */}
+      <div className="flex gap-3 pt-4 sticky bottom-0 bg-card border-t border-white/10 mt-6">
+        <Button type="button" variant="outline" onClick={onClose} className="flex-1">
           Cancel
         </Button>
-        <Button type="submit" disabled={loading} className="flex-1 bg-white text-black hover:bg-gray-200" data-testid="trade-form-submit-btn">
+        <Button type="submit" disabled={loading} className="flex-1 bg-white text-black hover:bg-gray-200">
           {loading ? 'Saving...' : (trade ? 'Update Trade' : 'Add Trade')}
         </Button>
       </div>
