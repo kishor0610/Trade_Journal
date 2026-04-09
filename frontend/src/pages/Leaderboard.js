@@ -421,8 +421,8 @@ const Leaderboard = () => {
         </motion.div>
       )}
 
-      {/* Rest of the leaderboard - Enhanced Table (Scrollable) */}
-      {restOfLeaders.length > 0 && (
+      {/* Rest of the leaderboard - Enhanced Table (Scrollable) - Always visible */}
+      {leaders.length >= 3 && (
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
@@ -446,8 +446,17 @@ const Leaderboard = () => {
               </tr>
             </thead>
             <tbody>
-              <AnimatePresence>
-                {restOfLeaders.map((leader, index) => {
+              {restOfLeaders.length === 0 ? (
+                <tr>
+                  <td colSpan="5" className="px-6 py-12 text-center">
+                    <TrendingUp className="w-10 h-10 mx-auto mb-3 text-accent/40" />
+                    <p className="text-white/60 font-medium">More traders will appear here as they join</p>
+                    <p className="text-white/40 text-sm mt-1">The competition is heating up! 🔥</p>
+                  </td>
+                </tr>
+              ) : (
+                <AnimatePresence>
+                  {restOfLeaders.map((leader, index) => {
                   const isUser = isCurrentUser(leader.user_id);
                   const winRatePercent = leader.win_rate;
                   
@@ -584,27 +593,15 @@ const Leaderboard = () => {
                     </motion.tr>
                   );
                 })}
-              </AnimatePresence>
+                </AnimatePresence>
+              )}
             </tbody>
           </table>
           </div>
         </motion.div>
       )}
 
-      {/* Show info message if only 3 or fewer users */}
-      {leaders.length > 0 && leaders.length <= 3 && !loading && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="glass-card p-8 text-center rounded-2xl"
-        >
-          <TrendingUp className="w-12 h-12 mx-auto mb-3 text-accent/60" />
-          <h3 className="text-lg font-bold mb-1 text-white/80">Top Performers Only</h3>
-          <p className="text-sm text-white/50">More traders will appear here as they join the competition</p>
-        </motion.div>
-      )}
-
+      {/* Remove the redundant info message section since it's now in the table */}
       {leaders.length === 0 && !loading && (
         <div className="glass-card p-16 text-center">
           <Trophy className="w-16 h-16 mx-auto mb-4 text-white/20" />
