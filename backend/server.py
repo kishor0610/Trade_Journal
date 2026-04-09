@@ -72,6 +72,12 @@ calendar_cache = {
     'timestamp': None
 }
 CALENDAR_CACHE_TTL = 60  # 60 seconds
+
+quotes_cache = {
+    'data': None,
+    'timestamp': None
+}
+QUOTES_CACHE_TTL = 5  # 5 seconds (market data needs frequent updates)
 if GROQ_API_KEY:
     groq_client = Groq(api_key=GROQ_API_KEY)
 
@@ -2829,6 +2835,92 @@ async def get_economic_calendar():
             "event": "Calendar temporarily unavailable - please refresh",
             "impact": "low"
         }]
+
+
+# Market Quotes endpoint
+@api_router.get("/quotes")
+async def get_market_quotes():
+    """Fetch live market quotes for major forex and crypto pairs from Finnhub API with caching"""
+    global quotes_cache
+    
+    # Check if cache is valid
+    if quotes_cache['data'] and quotes_cache['timestamp']:
+        elapsed = (datetime.now(timezone.utc) - quotes_cache['timestamp']).total_seconds()
+        if elapsed < QUOTES_CACHE_TTL:
+            return quotes_cache['data']
+    
+    # Symbols to fetch
+    SYMBOLS = [
+        {"symbol": "OANDA:EUR_USD", "display": "EURUSD"},
+        {"symbol": "OANDA:GBP_USD", "display": "GBPUSD"},
+        {"symbol": "OANDA:XAU_USD", "display": "XAUUSD"},
+        {"symbol": "BINANCE:BTCUSDT", "display": "BTCUSD"}
+    ]
+    
+    try:
+        print(f"\n{'='*60}")
+        print(f"📊 Fetching market quotes from Finnhub")
+        print(f"{'='*60}")
+        
+        results = []
+        
+        async with httpx.AsyncClient() as client:
+            for item in SYMBOLS:
+                try:
+                    url = f"https://finnhub.io/api/v1/quote?symbol={item['symbol']}&token={FINNHUB_API_KEY}"
+                    response = await client.get(url, timeout=5.0)
+                    
+                    if response.status_code == 200:
+                        data = response.json()
+                        
+                        # Finnhub returns: c (current), d (change), dp (percent change)
+                        current_price = data.get('c', 0)
+                        change = data.get('d', 0)
+                        percent = data.get('dp', 0)
+                        
+                        results.append({
+                            "symbol": item['display'],
+                            "price": round(current_price, 5) if current_price else 0,
+                            "change": round(change, 5) if change else 0,
+                            "percent": round(percent, 2) if percent else 0
+                        })
+                        
+                        print(f"✅ {item['display']}: ${current_price} ({percent:+.2f}%)")
+                    else:
+                        print(f"⚠️ Failed to fetch {item['display']}: Status {response.status_code}")
+                        
+                except Exception as e:
+                    print(f"❌ Error fetching {item['display']}: {str(e)}")
+                    continue
+        
+        # If we got at least some data, cache and return it
+        if results:
+            quotes_cache['data'] = results
+            quotes_cache['timestamp'] = datetime.now(timezone.utc)
+            print(f"✅ Successfully fetched {len(results)}/{len(SYMBOLS)} quotes")
+            print(f"{'='*60}\n")
+            return results
+        else:
+            # Return cached data if available
+            if quotes_cache['data']:
+                print("⚠️ No new data, returning cached quotes")
+                return quotes_cache['data']
+            
+            # Return empty array (frontend should handle gracefully)
+            print("⚠️ No quotes available")
+            return []
+            
+    except Exception as e:
+        print(f"\n{'='*60}")
+        print(f"❌ ERROR in quotes endpoint")
+        print(f"Error: {str(e)}")
+        print(f"{'='*60}\n")
+        
+        # Return cached data if available
+        if quotes_cache['data']:
+            return quotes_cache['data']
+        
+        return []
 
 
 # Include routers

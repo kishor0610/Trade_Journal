@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '../components/ui/dropdown-menu';
 import { Toaster } from '../components/ui/sonner';
+import MarketTicker from './MarketTicker';
 
 const navItems = [
   { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -74,6 +75,9 @@ const Layout = ({ children }) => {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Market Ticker - Top Strip */}
+      <MarketTicker />
+      
       {/* Sidebar Toggle Button */}
       <button
         className="hidden md:flex fixed z-50 items-center justify-center w-6 h-12 bg-card/80 border-2 border-accent hover:bg-white/10 transition-all rounded-r-lg"
@@ -223,7 +227,7 @@ const Layout = ({ children }) => {
       </header>
 
       {/* Main Content */}
-      <main className={`transition-all duration-300 ${sidebarOpen ? 'md:ml-64' : 'md:ml-0'} pt-20 md:pt-8 pb-24 md:pb-8 px-4 md:px-8`}>
+      <main className={`transition-all duration-300 ${sidebarOpen ? 'md:ml-64' : 'md:ml-0'} pt-24 md:pt-16 pb-24 md:pb-8 px-4 md:px-8`}>
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
