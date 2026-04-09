@@ -2838,10 +2838,10 @@ async def get_economic_calendar():
         }]
 
 
-# Market Quotes endpoint - Hybrid approach using Finnhub + Yahoo Finance
+# Market Quotes endpoint - Hybrid approach using Finnhub + Live-Rates.com
 @api_router.get("/quotes")
 async def get_market_quotes():
-    """Fetch live market quotes using Finnhub (crypto/indices) + Yahoo Finance (commodities)"""
+    """Fetch live market quotes using Finnhub (crypto/indices) + Live-Rates.com (metals/oil)"""
     global quotes_cache
     
     # Check if cache is valid
@@ -2887,55 +2887,51 @@ async def get_market_quotes():
                 except Exception as e:
                     print(f"❌ Error fetching {item['display']}: {str(e)}")
             
-            # 2. COMMODITIES from Yahoo Finance (no API key needed!)
-            commodity_symbols = [
-                {"symbol": "GC=F", "display": "GOLD"},  # Gold Futures
-                {"symbol": "SI=F", "display": "SILVER"},  # Silver Futures
-                {"symbol": "CL=F", "display": "OIL"}  # Crude Oil Futures
-            ]
-            
-            for item in commodity_symbols:
-                try:
-                    # Yahoo Finance API endpoint (free, public)
-                    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{item['symbol']}?interval=1d&range=1d"
-                    response = await client.get(url, timeout=10.0, headers={'User-Agent': 'Mozilla/5.0'})
+            # 2. METALS & OIL from Live-Rates.com (FREE, real spot prices!)
+            try:
+                url = "https://www.live-rates.com/rates"
+                response = await client.get(url, timeout=10.0)
+                
+                if response.status_code == 200:
+                    data = response.json()
                     
-                    if response.status_code == 200:
-                        data = response.json()
-                        
-                        if "chart" in data and "result" in data["chart"] and len(data["chart"]["result"]) > 0:
-                            result = data["chart"]["result"][0]
-                            meta = result.get("meta", {})
+                    # Map of what we want to extract
+                    commodity_map = {
+                        "XAU/USD": "GOLD",
+                        "XAG/USD": "SILVER",
+                        "WTI": "OIL"
+                    }
+                    
+                    for item in data:
+                        currency = item.get("currency", "")
+                        if currency in commodity_map:
+                            price = float(item.get("rate", 0))
+                            bid = float(item.get("bid", price))
+                            ask = float(item.get("ask", price))
+                            open_price = float(item.get("open", price))
                             
-                            current_price = meta.get("regularMarketPrice", 0)
-                            previous_close = meta.get("previousClose", 0)
-                            
-                            if current_price > 0 and previous_close > 0:
-                                change = current_price - previous_close
-                                percent = (change / previous_close) * 100
+                            if price > 0 and open_price > 0:
+                                change = price - open_price
+                                percent = (change / open_price) * 100
                                 
                                 results.append({
-                                    "symbol": item['display'],
-                                    "price": round(current_price, 2),
+                                    "symbol": commodity_map[currency],
+                                    "price": round(price, 2),
                                     "change": round(change, 2),
                                     "percent": round(percent, 2)
                                 })
-                                print(f"✅ [Yahoo Finance] {item['display']}: ${current_price:,.2f} ({percent:+.2f}%)")
-                            else:
-                                print(f"⚠️ Invalid price data for {item['display']}")
-                        else:
-                            print(f"⚠️ No chart data for {item['display']}")
-                    else:
-                        print(f"⚠️ Yahoo Finance returned {response.status_code} for {item['display']}")
-                        
-                except Exception as e:
-                    print(f"❌ Error fetching {item['display']}: {str(e)}")
+                                print(f"✅ [Live-Rates] {commodity_map[currency]}: ${price:,.2f} ({percent:+.2f}%)")
+                else:
+                    print(f"⚠️ Live-Rates returned {response.status_code}")
+                    
+            except Exception as e:
+                print(f"❌ Error fetching commodities from Live-Rates: {str(e)}")
             
-            # 3. US INDICES - using major ETFs from Finnhub (these work)
+            # 3. US INDICES - using major ETFs from Finnhub
             index_symbols = [
-                {"symbol": "SPY", "display": "S&P500"},  # SPDR S&P 500 ETF
-                {"symbol": "QQQ", "display": "NASDAQ"},  # Invesco QQQ
-                {"symbol": "DIA", "display": "DOW"}  # SPDR Dow Jones
+                {"symbol": "SPY", "display": "S&P500"},
+                {"symbol": "QQQ", "display": "NASDAQ"},
+                {"symbol": "DIA", "display": "DOW"}
             ]
             
             for item in index_symbols:
