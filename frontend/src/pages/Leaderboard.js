@@ -88,9 +88,9 @@ const Leaderboard = () => {
           glowColor: 'rgba(251, 191, 36, 0.6)',
           borderColor: 'border-yellow-500/50',
           textColor: 'text-yellow-400',
-          medalSize: 'w-20 h-20',
-          avatarBg: 'from-yellow-500 to-amber-600',
-          avatarShadow: 'shadow-2xl shadow-yellow-500/60'
+          avatarSize: 'w-[90px] h-[90px]',
+          avatarGlow: 'shadow-[0_0_30px_rgba(251,191,36,0.7)]',
+          avatarBorder: 'border-yellow-400/60'
         };
       case 2:
         return {
@@ -99,9 +99,9 @@ const Leaderboard = () => {
           glowColor: 'rgba(156, 163, 175, 0.5)',
           borderColor: 'border-gray-400/50',
           textColor: 'text-gray-300',
-          medalSize: 'w-16 h-16',
-          avatarBg: 'from-gray-300 to-gray-500',
-          avatarShadow: 'shadow-xl shadow-gray-400/50'
+          avatarSize: 'w-[70px] h-[70px]',
+          avatarGlow: 'shadow-[0_0_25px_rgba(156,163,175,0.6)]',
+          avatarBorder: 'border-gray-300/60'
         };
       case 3:
         return {
@@ -110,9 +110,9 @@ const Leaderboard = () => {
           glowColor: 'rgba(234, 88, 12, 0.5)',
           borderColor: 'border-orange-600/50',
           textColor: 'text-orange-400',
-          medalSize: 'w-16 h-16',
-          avatarBg: 'from-orange-600 to-orange-800',
-          avatarShadow: 'shadow-xl shadow-orange-600/50'
+          avatarSize: 'w-[70px] h-[70px]',
+          avatarGlow: 'shadow-[0_0_25px_rgba(234,88,12,0.6)]',
+          avatarBorder: 'border-orange-500/60'
         };
       default:
         return {};
@@ -255,15 +255,15 @@ const Leaderboard = () => {
                       animate="animate"
                       className="flex flex-col items-center"
                     >
-                      {/* Crown for 1st place */}
+                      {/* Crown for 1st place - positioned absolutely above avatar */}
                       {actualRank === 1 && (
                         <motion.div
                           variants={crownBounce}
                           initial="initial"
                           animate="animate"
-                          className="mb-2"
+                          className="absolute -top-6 left-1/2 transform -translate-x-1/2 z-20"
                         >
-                          <Crown className="w-8 h-8 text-yellow-400 fill-yellow-400 drop-shadow-[0_0_15px_rgba(251,191,36,0.8)]" />
+                          <Crown className="w-10 h-10 text-yellow-400 fill-yellow-400 drop-shadow-[0_0_20px_rgba(251,191,36,1)]" />
                         </motion.div>
                       )}
                       
@@ -280,51 +280,56 @@ const Leaderboard = () => {
                       )}
                       
                       {/* Astronaut Avatar with glow */}
-                      <div className="relative mb-3">
-                        {/* Outer glow */}
+                      <div className="relative mb-4">
+                        {/* Avatar container with glow effect */}
                         <motion.div
-                          className={`absolute inset-0 rounded-3xl blur-xl`}
-                          style={{ backgroundColor: styles.glowColor }}
+                          className={`relative ${styles.avatarSize} mx-auto`}
                           variants={glowPulse}
                           initial="initial"
                           animate="animate"
-                        />
-                        
-                        <div className={`relative ${styles.medalSize} rounded-3xl bg-gradient-to-br ${styles.avatarBg} ${styles.avatarShadow} flex items-center justify-center overflow-hidden border-4 ${styles.borderColor}`}>
-                          {/* Inner shine effect */}
-                          <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent" />
-                          
-                          {/* Astronaut image */}
-                          <img 
-                            src={`/astronaut-rank${actualRank}.png`}
-                            alt={`Rank ${actualRank}`}
-                            className="w-full h-full object-contain relative z-10 p-1"
-                            onError={(e) => {
-                              // Fallback to emoji if image fails to load
-                              e.target.style.display = 'none';
-                              e.target.nextElementSibling.style.display = 'block';
-                            }}
+                        >
+                          {/* Outer pulsing glow */}
+                          <div 
+                            className="absolute inset-0 rounded-full blur-2xl opacity-70"
+                            style={{ backgroundColor: styles.glowColor }}
                           />
-                          {/* Fallback emoji (hidden by default) */}
-                          <div className={`${actualRank === 1 ? 'text-4xl' : 'text-3xl'} relative z-10`} style={{ display: 'none' }}>
-                            🧑‍🚀
+                          
+                          {/* Avatar image */}
+                          <div className={`relative ${styles.avatarSize} rounded-full overflow-hidden bg-gradient-to-br from-black/40 to-black/60 border-3 ${styles.avatarBorder} ${styles.avatarGlow}`}>
+                            <img 
+                              src={`/astronaut-rank${actualRank}.png`}
+                              alt={`Rank ${actualRank}`}
+                              className="w-full h-full object-cover scale-110 relative z-10"
+                              onError={(e) => {
+                                // Fallback to emoji if image fails to load
+                                e.target.style.display = 'none';
+                                e.target.nextElementSibling.style.display = 'flex';
+                              }}
+                            />
+                            {/* Fallback emoji (hidden by default) */}
+                            <div className={`absolute inset-0 ${actualRank === 1 ? 'text-4xl' : 'text-3xl'} items-center justify-center bg-gradient-to-br from-purple-600/30 to-pink-600/30`} style={{ display: 'none' }}>
+                              🧑‍🚀
+                            </div>
+                            
+                            {/* Inner shine overlay */}
+                            <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
                           </div>
                           
-                          {/* Rank badge with better styling */}
+                          {/* Rank badge */}
                           <motion.div
-                            className={`absolute -top-2 -right-2 ${actualRank === 1 ? 'w-10 h-10' : 'w-8 h-8'} rounded-full flex items-center justify-center ${actualRank === 1 ? 'text-xl' : 'text-lg'} font-bold bg-gradient-to-br ${
+                            className={`absolute -bottom-1 -right-1 ${actualRank === 1 ? 'w-9 h-9' : 'w-8 h-8'} rounded-full flex items-center justify-center ${actualRank === 1 ? 'text-lg' : 'text-base'} font-bold bg-gradient-to-br ${
                               actualRank === 1 
-                                ? 'from-yellow-400 via-yellow-500 to-yellow-600 shadow-lg shadow-yellow-500/60'
+                                ? 'from-yellow-400 via-yellow-500 to-yellow-600 shadow-lg shadow-yellow-500/80'
                                 : actualRank === 2
-                                ? 'from-gray-300 via-gray-400 to-gray-500 shadow-lg shadow-gray-400/50'
-                                : 'from-orange-500 via-orange-600 to-orange-700 shadow-lg shadow-orange-600/50'
-                            } border-4 border-card`}
+                                ? 'from-gray-300 via-gray-400 to-gray-500 shadow-lg shadow-gray-400/70'
+                                : 'from-orange-500 via-orange-600 to-orange-700 shadow-lg shadow-orange-600/70'
+                            } border-3 border-card`}
                             whileHover={{ scale: 1.2, rotate: 360 }}
                             transition={{ type: 'spring' }}
                           >
                             {actualRank === 1 ? '🥇' : actualRank === 2 ? '🥈' : '🥉'}
                           </motion.div>
-                        </div>
+                        </motion.div>
                       </div>
                       
                       {/* User info */}
