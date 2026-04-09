@@ -369,6 +369,18 @@ const TradeForm = ({ trade, onSubmit, onClose, currency = 'USD' }) => {
     psychology: false,
     screenshots: false
   });
+  const [screenshotPreviews, setScreenshotPreviews] = useState([]);
+
+  // Initialize screenshot previews when editing existing trade
+  useEffect(() => {
+    if (trade?.screenshots && trade.screenshots.length > 0) {
+      const previews = trade.screenshots.map((url, index) => ({
+        url,
+        name: `Screenshot ${index + 1}`
+      }));
+      setScreenshotPreviews(previews);
+    }
+  }, [trade]);
 
   // Calculate checklist completion
   const checklistItems = [
@@ -388,6 +400,28 @@ const TradeForm = ({ trade, onSubmit, onClose, currency = 'USD' }) => {
 
   const handleChecklistToggle = (key) => {
     setFormData(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const handleScreenshotUpload = (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
+
+    files.forEach(file => {
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const dataUrl = event.target.result;
+          setScreenshotPreviews(prev => [...prev, { url: dataUrl, name: file.name }]);
+          setFormData(prev => ({ ...prev, screenshots: [...prev.screenshots, dataUrl] }));
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+  };
+
+  const removeScreenshot = (index) => {
+    setScreenshotPreviews(prev => prev.filter((_, i) => i !== index));
+    setFormData(prev => ({ ...prev, screenshots: prev.screenshots.filter((_, i) => i !== index) }));
   };
 
   const handleSubmit = async (e) => {
@@ -423,70 +457,46 @@ const TradeForm = ({ trade, onSubmit, onClose, currency = 'USD' }) => {
     <form onSubmit={handleSubmit} className="space-y-6 max-h-[75vh] overflow-y-auto pr-2">
       {/* Header - Trade Info */}
       {trade && (
-        <div className="bg-secondary/50 p-4 rounded-lg border border-white/10">
+        <div className="bg-gradient-to-r from-purple-500/20 via-pink-500/20 to-blue-500/20 p-4 rounded-lg border border-purple-500/30 shadow-lg">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <span className="text-2xl font-bold">{formData.instrument}</span>
-              <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+              <span className="text-2xl font-bold text-white">{formData.instrument}</span>
+              <span className={`px-3 py-1 rounded-full text-sm font-medium shadow-md ${
                 formData.position === 'buy' || formData.position === 'long'
-                  ? 'bg-emerald-500/20 text-emerald-400'
-                  : 'bg-red-500/20 text-red-400'
+                  ? 'bg-gradient-to-r from-emerald-500 to-green-400 text-white'
+                  : 'bg-gradient-to-r from-red-500 to-pink-400 text-white'
               }`}>
                 {formData.position?.toUpperCase()}
               </span>
               {trade.pnl !== undefined && (
-                <span className={`font-mono text-lg ${trade.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                <span className={`font-mono text-lg font-bold ${
+                  trade.pnl >= 0 
+                    ? 'text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]' 
+                    : 'text-red-400 drop-shadow-[0_0_8px_rgba(248,113,113,0.5)]'
+                }`}>
                   {trade.pnl >= 0 ? '+' : ''}{formatCurrency(trade.pnl, currency)}
                 </span>
               )}
             </div>
-            <div className="text-sm text-white/60">
+            <div className="text-sm text-white/80 font-medium">
               {formData.quantity} lots
             </div>
           </div>
         </div>
       )}
 
-      {/* Execution Checklist Section */}
-      <div className="space-y-3">
-        <button
-          type="button"
-          onClick={() => toggleSection('checklist')}
-          className="w-full flex items-center justify-between p-3 bg-secondary/30 rounded-lg hover:bg-secondary/50 transition-colors"
-        >
-          <div className="flex items-center gap-2">
-            <span className="font-semibold">✅ EXECUTION CHECKLIST</span>
-            <span className="text-xs px-2 py-1 bg-accent/20 text-accent rounded-full">{checklistProgress}</span>
-          </div>
-          <span className="text-white/60">{expandedSections.checklist ? '▼' : '▶'}</span>
-        </button>
-        
-        {expandedSections.checklist && (
-          <div className="space-y-2 pl-4">
-            {checklistItems.map((item) => (
-              <label key={item.key} className="flex items-center gap-3 p-2 hover:bg-secondary/30 rounded cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData[item.key]}
-                  onChange={() => handleChecklistToggle(item.key)}
-                  className="w-5 h-5 rounded border-white/20 bg-secondary"
-                />
-                <span className="text-sm">{item.label}</span>
-              </label>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Basic Trade Details Section */}
+      {/* Basic Trade Details Section - MOVED TO TOP */}
       <div className="space-y-3">
         <button
           type="button"
           onClick={() => toggleSection('basic')}
-          className="w-full flex items-center justify-between p-3 bg-secondary/30 rounded-lg hover:bg-secondary/50 transition-colors"
+          className="w-full flex items-center justify-between p-3 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 rounded-lg hover:from-blue-500/30 hover:to-cyan-500/30 transition-all border border-blue-500/30 shadow-md"
         >
-          <span className="font-semibold">📊 TRADE DETAILS</span>
-          <span className="text-white/60">{expandedSections.basic ? '▼' : '▶'}</span>
+          <span className="font-semibold text-white flex items-center gap-2">
+            <span className="text-xl">📊</span>
+            TRADE DETAILS
+          </span>
+          <span className="text-white/80">{expandedSections.basic ? '▼' : '▶'}</span>
         </button>
         
         {expandedSections.basic && (
@@ -650,15 +660,52 @@ const TradeForm = ({ trade, onSubmit, onClose, currency = 'USD' }) => {
         )}
       </div>
 
+      {/* Execution Checklist Section - MOVED AFTER TRADE DETAILS */}
+      <div className="space-y-3">
+        <button
+          type="button"
+          onClick={() => toggleSection('checklist')}
+          className="w-full flex items-center justify-between p-3 bg-gradient-to-r from-emerald-500/20 to-green-500/20 rounded-lg hover:from-emerald-500/30 hover:to-green-500/30 transition-all border border-emerald-500/30 shadow-md"
+        >
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-white flex items-center gap-2">
+              <span className="text-xl">✅</span>
+              EXECUTION CHECKLIST
+            </span>
+            <span className="text-xs px-2 py-1 bg-emerald-400/30 text-emerald-300 rounded-full font-medium">{checklistProgress}</span>
+          </div>
+          <span className="text-white/80">{expandedSections.checklist ? '▼' : '▶'}</span>
+        </button>
+        
+        {expandedSections.checklist && (
+          <div className="space-y-2 pl-4">
+            {checklistItems.map((item) => (
+              <label key={item.key} className="flex items-center gap-3 p-3 hover:bg-emerald-500/10 rounded-lg cursor-pointer transition-colors border border-transparent hover:border-emerald-500/20">
+                <input
+                  type="checkbox"
+                  checked={formData[item.key]}
+                  onChange={() => handleChecklistToggle(item.key)}
+                  className="w-5 h-5 rounded border-emerald-500/30 bg-secondary checked:bg-emerald-500"
+                />
+                <span className="text-sm text-white/90">{item.label}</span>
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Pre-Trade Analysis Section */}
       <div className="space-y-3">
         <button
           type="button"
           onClick={() => toggleSection('preAnalysis')}
-          className="w-full flex items-center justify-between p-3 bg-secondary/30 rounded-lg hover:bg-secondary/50 transition-colors"
+          className="w-full flex items-center justify-between p-3 bg-gradient-to-r from-purple-500/20 to-indigo-500/20 rounded-lg hover:from-purple-500/30 hover:to-indigo-500/30 transition-all border border-purple-500/30 shadow-md"
         >
-          <span className="font-semibold">🧠 PRE-TRADE ANALYSIS</span>
-          <span className="text-white/60">{expandedSections.preAnalysis ? '▼' : '▶'}</span>
+          <span className="font-semibold text-white flex items-center gap-2">
+            <span className="text-xl">🧠</span>
+            PRE-TRADE ANALYSIS
+          </span>
+          <span className="text-white/80">{expandedSections.preAnalysis ? '▼' : '▶'}</span>
         </button>
         
         {expandedSections.preAnalysis && (
@@ -679,10 +726,13 @@ const TradeForm = ({ trade, onSubmit, onClose, currency = 'USD' }) => {
         <button
           type="button"
           onClick={() => toggleSection('postReview')}
-          className="w-full flex items-center justify-between p-3 bg-secondary/30 rounded-lg hover:bg-secondary/50 transition-colors"
+          className="w-full flex items-center justify-between p-3 bg-gradient-to-r from-orange-500/20 to-amber-500/20 rounded-lg hover:from-orange-500/30 hover:to-amber-500/30 transition-all border border-orange-500/30 shadow-md"
         >
-          <span className="font-semibold">📊 POST-TRADE REVIEW</span>
-          <span className="text-white/60">{expandedSections.postReview ? '▼' : '▶'}</span>
+          <span className="font-semibold text-white flex items-center gap-2">
+            <span className="text-xl">📈</span>
+            POST-TRADE REVIEW
+          </span>
+          <span className="text-white/80">{expandedSections.postReview ? '▼' : '▶'}</span>
         </button>
         
         {expandedSections.postReview && (
@@ -703,10 +753,13 @@ const TradeForm = ({ trade, onSubmit, onClose, currency = 'USD' }) => {
         <button
           type="button"
           onClick={() => toggleSection('psychology')}
-          className="w-full flex items-center justify-between p-3 bg-secondary/30 rounded-lg hover:bg-secondary/50 transition-colors"
+          className="w-full flex items-center justify-between p-3 bg-gradient-to-r from-pink-500/20 to-rose-500/20 rounded-lg hover:from-pink-500/30 hover:to-rose-500/30 transition-all border border-pink-500/30 shadow-md"
         >
-          <span className="font-semibold">😵 EMOTIONS & LESSONS</span>
-          <span className="text-white/60">{expandedSections.psychology ? '▼' : '▶'}</span>
+          <span className="font-semibold text-white flex items-center gap-2">
+            <span className="text-xl">💭</span>
+            EMOTIONS & LESSONS
+          </span>
+          <span className="text-white/80">{expandedSections.psychology ? '▼' : '▶'}</span>
         </button>
         
         {expandedSections.psychology && (
@@ -766,24 +819,61 @@ const TradeForm = ({ trade, onSubmit, onClose, currency = 'USD' }) => {
         <button
           type="button"
           onClick={() => toggleSection('screenshots')}
-          className="w-full flex items-center justify-between p-3 bg-secondary/30 rounded-lg hover:bg-secondary/50 transition-colors"
+          className="w-full flex items-center justify-between p-3 bg-gradient-to-r from-cyan-500/20 to-teal-500/20 rounded-lg hover:from-cyan-500/30 hover:to-teal-500/30 transition-all border border-cyan-500/30 shadow-md"
         >
           <div className="flex items-center gap-2">
-            <span className="font-semibold">🖼️ SCREENSHOTS</span>
+            <span className="font-semibold text-white flex items-center gap-2">
+              <span className="text-xl">🖼️</span>
+              SCREENSHOTS
+            </span>
             {formData.screenshots.length > 0 && (
-              <span className="text-xs px-2 py-1 bg-accent/20 text-accent rounded-full">{formData.screenshots.length}</span>
+              <span className="text-xs px-2 py-1 bg-cyan-400/30 text-cyan-300 rounded-full font-medium">{formData.screenshots.length}</span>
             )}
           </div>
-          <span className="text-white/60">{expandedSections.screenshots ? '▼' : '▶'}</span>
+          <span className="text-white/80">{expandedSections.screenshots ? '▼' : '▶'}</span>
         </button>
         
         {expandedSections.screenshots && (
-          <div className="space-y-2 pl-4">
-            <div className="p-4 border-2 border-dashed border-white/10 rounded-lg text-center">
-              <Upload className="w-8 h-8 mx-auto mb-2 text-white/40" />
-              <p className="text-sm text-white/60">Screenshot upload coming soon</p>
-              <p className="text-xs text-white/40 mt-1">Drag & drop or click to upload trading screenshots</p>
+          <div className="space-y-3 pl-4">
+            <div className="relative">
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleScreenshotUpload}
+                className="hidden"
+                id="screenshot-upload"
+              />
+              <label
+                htmlFor="screenshot-upload"
+                className="block p-6 border-2 border-dashed border-cyan-500/30 rounded-lg text-center cursor-pointer hover:border-cyan-500/50 hover:bg-cyan-500/5 transition-all"
+              >
+                <Upload className="w-10 h-10 mx-auto mb-3 text-cyan-400" />
+                <p className="text-sm text-white/80 font-medium">Click to upload screenshots</p>
+                <p className="text-xs text-white/50 mt-1">PNG, JPG, GIF up to 10MB</p>
+              </label>
             </div>
+            
+            {screenshotPreviews.length > 0 && (
+              <div className="grid grid-cols-2 gap-3">
+                {screenshotPreviews.map((preview, index) => (
+                  <div key={index} className="relative group">
+                    <img
+                      src={preview.url}
+                      alt={`Screenshot ${index + 1}`}
+                      className="w-full h-32 object-cover rounded-lg border border-cyan-500/20"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeScreenshot(index)}
+                      className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
