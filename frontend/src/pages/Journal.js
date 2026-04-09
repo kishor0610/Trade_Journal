@@ -2222,24 +2222,19 @@ export default function Journal() {
     const response = await axios.put(`${API_URL}/trades/${editingTrade.id}`, data);
     toast.success('Trade updated successfully');
     
-    // Update trade in-place while preserving original timestamps to maintain sort position
-    // Only preserve if the user didn't intentionally change the entry_date
+    // Update trade in-place - merge new data with existing trade to prevent position changes
     setTrades(prevTrades => 
       prevTrades.map(t => {
         if (t.id === editingTrade.id) {
-          const updatedTrade = { ...response.data };
-          
-          // Preserve original entry_date only if it wasn't changed by the user
-          const originalDate = t.entry_date?.slice(0, 10);
-          const newDate = data.entry_date?.slice(0, 10) || response.data.entry_date?.slice(0, 10);
-          
-          if (originalDate === newDate) {
-            // Date wasn't changed, preserve exact original format to prevent reordering
-            updatedTrade.entry_date = t.entry_date;
-            updatedTrade.created_at = t.created_at;
-          }
-          
-          return updatedTrade;
+          // Merge: keep original trade as base, overlay only changed fields
+          return {
+            ...t,  // Keep ALL original fields
+            ...response.data,  // Overlay response data
+            // Force preserve critical sorting fields to prevent reordering
+            id: t.id,
+            entry_date: t.entry_date,
+            created_at: t.created_at
+          };
         }
         return t;
       })
