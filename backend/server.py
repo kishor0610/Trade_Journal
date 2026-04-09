@@ -2849,15 +2849,24 @@ async def get_market_quotes():
         if elapsed < QUOTES_CACHE_TTL:
             return quotes_cache['data']
     
-    # Symbols to fetch (matching the screenshot)
+    # Symbols to fetch (Crypto, Metals, Forex, Stocks)
     SYMBOLS = [
+        # Crypto
         {"symbol": "BINANCE:BTCUSDT", "display": "BTC-USD"},
         {"symbol": "BINANCE:ETHUSDT", "display": "ETH-USD"},
+        {"symbol": "BINANCE:SOLUSDT", "display": "SOL-USD"},
+        # Metals
+        {"symbol": "OANDA:XAU_USD", "display": "XAUUSD"},
+        {"symbol": "OANDA:XAG_USD", "display": "XAGUSD"},
+        # Forex
         {"symbol": "OANDA:EUR_USD", "display": "EUR/USD"},
         {"symbol": "OANDA:GBP_USD", "display": "GBP/USD"},
+        {"symbol": "OANDA:USD_JPY", "display": "USD/JPY"},
+        # Stocks
         {"symbol": "AAPL", "display": "AAPL"},
         {"symbol": "MSFT", "display": "MSFT"},
-        {"symbol": "AMZN", "display": "AMZN"}
+        {"symbol": "AMZN", "display": "AMZN"},
+        {"symbol": "GOOGL", "display": "GOOGL"}
     ]
     
     try:

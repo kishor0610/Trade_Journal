@@ -32,3 +32,7 @@ services:
         sync: false
       - key: GROQ_API_KEY
         sync: false
+      - key: TWELVE_DATA_API_KEY
+        sync: false
+      - key: FINNHUB_API_KEY
+        value: d7bdvvhr01qgc9t72sc0d7bdvvhr01qgc9t72scg
