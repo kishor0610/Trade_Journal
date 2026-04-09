@@ -55,7 +55,7 @@ const Leaderboard = () => {
   const fetchLeaderboard = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${API_URL}/leaderboard?limit=10`, {
+      const response = await axios.get(`${API_URL}/leaderboard?limit=50`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -172,28 +172,35 @@ const Leaderboard = () => {
 
       {/* Top 3 Podium */}
       {topThree.length >= 3 && (
-        <div className="relative min-h-[320px]">
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, ease: "easeOut" }}
+          className="relative min-h-[320px]"
+        >
           {/* Subtle background particles (sparkles) */}
           <div className="absolute inset-0 overflow-hidden rounded-3xl pointer-events-none">
             {/* Floating sparkle particles */}
-            {[...Array(20)].map((_, i) => (
+            {[...Array(40)].map((_, i) => (
               <motion.div
                 key={i}
-                className={`absolute w-1 h-1 rounded-full ${
+                className={`absolute rounded-full ${
                   i % 3 === 0 ? 'bg-emerald-400' : i % 3 === 1 ? 'bg-blue-400' : 'bg-orange-400'
                 }`}
                 style={{
+                  width: `${2 + Math.random() * 2}px`,
+                  height: `${2 + Math.random() * 2}px`,
                   left: `${Math.random() * 100}%`,
                   top: `${Math.random() * 100}%`,
-                  opacity: 0.2 + Math.random() * 0.2
+                  opacity: 0.25 + Math.random() * 0.15
                 }}
                 animate={{
-                  y: [-10, 10, -10],
-                  x: [-5, 5, -5],
-                  opacity: [0.2, 0.4, 0.2]
+                  y: [-12, 12, -12],
+                  x: [-6, 6, -6],
+                  opacity: [0.25, 0.4, 0.25]
                 }}
                 transition={{
-                  duration: 4 + Math.random() * 2,
+                  duration: 4 + Math.random() * 3,
                   repeat: Infinity,
                   delay: Math.random() * 2,
                   ease: "easeInOut"
@@ -411,21 +418,21 @@ const Leaderboard = () => {
               })}
             </div>
           </div>
-        </div>
+        </motion.div>
       )}
 
       {/* Rest of the leaderboard - Enhanced Table (Scrollable) */}
       {restOfLeaders.length > 0 && (
         <motion.div
-          initial={{ opacity: 0, y: 50 }}
+          initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
+          transition={{ duration: 0.4, delay: 0.35, ease: "easeOut" }}
           className="glass-card rounded-2xl overflow-hidden"
         >
-          <div className="max-h-[400px] overflow-y-auto"
+          <div className="max-h-[400px] overflow-y-auto custom-scrollbar"
             style={{
               scrollbarWidth: 'thin',
-              scrollbarColor: 'rgba(255,255,255,0.2) transparent'
+              scrollbarColor: 'rgba(255,255,255,0.3) transparent'
             }}
           >
           <table className="w-full">
@@ -450,13 +457,13 @@ const Leaderboard = () => {
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: 20 }}
-                      transition={{ delay: index * 0.05 }}
-                      className={`border-b border-white/5 transition-all cursor-pointer group ${
+                      transition={{ delay: 0.4 + index * 0.06, duration: 0.3 }}
+                      className={`border-b border-white/5 transition-all duration-150 cursor-pointer group ${
                         isUser 
                           ? 'bg-emerald-500/10 hover:bg-emerald-500/20 ring-1 ring-emerald-500/30' 
-                          : 'hover:bg-white/5'
+                          : 'hover:bg-white/5 hover:shadow-lg hover:shadow-white/5'
                       }`}
-                      whileHover={{ scale: 1.01, x: 5 }}
+                      whileHover={{ scale: 1.02, x: 8 }}
                     >
                       <td className="px-6 py-5">
                         <div className="flex items-center gap-3">
@@ -581,6 +588,20 @@ const Leaderboard = () => {
             </tbody>
           </table>
           </div>
+        </motion.div>
+      )}
+
+      {/* Show info message if only 3 or fewer users */}
+      {leaders.length > 0 && leaders.length <= 3 && !loading && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          className="glass-card p-8 text-center rounded-2xl"
+        >
+          <TrendingUp className="w-12 h-12 mx-auto mb-3 text-accent/60" />
+          <h3 className="text-lg font-bold mb-1 text-white/80">Top Performers Only</h3>
+          <p className="text-sm text-white/50">More traders will appear here as they join the competition</p>
         </motion.div>
       )}
 
