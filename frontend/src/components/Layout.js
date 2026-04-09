@@ -227,7 +227,7 @@ const Layout = ({ children }) => {
       </header>
 
       {/* Main Content */}
-      <main className={`transition-all duration-300 ${sidebarOpen ? 'md:ml-64' : 'md:ml-0'} pt-24 md:pt-16 pb-24 md:pb-8 px-4 md:px-8`}>
+      <main className={`transition-all duration-300 ${sidebarOpen ? 'md:ml-64' : 'md:ml-0'} pt-20 md:pt-12 pb-24 md:pb-8 px-4 md:px-8`}>
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
