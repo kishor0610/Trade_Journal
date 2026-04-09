@@ -10,7 +10,6 @@ import {
   LogOut, 
   User,
   Wallet,
-  Bot,
   Copy,
   Calculator,
   Calendar
@@ -18,6 +17,7 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '../components/ui/dropdown-menu';
 import { Toaster } from '../components/ui/sonner';
 import MarketTicker from './MarketTicker';
+import Leaderboard from './Leaderboard';
 
 const navItems = [
   { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -132,10 +132,16 @@ const Layout = ({ children }) => {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-2">
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
           {navItems.map((item) => (
             <NavItem key={item.path} {...item} />
           ))}
+          
+          {/* Leaderboard */}
+          <div className="pt-4 mt-4">
+            <Leaderboard />
+          </div>
+          
           {/* Coming Soon Items */}
           <div className="pt-4 mt-4 border-t-2 border-transparent relative -mx-4 px-4"
             style={{
@@ -153,10 +159,6 @@ const Layout = ({ children }) => {
               }
             `}</style>
             <p className="text-xs text-muted-foreground mb-2 px-0">Coming Soon</p>
-            <div className="flex items-center gap-3 px-4 py-3 text-muted-foreground/50 cursor-not-allowed">
-              <Bot className="w-5 h-5" />
-              <span className="hidden md:inline">Algos</span>
-            </div>
             <div className="flex items-center gap-3 px-4 py-3 text-muted-foreground/50 cursor-not-allowed">
               <Copy className="w-5 h-5" />
               <span className="hidden md:inline">Trade Copier</span>

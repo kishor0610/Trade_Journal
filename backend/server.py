@@ -1255,6 +1255,82 @@ async def delete_trade(trade_id: str, current_user: dict = Depends(get_current_u
         raise HTTPException(status_code=404, detail="Trade not found")
     return {"message": "Trade deleted successfully"}
 
+@api_router.get("/leaderboard")
+async def get_leaderboard(limit: int = 10, current_user: dict = Depends(get_current_user)):
+    """
+    Get leaderboard of top traders based on performance score.
+    Score = (win_rate * 0.4) + (avg_rr * 20 * 0.3) + (normalized_pnl * 0.3)
+    """
+    # Get all users
+    all_users = await db.users.find({}, {"_id": 0, "password": 0}).to_list(None)
+    
+    leaderboard_data = []
+    
+    for user in all_users:
+        user_id = user.get('id')
+        if not user_id:
+            continue
+            
+        # Get all closed trades for this user
+        closed_trades = await db.trades.find({
+            "user_id": user_id,
+            "status": "closed"
+        }, {"_id": 0}).to_list(None)
+        
+        if not closed_trades:
+            continue
+            
+        # Calculate stats
+        total_trades = len(closed_trades)
+        wins = sum(1 for t in closed_trades if calculate_pnl(t).get('pnl', 0) > 0)
+        losses = sum(1 for t in closed_trades if calculate_pnl(t).get('pnl', 0) < 0)
+        win_rate = (wins / total_trades * 100) if total_trades > 0 else 0
+        
+        # Calculate total PnL
+        total_pnl = sum(calculate_pnl(t).get('pnl', 0) or 0 for t in closed_trades)
+        
+        # Calculate average risk/reward ratio
+        rr_values = [t.get('risk_reward', 0) or 0 for t in closed_trades if t.get('risk_reward')]
+        avg_rr = sum(rr_values) / len(rr_values) if rr_values else 0
+        
+        # Normalize PnL (scale to 0-100 range for scoring)
+        # We'll use a sigmoid-like function to normalize
+        normalized_pnl = min(100, max(0, (total_pnl / 1000) * 50 + 50))
+        
+        # Calculate performance score
+        # win_rate: 0-100, weight 40%
+        # avg_rr: 0-5 (scaled to 0-100), weight 30%
+        # normalized_pnl: 0-100, weight 30%
+        score = (win_rate * 0.4) + (avg_rr * 20 * 0.3) + (normalized_pnl * 0.3)
+        
+        leaderboard_data.append({
+            "user_id": user_id,
+            "name": user.get('name', 'Unknown'),
+            "score": round(score, 2),
+            "total_trades": total_trades,
+            "wins": wins,
+            "losses": losses,
+            "win_rate": round(win_rate, 2),
+            "total_pnl": round(total_pnl, 2),
+            "avg_rr": round(avg_rr, 2)
+        })
+    
+    # Sort by score descending
+    leaderboard_data.sort(key=lambda x: x['score'], reverse=True)
+    
+    # Add rank
+    for idx, entry in enumerate(leaderboard_data[:limit], 1):
+        entry['rank'] = idx
+    
+    return leaderboard_data[:limit]
+
+@api_router.delete("/trades/{trade_id}")
+async def delete_trade(trade_id: str, current_user: dict = Depends(get_current_user)):
+    result = await db.trades.delete_one({"id": trade_id, "user_id": current_user['id']})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Trade not found")
+    return {"message": "Trade deleted successfully"}
+
 @api_router.delete("/trades")
 async def delete_all_trades(current_user: dict = Depends(get_current_user)):
     """Delete all trades for the current user"""
