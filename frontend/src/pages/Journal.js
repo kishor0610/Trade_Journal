@@ -794,20 +794,97 @@ const TradeForm = ({ trade, onSubmit, onClose, currency = 'USD' }) => {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-white/80">Rating ({formData.rating}/10)</Label>
-              <input
-                type="range"
-                min="1"
-                max="10"
-                value={formData.rating}
-                onChange={(e) => setFormData({ ...formData, rating: parseInt(e.target.value) })}
-                className="w-full h-2 bg-secondary rounded-lg appearance-none cursor-pointer accent-accent"
-              />
-              <div className="flex justify-between text-xs text-white/60">
-                <span>1</span>
-                <span>5</span>
-                <span>10</span>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-white/90 font-semibold">Trade Rating</Label>
+                <span className={`text-2xl font-bold px-3 py-1 rounded-lg ${
+                  formData.rating <= 3 ? 'text-red-400 bg-red-500/20' :
+                  formData.rating <= 5 ? 'text-orange-400 bg-orange-500/20' :
+                  formData.rating <= 7 ? 'text-yellow-400 bg-yellow-500/20' :
+                  formData.rating <= 9 ? 'text-lime-400 bg-lime-500/20' :
+                  'text-green-400 bg-green-500/20'
+                }`}>
+                  {formData.rating}/10
+                </span>
+              </div>
+              
+              <div className="relative pt-2">
+                {/* Gradient background track */}
+                <div className="absolute w-full h-3 rounded-full bg-gradient-to-r from-red-500 via-yellow-500 to-green-500 opacity-30"></div>
+                
+                {/* Slider input */}
+                <input
+                  type="range"
+                  min="1"
+                  max="10"
+                  value={formData.rating}
+                  onChange={(e) => setFormData({ ...formData, rating: parseInt(e.target.value) })}
+                  className="relative w-full h-3 appearance-none cursor-pointer bg-transparent"
+                  style={{
+                    '--thumb-color': formData.rating <= 3 ? '#f87171' :
+                                    formData.rating <= 5 ? '#fb923c' :
+                                    formData.rating <= 7 ? '#facc15' :
+                                    formData.rating <= 9 ? '#a3e635' :
+                                    '#4ade80'
+                  }}
+                />
+                
+                <style jsx>{`
+                  input[type="range"]::-webkit-slider-thumb {
+                    appearance: none;
+                    width: 24px;
+                    height: 24px;
+                    border-radius: 50%;
+                    background: var(--thumb-color);
+                    cursor: pointer;
+                    border: 3px solid white;
+                    box-shadow: 0 0 12px var(--thumb-color), 0 4px 8px rgba(0,0,0,0.3);
+                    transition: all 0.2s ease;
+                  }
+                  
+                  input[type="range"]::-webkit-slider-thumb:hover {
+                    transform: scale(1.2);
+                    box-shadow: 0 0 20px var(--thumb-color), 0 6px 12px rgba(0,0,0,0.4);
+                  }
+                  
+                  input[type="range"]::-moz-range-thumb {
+                    width: 24px;
+                    height: 24px;
+                    border-radius: 50%;
+                    background: var(--thumb-color);
+                    cursor: pointer;
+                    border: 3px solid white;
+                    box-shadow: 0 0 12px var(--thumb-color), 0 4px 8px rgba(0,0,0,0.3);
+                    transition: all 0.2s ease;
+                  }
+                  
+                  input[type="range"]::-moz-range-thumb:hover {
+                    transform: scale(1.2);
+                    box-shadow: 0 0 20px var(--thumb-color), 0 6px 12px rgba(0,0,0,0.4);
+                  }
+                `}</style>
+              </div>
+              
+              {/* Number markers 1-10 */}
+              <div className="flex justify-between text-xs font-mono mt-2">
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(num => (
+                  <button
+                    key={num}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, rating: num })}
+                    className={`w-7 h-7 rounded-full transition-all ${
+                      formData.rating === num
+                        ? num <= 3 ? 'bg-red-500 text-white shadow-lg shadow-red-500/50'
+                          : num <= 5 ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/50'
+                          : num <= 7 ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/50'
+                          : num <= 9 ? 'bg-lime-500 text-black shadow-lg shadow-lime-500/50'
+                          : 'bg-green-500 text-white shadow-lg shadow-green-500/50'
+                        : 'bg-white/10 text-white/50 hover:bg-white/20 hover:text-white/80'
+                    }`}
+                  >
+                    {num}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
