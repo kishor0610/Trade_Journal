@@ -62,18 +62,18 @@ export default function RiskCalculator() {
             <button onClick={() => setDirection('long')} className={cn("flex-1 py-2 rounded-lg font-bold text-lg border transition-all", direction==='long' ? "bg-emerald-500/20 border-emerald-400 text-emerald-300 shadow-lg" : "bg-background border-white/10 text-muted-foreground")}>Long</button>
             <button onClick={() => setDirection('short')} className={cn("flex-1 py-2 rounded-lg font-bold text-lg border transition-all", direction==='short' ? "bg-rose-500/20 border-rose-400 text-rose-300 shadow-lg" : "bg-background border-white/10 text-muted-foreground")}>Short</button>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1">
               <label className="block text-xs font-bold mb-1 text-fuchsia-300">Balance</label>
               <input type="number" value={balance} onChange={e => setBalance(Number(e.target.value))} className="w-full p-2 rounded-lg bg-background border border-fuchsia-500/30 text-lg" />
-              <div className="flex gap-2 mt-1">
+              <div className="flex gap-2 mt-1 flex-wrap">
                 {QUICK_BALANCES.map(b => <button key={b} onClick={() => setBalance(b)} className="px-2 py-1 rounded bg-fuchsia-500/10 text-fuchsia-300 text-xs font-bold hover:bg-fuchsia-500/20">${b/1000}k</button>)}
               </div>
             </div>
             <div className="flex-1">
               <label className="block text-xs font-bold mb-1 text-fuchsia-300">Risk %</label>
               <input type="number" value={risk} onChange={e => setRisk(Number(e.target.value))} className="w-full p-2 rounded-lg bg-background border border-fuchsia-500/30 text-lg" />
-              <div className="flex gap-2 mt-1">
+              <div className="flex gap-2 mt-1 flex-wrap">
                 {RISK_LEVELS.map(r => <button key={r} onClick={() => setRisk(r)} className="px-2 py-1 rounded bg-emerald-500/10 text-emerald-300 text-xs font-bold hover:bg-emerald-500/20">{r}%</button>)}
               </div>
             </div>
@@ -84,7 +84,7 @@ export default function RiskCalculator() {
               {LEVERAGES.map(l => <button key={l} onClick={() => setLeverage(l)} className={cn("px-2 py-1 rounded border text-xs font-bold", leverage===l ? "bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow" : "bg-background border-white/10 text-muted-foreground")}>{`1:${l}`}</button>)}
             </div>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1">
               <label className="block text-xs font-bold mb-1 text-fuchsia-300">Entry</label>
               <input type="number" value={entry} onChange={e => setEntry(Number(e.target.value))} className="w-full p-2 rounded-lg bg-background border border-fuchsia-500/30 text-lg" />

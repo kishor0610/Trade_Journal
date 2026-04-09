@@ -75,8 +75,10 @@ const Layout = ({ children }) => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Market Ticker - Top Strip */}
-      <MarketTicker />
+      {/* Market Ticker - Top Strip (Always visible on all devices) */}
+      <div className="fixed top-0 left-0 right-0 z-50">
+        <MarketTicker />
+      </div>
       
       {/* Sidebar Toggle Button */}
       <button
@@ -201,7 +203,7 @@ const Layout = ({ children }) => {
       </aside>
 
       {/* Mobile Header */}
-      <header className="md:hidden fixed top-0 left-0 right-0 h-16 bg-card/80 backdrop-blur-xl border-b border-white/5 z-50 flex items-center justify-between px-4">
+      <header className="md:hidden fixed left-0 right-0 h-16 bg-card/80 backdrop-blur-xl border-b border-white/5 z-40 flex items-center justify-between px-4" style={{ top: '40px' }}>
         <div className="flex items-center gap-2">
           <img src="/app-icon.png" alt="TradeLedger" className="w-8 h-8 rounded-lg" />
           <span className="text-lg font-heading font-bold">TradeLedger</span>
@@ -227,7 +229,7 @@ const Layout = ({ children }) => {
       </header>
 
       {/* Main Content */}
-      <main className={`transition-all duration-300 ${sidebarOpen ? 'md:ml-64' : 'md:ml-0'} pt-20 md:pt-12 pb-24 md:pb-8 px-4 md:px-8`}>
+      <main className={`transition-all duration-300 ${sidebarOpen ? 'md:ml-64' : 'md:ml-0'} pt-28 md:pt-16 pb-24 md:pb-8 px-4 md:px-8`}>
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
