@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import adminApi from '../../lib/adminApi';
+import { adminActions } from '../../lib/adminActions';
 import { 
-  Server, Search, RefreshCw, Download, Eye, Trash2,
+  Server, Search, RefreshCw, Download, Eye, Trash2, MoreVertical, Plus, Minus,
   ChevronLeft, ChevronRight, Clock, CheckCircle, XCircle, AlertCircle
 } from 'lucide-react';
 import { Button } from '../../components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
+import { Input } from '../../components/ui/input';
+import { Label } from '../../components/ui/label';
 import { toast } from 'sonner';
 
 const StatusBadge = ({ status, expiryDays }) => {
@@ -48,6 +52,9 @@ const AdminMT5Accounts = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [extendModalOpen, setExtendModalOpen] = useState(false);
+  const [selectedAccount, setSelectedAccount] = useState(null);
+  const [extendDays, setExtendDays] = useState(30);
 
   useEffect(() => {
     fetchAccounts();
@@ -86,6 +93,48 @@ const AdminMT5Accounts = () => {
     const diffTime = expiry - now;
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays;
+  };
+
+  const handleExtendMT5 = (account) => {
+    setSelectedAccount(account);
+    setExtendDays(30);
+    setExtendModalOpen(true);
+  };
+
+  const submitExtendMT5 = async () => {
+    if (!selectedAccount || !extendDays || extendDays < 1) {
+      toast.error('Please provide a valid number of days');
+      return;
+    }
+
+    try {
+      await adminActions.extendMT5Account(selectedAccount.id, extendDays);
+      toast.success(`Extended MT5 account by ${extendDays} days`);
+      setExtendModalOpen(false);
+      fetchAccounts();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to extend MT5 account');
+    }
+  };
+
+  const handleActivateMT5 = async (accountId) => {
+    try {
+      await adminActions.activateMT5Account(accountId);
+      toast.success('MT5 account activated');
+      fetchAccounts();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to activate account');
+    }
+  };
+
+  const handleDeactivateMT5 = async (accountId) => {
+    try {
+      await adminActions.deactivateMT5Account(accountId);
+      toast.success('MT5 account deactivated');
+      fetchAccounts();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to deactivate account');
+    }
   };
 
   const filteredAccounts = accounts.filter(account => {
@@ -324,15 +373,36 @@ const AdminMT5Accounts = () => {
                       </td>
                       <td className="p-4 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <Button variant="ghost" size="sm">
-                            <Eye className="w-4 h-4" />
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleExtendMT5(account)}
+                            className="text-xs"
+                          >
+                            <Plus className="w-3 h-3 mr-1" />
+                            Extend
                           </Button>
-                          <Button variant="ghost" size="sm">
-                            <RefreshCw className="w-4 h-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-600">
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                          {account.deployment_state === 'DEPLOYED' ? (
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => handleDeactivateMT5(account.id)}
+                              className="text-xs text-amber-400 hover:text-amber-300"
+                            >
+                              <XCircle className="w-3 h-3 mr-1" />
+                              Deactivate
+                            </Button>
+                          ) : (
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => handleActivateMT5(account.id)}
+                              className="text-xs text-emerald-400 hover:text-emerald-300"
+                            >
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Activate
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -343,6 +413,46 @@ const AdminMT5Accounts = () => {
           </table>
         </div>
       </div>
+
+      {/* Extend MT5 Account Modal */}
+      <Dialog open={extendModalOpen} onOpenChange={setExtendModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Extend MT5 Account</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <p className="text-sm text-muted-foreground mb-4">
+                Extend expiry date for <span className="font-semibold text-white">{selectedAccount?.name || 'MT5 Account'}</span>
+              </p>
+            </div>
+            <div>
+              <Label htmlFor="extend-days">Extend by (days)</Label>
+              <Input
+                id="extend-days"
+                type="number"
+                min="1"
+                max="3650"
+                value={extendDays}
+                onChange={(e) => setExtendDays(parseInt(e.target.value) || 0)}
+                placeholder="Enter number of days"
+                className="mt-2"
+              />
+              <p className="text-xs text-muted-foreground mt-2">
+                Common values: 30 days (1 month), 90 days (3 months), 365 days (1 year)
+              </p>
+            </div>
+            <div className="flex justify-end gap-3 pt-4">
+              <Button variant="outline" onClick={() => setExtendModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={submitExtendMT5} className="bg-accent hover:bg-accent/90">
+                Extend
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

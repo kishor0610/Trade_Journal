@@ -3,13 +3,14 @@ import adminApi from '../../lib/adminApi';
 import * as adminActions from '../../lib/adminActions';
 import { 
   Search, Filter, MoreVertical, UserCheck, UserX, 
-  Mail, RefreshCw, Download, Eye, Trash2, Key,
-  ArrowUpDown, ChevronLeft, ChevronRight
+  Mail, RefreshCw, Download, Eye, Trash2, Key, CreditCard,
+  ArrowUpDown, ChevronLeft, ChevronRight, Clock, Plus
 } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Textarea } from '../../components/ui/textarea';
 import { Label } from '../../components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { toast } from 'sonner';
 import {
   DropdownMenu,
@@ -37,6 +38,8 @@ const AdminUsers = () => {
   const [emailData, setEmailData] = useState({ subject: '', message: '' });
   const [actionLoading, setActionLoading] = useState(false);
   const [pagination, setPagination] = useState({ skip: 0, limit: 50, total: 0 });
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [subscriptionData, setSubscriptionData] = useState({ days: 30, plan: 'monthly' });
 
   useEffect(() => {
     fetchUsers();
@@ -155,7 +158,49 @@ const AdminUsers = () => {
       setActionLoading(false);
     }
   };
+  const openSubscriptionModal = (user) => {
+    setSelectedUser(user);
+    setSubscriptionData({ days: 30,plan: 'monthly' });
+    setShowSubscriptionModal(true);
+  };
 
+  const handleExtendSubscription = async () => {
+    if (!subscriptionData.days || subscriptionData.days < 1) {
+      toast.error('Please provide valid number of days');
+      return;
+    }
+    
+    setActionLoading(true);
+    try {
+      await adminActions.extendSubscription(selectedUser.id, subscriptionData.days);
+      toast.success(`Extended subscription by ${subscriptionData.days} days`);
+      setShowSubscriptionModal(false);
+      fetchUsers();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to extend subscription');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleChangePlan = async () => {
+    if (!subscriptionData.plan) {
+      toast.error('Please select a plan');
+      return;
+    }
+    
+    setActionLoading(true);
+    try {
+      await adminActions.changeUserPlan(selectedUser.id, subscriptionData.plan);
+      toast.success('Plan changed successfully');
+      setShowSubscriptionModal(false);
+      fetchUsers();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to change plan');
+    } finally {
+      setActionLoading(false);
+    }
+  };
   const exportData = async () => {
     try {
       const response = await adminApi.get('/export/trades', {
@@ -382,6 +427,11 @@ const AdminUsers = () => {
                             Deactivate
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => openSubscriptionModal(user)}>
+                            <CreditCard className="w-4 h-4 mr-2 text-violet-400" />
+                            Manage Subscription
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
                           <DropdownMenuItem
                             className="text-red-500 focus:text-red-600"
                             onClick={() => deleteUser(user.id, user.name)}
@@ -530,6 +580,104 @@ const AdminUsers = () => {
               className="bg-accent hover:bg-accent/90"
             >
               {actionLoading ? 'Sending...' : 'Send Email'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Subscription Management Modal */}
+      <Dialog open={showSubscriptionModal} onOpenChange={setShowSubscriptionModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Manage Subscription</DialogTitle>
+            <DialogDescription>
+              Update subscription for {selectedUser?.name || 'user'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 py-4">
+            {/* Current Subscription Info */}
+            <div className="p-4 rounded-lg bg-white/5 border border-white/10">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm text-muted-foreground">Current Status</p>
+                <span className={`px-2 py-1 text-xs font-bold rounded-full ${
+                  selectedUser?.subscription_status === 'active' ? 'bg-emerald-500/20 text-emerald-400' :
+                  selectedUser?.subscription_status === 'trial' ? 'bg-blue-500/20 text-blue-400' :
+                  'bg-red-500/20 text-red-400'
+                }`}>
+                  {selectedUser?.subscription_status || 'None'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm text-muted-foreground">Plan</p>
+                <p className="text-sm font-semibold">{selectedUser?.subscription_plan || 'None'}</p>
+              </div>
+              {selectedUser?.subscription_end_date && (
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">Expires On</p>
+                  <p className="text-sm font-mono">{new Date(selectedUser.subscription_end_date).toLocaleDateString()}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Extend Subscription */}
+            <div className="space-y-3">
+              <h4 className="font-semibold text-sm flex items-center gap-2">
+                <Plus className="w-4 h-4 text-violet-400" />
+                Extend Subscription
+              </h4>
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  min="1"
+                  max="3650"
+                  placeholder="Days"
+                  value={subscriptionData.days}
+                  onChange={(e) => setSubscriptionData({ ...subscriptionData, days: parseInt(e.target.value) || 0 })}
+                  className="flex-1"
+                />
+                <Button 
+                  onClick={handleExtendSubscription}
+                  disabled={actionLoading}
+                  className="bg-violet-600 hover:bg-violet-700"
+                >
+                  {actionLoading ? 'Extending...' : 'Extend'}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Common: 30 days (1mo), 90 days (3mo), 365 days (1yr)
+              </p>
+            </div>
+
+            {/* Change Plan */}
+            <div className="space-y-3">
+              <h4 className="font-semibold text-sm flex items-center gap-2">
+                <CreditCard className="w-4 h-4 text-violet-400" />
+                Change Plan
+              </h4>
+              <div className="flex gap-2">
+                <Select value={subscriptionData.plan} onValueChange={(val) => setSubscriptionData({ ...subscriptionData, plan: val })}>
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="Select plan" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="monthly">Monthly (₹499)</SelectItem>
+                    <SelectItem value="quarterly">Quarterly (₹1399)</SelectItem>
+                    <SelectItem value="yearly">Yearly (₹5999)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  onClick={handleChangePlan}
+                  disabled={actionLoading}
+                  className="bg-violet-600 hover:bg-violet-700"
+                >
+                  {actionLoading ? 'Changing...' : 'Change'}
+                </Button>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSubscriptionModal(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
