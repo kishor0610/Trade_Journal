@@ -344,3 +344,5 @@ function ForexCalendar() {
     </div>
   );
 }
+
+export default withSubscriptionLock(ForexCalendar, 'forex-calendar');

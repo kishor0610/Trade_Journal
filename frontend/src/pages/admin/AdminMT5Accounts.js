@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import adminApi from '../../lib/adminApi';
-import { adminActions } from '../../lib/adminActions';
+import * as adminActions from '../../lib/adminActions';
 import { 
   Server, Search, RefreshCw, Download, Eye, Trash2, MoreVertical, Plus, Minus,
   ChevronLeft, ChevronRight, Clock, CheckCircle, XCircle, AlertCircle

@@ -157,7 +157,7 @@ const AccountForm = ({ account, onSubmit, onClose }) => {
   );
 };
 
-export default function Accounts() {
+function Accounts() {
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
