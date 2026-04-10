@@ -866,6 +866,50 @@ async def export_all_trades_csv(admin: dict = Depends(get_admin_user)):
         headers={"Content-Disposition": f"attachment; filename=all_trades_export_{datetime.now().strftime('%Y%m%d')}.csv"}
     )
 
+
+# ============ ADMIN DATABASE ENDPOINTS ============
+
+@admin_router.get("/database/overview")
+async def get_database_overview(admin: dict = Depends(get_admin_user)):
+    '''Get comprehensive overview of all data in the database'''
+    try:
+        collections_info = {}
+        users_count = await db.users.count_documents({})
+        users_sample = await db.users.find({}, {"_id": 0, "password": 0}).limit(5).to_list(5)
+        collections_info['users'] = {"count": users_count, "sample": users_sample}
+        trades_count = await db.trades.count_documents({})
+        trades_sample = await db.trades.find({}, {"_id": 0}).limit(5).to_list(5)
+        collections_info['trades'] = {"count": trades_count, "sample": trades_sample}
+        mt5_count = await db.mt5_accounts.count_documents({})
+        mt5_sample = await db.mt5_accounts.find({}, {"_id": 0, "password": 0}).limit(5).to_list(5)
+        collections_info['mt5_accounts'] = {"count": mt5_count, "sample": mt5_sample}
+        return {"database_name": db.name, "collections": collections_info, "total_users": users_count, "total_trades": trades_count, "total_mt5_accounts": mt5_count}
+    except Exception as e:
+        logging.error(f"Database overview error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch database overview: {str(e)}")
+
+@admin_router.get("/database/users/all")
+async def get_all_users_data(admin: dict = Depends(get_admin_user), limit: int = Query(100, ge=1, le=1000), skip: int = Query(0, ge=0)):
+    '''Get all users with statistics'''
+    try:
+        users = await db.users.find({}, {"_id": 0, "password": 0}).skip(skip).limit(limit).to_list(limit)
+        for user in users:
+            total_trades = await db.trades.count_documents({"user_id": user['id']})
+            user['statistics'] = {"total_trades": total_trades}
+        total_users = await db.users.count_documents({})
+        return {"total_users": total_users, "returned": len(users), "users": users}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch users: {str(e)}")
+
+@admin_router.get("/database/trades/all")
+async def get_all_trades_data(admin: dict = Depends(get_admin_user), limit: int = Query(100, ge=1, le=1000), skip: int = Query(0, ge=0)):
+    '''Get all trades'''
+    try:
+        trades = await db.trades.find({}, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
+        total_trades = await db.trades.count_documents({})
+        return {"total_trades": total_trades, "returned": len(trades), "trades": trades}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch trades: {str(e)}")
 # ============ MT5 ACCOUNT ROUTES ============
 
 @api_router.post("/mt5/metaapi-token")
