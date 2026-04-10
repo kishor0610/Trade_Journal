@@ -874,7 +874,7 @@ export default function Dashboard() {
                   <AnimatedNumber value={biasStats.bear} className="font-mono" /> Trades
                 </p>
                 <p className="text-sm text-slate-300 mt-1">Win Rate: <span className="font-mono text-red-200">{formatNumber(biasStats.negativeWinRate, 1)}%</span></p>
-                <p className="text-sm text-slate-300">Avg Loss: <span className="font-mono text-red-200">${formatNumber(biasStats.avgLoss, 2)}</span></p>
+                <p className="text-sm text-slate-300">Avg Loss: <span className="font-mono text-red-200">{currencySymbol}{formatNumber(biasStats.avgLoss, 2)}</span></p>
               </motion.div>
 
               <motion.div
@@ -888,7 +888,7 @@ export default function Dashboard() {
                   <AnimatedNumber value={biasStats.bull} className="font-mono" /> Trades
                 </p>
                 <p className="text-sm text-slate-300 mt-1">Win Rate: <span className="font-mono text-emerald-200">{formatNumber(biasStats.positiveWinRate, 1)}%</span></p>
-                <p className="text-sm text-slate-300">Avg Gain: <span className="font-mono text-emerald-200">+${formatNumber(biasStats.avgGain, 2)}</span></p>
+                <p className="text-sm text-slate-300">Avg Gain: <span className="font-mono text-emerald-200">+{currencySymbol}{formatNumber(biasStats.avgGain, 2)}</span></p>
               </motion.div>
             </div>
 
