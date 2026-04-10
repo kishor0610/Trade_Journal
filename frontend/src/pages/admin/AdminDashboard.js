@@ -109,6 +109,8 @@ const AdminDashboard = () => {
   const [alerts, setAlerts] = useState([]);
 
   useEffect(() => {
+    console.log('🔍 Backend URL:', process.env.REACT_APP_BACKEND_URL);
+    console.log('🔑 Admin Token:', localStorage.getItem('adminToken') ? 'Present' : 'Missing');
     fetchDashboardData();
   }, []);
 
