@@ -7,10 +7,33 @@ import { Check, Crown, Zap, Calendar, CreditCard } from 'lucide-react';
 import { toast } from 'sonner';
 
 const API_URL = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const DEFAULT_PLANS = [
+  {
+    plan_id: 'monthly',
+    name: 'Monthly',
+    price: 499,
+    duration_days: 30,
+    discount: null,
+  },
+  {
+    plan_id: 'quarterly',
+    name: 'Quarterly',
+    price: 1399,
+    duration_days: 90,
+    discount: 'Save 7%',
+  },
+  {
+    plan_id: 'yearly',
+    name: 'Yearly',
+    price: 5999,
+    duration_days: 365,
+    discount: '50%',
+  },
+];
 
 const Subscription = () => {
   const [subscription, setSubscription] = useState(null);
-  const [plans, setPlans] = useState([]);
+  const [plans, setPlans] = useState(DEFAULT_PLANS);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
 
@@ -36,9 +59,12 @@ const Subscription = () => {
       }
       
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      setPlans(DEFAULT_PLANS);
 
       const plansResponse = await axios.get(`${API_URL}/subscriptions/plans`);
-      setPlans(plansResponse.data.plans || []);
+      if (Array.isArray(plansResponse.data.plans) && plansResponse.data.plans.length > 0) {
+        setPlans(plansResponse.data.plans);
+      }
 
       try {
         const subResponse = await axios.get(`${API_URL}/subscriptions/my-subscription`);
@@ -60,6 +86,7 @@ const Subscription = () => {
       } else if (error.response?.status === 404) {
         setSubscription(null);
       } else {
+        setPlans(DEFAULT_PLANS);
         toast.error(error.response?.data?.detail || 'Failed to load subscription data');
       }
     } finally {
