@@ -12,6 +12,7 @@ import Journal from './pages/Journal';
 import Analytics from './pages/Analytics';
 import AIInsights from './pages/AIInsights';
 import Accounts from './pages/Accounts';
+import Subscription from './pages/Subscription';
 import Leaderboard from './pages/Leaderboard';
 import RiskCalculator from './pages/RiskCalculator';
 import ForexCalendar from './pages/ForexCalendar';
@@ -109,6 +110,11 @@ function AppRoutes() {
       <Route path="/accounts" element={
         <ProtectedRoute>
           <Accounts />
+        </ProtectedRoute>
+      } />
+      <Route path="/subscription" element={
+        <ProtectedRoute>
+          <Subscription />
         </ProtectedRoute>
       } />
       <Route path="/analytics" element={

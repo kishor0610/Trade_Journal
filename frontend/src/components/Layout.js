@@ -13,7 +13,8 @@ import {
   Copy,
   Calculator,
   Calendar,
-  Trophy
+  Trophy,
+  CreditCard
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '../components/ui/dropdown-menu';
 import { Toaster } from '../components/ui/sonner';
@@ -23,6 +24,7 @@ const navItems = [
   { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/journal', icon: BookOpen, label: 'Journal' },
   { path: '/accounts', icon: Wallet, label: 'Accounts' },
+  { path: '/subscription', icon: CreditCard, label: 'Subscription' },
   { path: '/analytics', icon: BarChart3, label: 'Analytics' },
   { path: '/leaderboard', icon: Trophy, label: 'Leaderboard' },
   { path: '/insights', icon: Sparkles, label: 'AI Insights' },
