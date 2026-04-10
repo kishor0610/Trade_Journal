@@ -1,13 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
+import withSubscriptionLock from '../hoc/withSubscriptionLock';
 import { Area, AreaChart, Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Award, TrendingDown, TrendingUp } from 'lucide-react';
 import { formatCurrency, getInstrumentColor } from '../lib/utils';
 
 const API_URL = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
-export default function Analytics() {
+function Analytics() {
   const [summary, setSummary] = useState(null);
   const [byInstrument, setByInstrument] = useState([]);
   const [monthlyData, setMonthlyData] = useState([]);
@@ -359,3 +360,5 @@ export default function Analytics() {
     </div>
   );
 }
+
+export default withSubscriptionLock(Analytics, 'analytics');

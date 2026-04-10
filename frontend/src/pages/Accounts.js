@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
+import withSubscriptionLock from '../hoc/withSubscriptionLock';
 import { Plus, Trash2, RefreshCw, Link2, Unlink, Server, Key, Check, Eye, EyeOff, Edit } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -520,3 +521,5 @@ export default function Accounts() {
     </div>
   );
 }
+
+export default withSubscriptionLock(Accounts, 'accounts');

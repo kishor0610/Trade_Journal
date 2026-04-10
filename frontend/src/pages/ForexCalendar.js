@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
+import withSubscriptionLock from '../hoc/withSubscriptionLock';
 import { Calendar, ExternalLink, TrendingUp, AlertCircle, Bell } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -276,7 +277,7 @@ const CalendarTicker = () => {
   );
 };
 
-export default function ForexCalendar() {
+function ForexCalendar() {
   return (
     <div className="space-y-6" data-testid="forex-calendar-page">
       {/* Header */}

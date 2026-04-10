@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
+import withSubscriptionLock from '../hoc/withSubscriptionLock';
 import { Sparkles, Send, TrendingUp, TrendingDown, Activity, Target, Loader2, BarChart3, ArrowUpRight, ArrowDownRight, Trophy, AlertTriangle, Zap, PieChart } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
@@ -333,7 +334,7 @@ const SuggestedQuestion = ({ question, onClick, index }) => (
   </motion.button>
 );
 
-export default function AIInsights() {
+function AIInsights() {
   const [question, setQuestion] = useState('');
   const [insight, setInsight] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -570,3 +571,5 @@ export default function AIInsights() {
     </div>
   );
 }
+
+export default withSubscriptionLock(AIInsights, 'ai-insights');

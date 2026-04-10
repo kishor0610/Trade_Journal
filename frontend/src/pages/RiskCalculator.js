@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { formatCurrency, formatNumber } from '../lib/utils';
 import { cn } from '../lib/utils';
+import withSubscriptionLock from '../hoc/withSubscriptionLock';
 import { Calculator, Copy } from 'lucide-react';
 
 const INSTRUMENTS = [
@@ -23,7 +24,7 @@ function calcPositionSize({ balance, riskPercent, stopPips, pipValue }) {
   return Math.max(0, lots);
 }
 
-export default function RiskCalculator() {
+function RiskCalculator() {
   const [instrument, setInstrument] = useState(INSTRUMENTS[0]);
   const [direction, setDirection] = useState('long');
   const [balance, setBalance] = useState(5000);
@@ -190,3 +191,5 @@ export default function RiskCalculator() {
     </div>
   );
 }
+
+export default withSubscriptionLock(RiskCalculator, 'risk-calculator');
