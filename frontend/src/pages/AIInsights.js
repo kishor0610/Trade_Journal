@@ -521,10 +521,10 @@ export default function AIInsights() {
 
           {/* Charts Row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <InstrumentChart instruments={insight?.charts?.instruments} currency={userCurrency} />
+            <InstrumentChart instruments={insight?.charts?.instruments} currency={insight?.summary?.currency || userCurrency} />
             <div className="space-y-6">
-              <DirectionChart direction={insight?.charts?.direction} currency={userCurrency} />
-              <WinLossVisual summary={insight?.summary} charts={insight?.charts} currency={userCurrency} />
+              <DirectionChart direction={insight?.charts?.direction} currency={insight?.summary?.currency || userCurrency} />
+              <WinLossVisual summary={insight?.summary} charts={insight?.charts} currency={insight?.summary?.currency || userCurrency} />
             </div>
           </div>
 
