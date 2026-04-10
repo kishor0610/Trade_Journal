@@ -1,8 +1,10 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { SubscriptionProvider } from './context/SubscriptionContext';
 import { Toaster } from './components/ui/sonner';
 import Layout from './components/Layout';
+import withSubscriptionLock from './hoc/withSubscriptionLock';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
@@ -156,8 +158,10 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppRoutes />
-        <Toaster position="top-right" richColors />
+        <SubscriptionProvider>
+          <AppRoutes />
+          <Toaster position="top-right" richColors />
+        </SubscriptionProvider>
       </AuthProvider>
     </BrowserRouter>
   );

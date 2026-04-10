@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { Plus, Edit2, Trash2, TrendingUp, TrendingDown, Filter, X, Search, SlidersHorizontal, Download, Upload, FileSpreadsheet, AlertCircle, CheckCircle, AlertTriangle, Share2, Copy } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import withSubscriptionLock from '../hoc/withSubscriptionLock';
 import { createChart, LineStyle, CrosshairMode } from 'lightweight-charts';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -1001,7 +1002,7 @@ const isTradeJournaled = (trade) => {
   );
 };
 
-export default function Journal() {
+function Journal() {
   const PAGE_SIZE = 10;
   const [trades, setTrades] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -2945,3 +2946,5 @@ export default function Journal() {
     </div>
   );
 }
+
+export default withSubscriptionLock(Journal, 'journal');
