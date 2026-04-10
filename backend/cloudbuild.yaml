@@ -1,7 +1,7 @@
 steps:
   # Build the container image using Dockerfile
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/trade-journal-backend:$COMMIT_SHA', '-t', 'gcr.io/$PROJECT_ID/trade-journal-backend:latest', '.']
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/trade-journal-backend:latest', '.']
   
   # Push the container image to Container Registry
   - name: 'gcr.io/cloud-builders/docker'
