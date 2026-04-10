@@ -17,6 +17,7 @@ steps:
       - '--image=gcr.io/$PROJECT_ID/trade-journal-backend:latest'
       - '--region=asia-south1'
       - '--platform=managed'
+      - '--clear-base-image'
 
 images:
   - 'gcr.io/$PROJECT_ID/trade-journal-backend:latest'
