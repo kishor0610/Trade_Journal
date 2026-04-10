@@ -16,7 +16,6 @@ const UpgradeModal = ({ isOpen, onClose, feature = 'this feature' }) => {
 
   const handleUpgrade = () => {
     navigate('/subscription');
-    onClose();
   };
 
   return (

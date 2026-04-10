@@ -37,19 +37,28 @@ const Subscription = () => {
       
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
-      const [subResponse, plansResponse] = await Promise.all([
-        axios.get(`${API_URL}/subscriptions/my-subscription`),
-        axios.get(`${API_URL}/subscriptions/plans`)
-      ]);
+      const plansResponse = await axios.get(`${API_URL}/subscriptions/plans`);
+      setPlans(plansResponse.data.plans || []);
 
-      setSubscription(subResponse.data);
-      setPlans(plansResponse.data.plans);
+      try {
+        const subResponse = await axios.get(`${API_URL}/subscriptions/my-subscription`);
+        setSubscription(subResponse.data);
+      } catch (subError) {
+        if (subError.response?.status === 404) {
+          setSubscription(null);
+          return;
+        }
+
+        throw subError;
+      }
     } catch (error) {
       console.error('Failed to fetch subscription data:', error);
       if (error.response?.status === 401) {
         toast.error('Session expired. Please login again.');
       } else if (error.response?.status === 403) {
         toast.error('Active subscription required');
+      } else if (error.response?.status === 404) {
+        setSubscription(null);
       } else {
         toast.error(error.response?.data?.detail || 'Failed to load subscription data');
       }
