@@ -16,7 +16,15 @@ import Leaderboard from './pages/Leaderboard';
 import RiskCalculator from './pages/RiskCalculator';
 import ForexCalendar from './pages/ForexCalendar';
 import AdminLogin from './pages/AdminLogin';
-import AdminDashboard from './pages/AdminDashboard';
+import AdminPanel from './pages/admin/AdminPanel';
+import AdminDashboard from './pages/admin/AdminDashboard';
+import AdminUsers from './pages/admin/AdminUsers';
+import AdminMT5Accounts from './pages/admin/AdminMT5Accounts';
+import AdminDatabase from './pages/admin/AdminDatabase';
+import AdminTickets from './pages/admin/AdminTickets';
+import AdminLogs from './pages/admin/AdminLogs';
+import AdminPayments from './pages/admin/AdminPayments';
+import AdminSettings from './pages/admin/AdminSettings';
 import './App.css';
 
 // Protected Route wrapper
@@ -74,9 +82,18 @@ function AppRoutes() {
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       
-      {/* Admin Routes (separate from user auth) */}
-      <Route path="/admin" element={<AdminLogin />} />
-      <Route path="/admin/dashboard" element={<AdminDashboard />} />
+      {/* Admin Routes */}
+      <Route path="/admin/login" element={<AdminLogin />} />
+      <Route path="/admin/*" element={<AdminPanel />}>
+        <Route index element={<AdminDashboard />} />
+        <Route path="users" element={<AdminUsers />} />
+        <Route path="mt5-accounts" element={<AdminMT5Accounts />} />
+        <Route path="database" element={<AdminDatabase />} />
+        <Route path="tickets" element={<AdminTickets />} />
+        <Route path="logs" element={<AdminLogs />} />
+        <Route path="payments" element={<AdminPayments />} />
+        <Route path="settings" element={<AdminSettings />} />
+      </Route>
       
       {/* Protected Routes */}
       <Route path="/dashboard" element={

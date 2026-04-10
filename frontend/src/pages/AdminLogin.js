@@ -23,10 +23,10 @@ export default function AdminLogin() {
     
     try {
       const response = await axios.post(`${API_URL}/admin/login`, { email, password });
-      localStorage.setItem('admin_token', response.data.access_token);
+      localStorage.setItem('adminToken', response.data.access_token);
       axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.access_token}`;
       toast.success('Admin access granted');
-      navigate('/admin/dashboard');
+      navigate('/admin');
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Invalid admin credentials');
     } finally {
