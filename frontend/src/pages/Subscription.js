@@ -29,6 +29,12 @@ const Subscription = () => {
   const fetchData = async () => {
     try {
       const token = localStorage.getItem('token');
+      if (!token) {
+        toast.error('Please login to view subscriptions');
+        setLoading(false);
+        return;
+      }
+      
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
       const [subResponse, plansResponse] = await Promise.all([
@@ -40,7 +46,13 @@ const Subscription = () => {
       setPlans(plansResponse.data.plans);
     } catch (error) {
       console.error('Failed to fetch subscription data:', error);
-      toast.error('Failed to load subscription data');
+      if (error.response?.status === 401) {
+        toast.error('Session expired. Please login again.');
+      } else if (error.response?.status === 403) {
+        toast.error('Active subscription required');
+      } else {
+        toast.error(error.response?.data?.detail || 'Failed to load subscription data');
+      }
     } finally {
       setLoading(false);
     }

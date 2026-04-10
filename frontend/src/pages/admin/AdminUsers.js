@@ -1,11 +1,15 @@
 import React, { useState,useEffect } from 'react';
 import adminApi from '../../lib/adminApi';
+import * as adminActions from '../../lib/adminActions';
 import { 
   Search, Filter, MoreVertical, UserCheck, UserX, 
   Mail, RefreshCw, Download, Eye, Trash2, Key,
   ArrowUpDown, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { Button } from '../../components/ui/button';
+import { Input } from '../../components/ui/input';
+import { Textarea } from '../../components/ui/textarea';
+import { Label } from '../../components/ui/label';
 import { toast } from 'sonner';
 import {
   DropdownMenu,
@@ -20,6 +24,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from '../../components/ui/dialog';
 
 const AdminUsers = () => {
@@ -28,6 +33,9 @@ const AdminUsers = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUser, setSelectedUser] = useState(null);
   const [showUserModal, setShowUserModal] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [emailData, setEmailData] = useState({ subject: '', message: '' });
+  const [actionLoading, setActionLoading] = useState(false);
   const [pagination, setPagination] = useState({ skip: 0, limit: 50, total: 0 });
 
   useEffect(() => {
@@ -58,16 +66,93 @@ const AdminUsers = () => {
     }
   };
 
-  const deleteUser = async (userId) => {
-    if (!window.confirm('Are you sure? This will delete all user data including trades and MT5 accounts.')) {
+  const handleActivateUser = async (userId, userName) => {
+    setActionLoading(true);
+    try {
+      await adminActions.activateUser(userId);
+      toast.success(`${userName} activated successfully`);
+      fetchUsers();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to activate user');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDeactivateUser = async (userId, userName) => {
+    if (!window.confirm(`Are you sure you want to deactivate ${userName}?`)) {
       return;
     }
+    setActionLoading(true);
     try {
-      await adminApi.delete(`/users/${userId}`);
+      await adminActions.deactivateUser(userId);
+      toast.success(`${userName} deactivated successfully`);
+      fetchUsers();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to deactivate user');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (userId, userName) => {
+    if (!window.confirm(`Generate password reset link for ${userName}?`)) {
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const response = await adminActions.resetUserPassword(userId);
+      toast.success('Password reset link generated');
+      
+      // Show reset link in a prompt
+      if (response.reset_link) {
+        prompt('Copy this reset link and send to user:', response.reset_link);
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to generate reset link');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const openEmailModal = (user) => {
+    setSelectedUser(user);
+    setEmailData({ subject: '', message: '' });
+    setShowEmailModal(true);
+  };
+
+  const handleSendEmail = async () => {
+    if (!emailData.subject || !emailData.message) {
+      toast.error('Please fill in subject and message');
+      return;
+    }
+    
+    setActionLoading(true);
+    try {
+      await adminActions.sendUserEmail(selectedUser.id, emailData.subject, emailData.message);
+      toast.success(`Email sent to ${selectedUser.email}`);
+      setShowEmailModal(false);
+      setEmailData({ subject: '', message: '' });
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to send email');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const deleteUser = async (userId, userName) => {
+    if (!window.confirm(`Are you sure? This will delete ${userName} and all their data including trades and MT5 accounts.`)) {
+      return;
+    }
+    setActionLoading(true);
+    try {
+      await adminActions.deleteUser(userId);
       toast.success('User deleted successfully');
       fetchUsers();
     } catch (error) {
-      toast.error('Failed to delete user');
+      toast.error(error.response?.data?.detail || 'Failed to delete user');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -279,27 +364,27 @@ const AdminUsers = () => {
                             <Eye className="w-4 h-4 mr-2" />
                             View Details
                           </DropdownMenuItem>
-                          <DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openEmailModal(user)}>
                             <Mail className="w-4 h-4 mr-2" />
                             Send Email
                           </DropdownMenuItem>
-                          <DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleResetPassword(user.id, user.name)}>
                             <Key className="w-4 h-4 mr-2" />
                             Reset Password
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleActivateUser(user.id, user.name)}>
                             <UserCheck className="w-4 h-4 mr-2" />
                             Activate
                           </DropdownMenuItem>
-                          <DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleDeactivateUser(user.id, user.name)}>
                             <UserX className="w-4 h-4 mr-2" />
                             Deactivate
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             className="text-red-500 focus:text-red-600"
-                            onClick={() => deleteUser(user.id)}
+                            onClick={() => deleteUser(user.id, user.name)}
                           >
                             <Trash2 className="w-4 h-4 mr-2" />
                             Delete User
@@ -402,6 +487,51 @@ const AdminUsers = () => {
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Send Email Modal */}
+      <Dialog open={showEmailModal} onOpenChange={setShowEmailModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Send Email to User</DialogTitle>
+            <DialogDescription>
+              Send a custom email to {selectedUser?.email}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="email-subject">Subject</Label>
+              <Input
+                id="email-subject"
+                placeholder="Enter email subject..."
+                value={emailData.subject}
+                onChange={(e) => setEmailData({ ...emailData, subject: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="email-message">Message (HTML supported)</Label>
+              <Textarea
+                id="email-message"
+                placeholder="Enter email message..."
+                rows={8}
+                value={emailData.message}
+                onChange={(e) => setEmailData({ ...emailData, message: e.target.value })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEmailModal(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSendEmail}
+              disabled={actionLoading}
+              className="bg-accent hover:bg-accent/90"
+            >
+              {actionLoading ? 'Sending...' : 'Send Email'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
