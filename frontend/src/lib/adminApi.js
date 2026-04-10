@@ -1,6 +1,14 @@
 import axios from 'axios';
 
-const API_URL = `${process.env.REACT_APP_BACKEND_URL}/api/admin`;
+// Backend URL with fallback
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'https://trade-journal-backend-702893411415.asia-south1.run.app';
+const API_URL = `${BACKEND_URL}/api/admin`;
+
+console.log('🌐 Admin API Configuration:', {
+  env_var: process.env.REACT_APP_BACKEND_URL,
+  backend_url: BACKEND_URL,
+  api_url: API_URL
+});
 
 // Create axios instance for admin API calls
 const adminApi = axios.create({
