@@ -36,6 +36,8 @@ jobs:
 
           if [ -n "${RAZORPAY_KEY_ID}" ] && [ -n "${RAZORPAY_KEY_SECRET}" ]; then
             ENV_VARS="${ENV_VARS},RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID},RAZORPAY_KEY_SECRET=${RAZORPAY_KEY_SECRET}"
+          else
+            echo "Warning: Razorpay secrets are missing. Subscription checkout will be disabled."
           fi
 
           gcloud run deploy trade-journal-backend \

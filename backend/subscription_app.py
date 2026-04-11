@@ -22,15 +22,16 @@ SUBSCRIPTION_PLANS = {
 
 
 def get_razorpay_credentials() -> tuple[str, str]:
-    key_id = os.environ.get("RAZORPAY_KEY_ID", "").strip()
-    key_secret = os.environ.get("RAZORPAY_KEY_SECRET", "").strip()
+    # Support both canonical names and legacy aliases used in some deployments.
+    key_id = (os.environ.get("RAZORPAY_KEY_ID") or os.environ.get("KEY_ID") or "").strip()
+    key_secret = (os.environ.get("RAZORPAY_KEY_SECRET") or os.environ.get("KEY_SECRET") or "").strip()
     return key_id, key_secret
 
 
 def validate_razorpay_credentials() -> tuple[Optional[tuple[str, str]], str]:
     key_id, key_secret = get_razorpay_credentials()
     if not key_id or not key_secret:
-        return None, "Razorpay credentials are missing in the backend runtime"
+        return None, "Razorpay checkout is not configured on the backend. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET env vars and redeploy."
     return (key_id, key_secret), ""
 
 

@@ -12,6 +12,8 @@ This repository already includes `render.yaml`.
    - `ADMIN_PASSWORD`
    - `FRONTEND_URL`
    - `CORS_ORIGINS`
+   - `RAZORPAY_KEY_ID`
+   - `RAZORPAY_KEY_SECRET`
 4. Optional keys:
    - `RESEND_API_KEY`
    - `METAAPI_TOKEN`
@@ -31,6 +33,14 @@ Health endpoint:
 4. Start command:
    - `uvicorn server:app --host 0.0.0.0 --port $PORT`
 5. Add the same environment variables listed above.
+
+## Cloud Run (GitHub Actions)
+
+The workflow reads either canonical or fallback secret names:
+- `RAZORPAY_KEY_ID` (or `KEY_ID`)
+- `RAZORPAY_KEY_SECRET` (or `KEY_SECRET`)
+
+If these are missing in repository secrets, checkout APIs will respond with a payment configuration error.
 
 ## Netlify frontend integration
 

@@ -11,6 +11,7 @@ const FALLBACK_BACKEND_URL = 'https://trade-journal-backend-702893411415.asia-so
 const BACKEND_URL = (process.env.REACT_APP_BACKEND_URL || FALLBACK_BACKEND_URL).replace(/\/$/, '');
 const API_URL = `${BACKEND_URL}/api`;
 const SUBSCRIPTION_API_UNAVAILABLE_MESSAGE = 'Subscription checkout is not available on the current backend deployment yet. Redeploy the backend to enable plan purchases.';
+const PAYMENT_BACKEND_NOT_CONFIGURED_MESSAGE = 'Payment checkout is temporarily unavailable. Backend Razorpay keys are not configured yet.';
 const DEFAULT_PLANS = [
   {
     plan_id: 'monthly',
@@ -210,11 +211,21 @@ const Subscription = () => {
       
     } catch (error) {
       console.error('Payment initiation failed:', error);
+      const errorDetail = (error.response?.data?.detail || '').toString();
+      const detailLower = errorDetail.toLowerCase();
+      const isMissingPaymentConfig = detailLower.includes('razorpay') && (
+        detailLower.includes('missing') ||
+        detailLower.includes('not configured') ||
+        detailLower.includes('payment service not available')
+      );
+
       if (error.response?.status === 404) {
         setSubscriptionApiUnavailable(true);
         toast.error(SUBSCRIPTION_API_UNAVAILABLE_MESSAGE);
+      } else if (isMissingPaymentConfig) {
+        toast.error(PAYMENT_BACKEND_NOT_CONFIGURED_MESSAGE);
       } else {
-        toast.error(error.response?.data?.detail || 'Failed to initiate payment. Please try again.');
+        toast.error(errorDetail || 'Failed to initiate payment. Please try again.');
       }
       setProcessing(false);
     }
