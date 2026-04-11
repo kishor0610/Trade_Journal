@@ -7,7 +7,10 @@ import { Check, Crown, Zap, Calendar, CreditCard } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../context/AuthContext';
 
-const API_URL = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const FALLBACK_BACKEND_URL = 'https://trade-journal-backend-702893411415.asia-south1.run.app';
+const BACKEND_URL = (process.env.REACT_APP_BACKEND_URL || FALLBACK_BACKEND_URL).replace(/\/$/, '');
+const API_URL = `${BACKEND_URL}/api`;
+const SUBSCRIPTION_API_UNAVAILABLE_MESSAGE = 'Subscription checkout is not available on the current backend deployment yet. Redeploy the backend to enable plan purchases.';
 const DEFAULT_PLANS = [
   {
     plan_id: 'monthly',
@@ -38,6 +41,7 @@ const Subscription = () => {
   const [plans, setPlans] = useState(DEFAULT_PLANS);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+  const [subscriptionApiUnavailable, setSubscriptionApiUnavailable] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -76,6 +80,7 @@ const Subscription = () => {
       
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       setPlans(DEFAULT_PLANS);
+      setSubscriptionApiUnavailable(false);
 
       const plansResponse = await axios.get(`${API_URL}/subscriptions/plans`);
       if (Array.isArray(plansResponse.data.plans) && plansResponse.data.plans.length > 0) {
@@ -100,7 +105,10 @@ const Subscription = () => {
       } else if (error.response?.status === 403) {
         toast.error('Active subscription required');
       } else if (error.response?.status === 404) {
+        setSubscriptionApiUnavailable(true);
+        setPlans(DEFAULT_PLANS);
         setSubscription(null);
+        toast.error(SUBSCRIPTION_API_UNAVAILABLE_MESSAGE);
       } else {
         setPlans(DEFAULT_PLANS);
         toast.error(error.response?.data?.detail || 'Failed to load subscription data');
@@ -112,6 +120,10 @@ const Subscription = () => {
 
   const handlePayment = async (planId) => {
     if (processing) return;
+    if (subscriptionApiUnavailable) {
+      toast.error(SUBSCRIPTION_API_UNAVAILABLE_MESSAGE);
+      return;
+    }
     
     setProcessing(true);
     try {
@@ -198,7 +210,12 @@ const Subscription = () => {
       
     } catch (error) {
       console.error('Payment initiation failed:', error);
-      toast.error(error.response?.data?.detail || 'Failed to initiate payment. Please try again.');
+      if (error.response?.status === 404) {
+        setSubscriptionApiUnavailable(true);
+        toast.error(SUBSCRIPTION_API_UNAVAILABLE_MESSAGE);
+      } else {
+        toast.error(error.response?.data?.detail || 'Failed to initiate payment. Please try again.');
+      }
       setProcessing(false);
     }
   };
@@ -270,6 +287,16 @@ const Subscription = () => {
             Unlock premium features and take your trading to the next level
           </p>
         </div>
+
+        {subscriptionApiUnavailable && (
+          <Card className="border-amber-500/30 bg-amber-500/10 backdrop-blur">
+            <CardContent className="pt-6">
+              <p className="text-sm text-amber-200">
+                Subscription checkout is disabled because the live backend deployment does not include the subscription API yet. Redeploy the backend service from the current codebase, then reload this page.
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Current Subscription Status */}
         {subscription && (
@@ -406,9 +433,11 @@ const Subscription = () => {
                     <Button 
                       className="w-full bg-gradient-to-r from-accent to-purple-600 hover:from-accent/90 hover:to-purple-700 text-white font-semibold"
                       onClick={() => handlePayment(plan.plan_id)}
-                      disabled={processing}
+                      disabled={processing || subscriptionApiUnavailable}
                     >
-                      {processing ? (
+                      {subscriptionApiUnavailable ? (
+                        'Backend update required'
+                      ) : processing ? (
                         <>
                           <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
                           Processing...
