@@ -29,12 +29,18 @@ jobs:
         env:
           FINNHUB_API_KEY: d7bdvvhr01qgc9t72sc0d7bdvvhr01qgc9t72scg
           ALPHA_VANTAGE_API_KEY: PGLKVQ8VQQ8QRU61
-          RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
-          RAZORPAY_KEY_SECRET: ${{ secrets.RAZORPAY_KEY_SECRET }}
+          RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID || secrets.KEY_ID }}
+          RAZORPAY_KEY_SECRET: ${{ secrets.RAZORPAY_KEY_SECRET || secrets.KEY_SECRET }}
         run: |
+          ENV_VARS="FINNHUB_API_KEY=${FINNHUB_API_KEY},ALPHA_VANTAGE_API_KEY=${ALPHA_VANTAGE_API_KEY}"
+
+          if [ -n "${RAZORPAY_KEY_ID}" ] && [ -n "${RAZORPAY_KEY_SECRET}" ]; then
+            ENV_VARS="${ENV_VARS},RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID},RAZORPAY_KEY_SECRET=${RAZORPAY_KEY_SECRET}"
+          fi
+
           gcloud run deploy trade-journal-backend \
             --source backend/ \
             --region asia-south1 \
             --project project-347898d6-1551-4abf-803 \
             --allow-unauthenticated \
-            --update-env-vars FINNHUB_API_KEY=${FINNHUB_API_KEY},ALPHA_VANTAGE_API_KEY=${ALPHA_VANTAGE_API_KEY},RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID},RAZORPAY_KEY_SECRET=${RAZORPAY_KEY_SECRET}
+            --update-env-vars "${ENV_VARS}"
