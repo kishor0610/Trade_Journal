@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'backend/**'
+      - '.github/workflows/deploy-backend.yml'
 
 jobs:
   deploy:
@@ -25,10 +26,15 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Deploy to Cloud Run
+        env:
+          FINNHUB_API_KEY: d7bdvvhr01qgc9t72sc0d7bdvvhr01qgc9t72scg
+          ALPHA_VANTAGE_API_KEY: PGLKVQ8VQQ8QRU61
+          RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
+          RAZORPAY_KEY_SECRET: ${{ secrets.RAZORPAY_KEY_SECRET }}
         run: |
           gcloud run deploy trade-journal-backend \
             --source backend/ \
             --region asia-south1 \
             --project project-347898d6-1551-4abf-803 \
             --allow-unauthenticated \
-            --update-env-vars FINNHUB_API_KEY=d7bdvvhr01qgc9t72sc0d7bdvvhr01qgc9t72scg,ALPHA_VANTAGE_API_KEY=PGLKVQ8VQQ8QRU61
+            --update-env-vars FINNHUB_API_KEY=${FINNHUB_API_KEY},ALPHA_VANTAGE_API_KEY=${ALPHA_VANTAGE_API_KEY},RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID},RAZORPAY_KEY_SECRET=${RAZORPAY_KEY_SECRET}
