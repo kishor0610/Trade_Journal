@@ -5,6 +5,7 @@ import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Check, Crown, Zap, Calendar, CreditCard } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth } from '../context/AuthContext';
 
 const API_URL = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const DEFAULT_PLANS = [
@@ -32,6 +33,7 @@ const DEFAULT_PLANS = [
 ];
 
 const Subscription = () => {
+  const { user } = useAuth();
   const [subscription, setSubscription] = useState(null);
   const [plans, setPlans] = useState(DEFAULT_PLANS);
   const [loading, setLoading] = useState(true);
@@ -39,14 +41,28 @@ const Subscription = () => {
 
   useEffect(() => {
     fetchData();
-    loadRazorpayScript();
   }, []);
 
-  const loadRazorpayScript = () => {
-    const script = document.createElement('script');
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    script.async = true;
-    document.body.appendChild(script);
+  const loadRazorpayScript = async () => {
+    if (window.Razorpay) {
+      return true;
+    }
+
+    return await new Promise((resolve) => {
+      const existingScript = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
+      if (existingScript) {
+        existingScript.addEventListener('load', () => resolve(true), { once: true });
+        existingScript.addEventListener('error', () => resolve(false), { once: true });
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
   };
 
   const fetchData = async () => {
@@ -100,22 +116,37 @@ const Subscription = () => {
     setProcessing(true);
     try {
       const token = localStorage.getItem('token');
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      if (!token) {
+        toast.error('Please login again to continue payment');
+        setProcessing(false);
+        return;
+      }
+
+      const isRazorpayReady = await loadRazorpayScript();
+      if (!isRazorpayReady || !window.Razorpay) {
+        toast.error('Razorpay checkout failed to load. Please refresh and try again.');
+        setProcessing(false);
+        return;
+      }
 
       // Step 1: Create Razorpay order
       const orderResponse = await axios.post(`${API_URL}/subscriptions/create-order`, {
         plan: planId
+      }, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        }
       });
 
-      const { order_id, amount, currency, key_id } = orderResponse.data;
+      const { order_id, amount_paise, currency, key_id, plan_name } = orderResponse.data;
 
       // Step 2: Open Razorpay checkout
       const options = {
         key: key_id,
-        amount: amount * 100, // Amount in paise
+        amount: amount_paise,
         currency: currency,
         name: 'TradeLedger',
-        description: `${planId.charAt(0).toUpperCase() + planId.slice(1)} Subscription`,
+        description: `${plan_name || `${planId.charAt(0).toUpperCase() + planId.slice(1)}`} Subscription`,
         order_id: order_id,
         handler: async function (response) {
           try {
@@ -125,20 +156,26 @@ const Subscription = () => {
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature,
               plan: planId
+            }, {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              }
             });
 
             toast.success('Payment successful! Subscription activated.');
             
             // Refresh subscription data
             await fetchData();
+            setProcessing(false);
           } catch (error) {
             console.error('Payment verification failed:', error);
-            toast.error('Payment verification failed. Please contact support.');
+            toast.error(error.response?.data?.detail || 'Payment verification failed. Please contact support.');
+            setProcessing(false);
           }
         },
         prefill: {
-          name: subscription?.user_id || '',
-          email: '',
+          name: user?.name || '',
+          email: user?.email || '',
         },
         theme: {
           color: '#9333ea'
@@ -161,7 +198,7 @@ const Subscription = () => {
       
     } catch (error) {
       console.error('Payment initiation failed:', error);
-      toast.error('Failed to initiate payment. Please try again.');
+      toast.error(error.response?.data?.detail || 'Failed to initiate payment. Please try again.');
       setProcessing(false);
     }
   };
