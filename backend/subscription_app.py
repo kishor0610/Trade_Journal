@@ -52,8 +52,25 @@ async def create_razorpay_order(key_id: str, key_secret: str, amount_paise: int,
         )
 
     if response.status_code >= 400:
-        logging.error("Razorpay order creation failed: %s", response.text)
-        raise HTTPException(status_code=500, detail="Failed to create Razorpay order")
+        error_message = response.text
+        try:
+            payload = response.json()
+            if isinstance(payload, dict):
+                error_obj = payload.get("error")
+                if isinstance(error_obj, dict):
+                    error_message = (
+                        error_obj.get("description")
+                        or error_obj.get("reason")
+                        or error_obj.get("code")
+                        or response.text
+                    )
+        except ValueError:
+            pass
+
+        logging.error("Razorpay order creation failed (status=%s): %s", response.status_code, error_message)
+        if response.status_code in (400, 401, 403):
+            raise HTTPException(status_code=400, detail=f"Razorpay order creation failed: {error_message}")
+        raise HTTPException(status_code=502, detail="Razorpay gateway error while creating order")
 
     return response.json()
 
@@ -165,6 +182,8 @@ async def create_subscription_order(order_data: CreateOrderRequest, current_user
 
     try:
         order = await create_razorpay_order(key_id, key_secret, amount_paise, current_user["id"], order_data.plan)
+    except HTTPException:
+        raise
     except Exception as exc:
         logging.error("Razorpay order creation failed: %s", exc)
         raise HTTPException(status_code=500, detail=f"Failed to create order: {exc}") from exc
