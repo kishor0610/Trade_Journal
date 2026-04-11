@@ -2,6 +2,7 @@ import logging
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 from fastapi import Depends, HTTPException
 from pydantic import BaseModel
@@ -15,20 +16,32 @@ except ImportError:
 
 app = server.app
 
-RAZORPAY_KEY_ID = os.environ.get("RAZORPAY_KEY_ID", "")
-RAZORPAY_KEY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET", "")
-
 SUBSCRIPTION_PLANS = {
     "monthly": {"price": 499, "duration_days": 30, "name": "Monthly Plan"},
     "quarterly": {"price": 1399, "duration_days": 90, "name": "Quarterly Plan"},
     "yearly": {"price": 5999, "duration_days": 365, "name": "Yearly Plan", "discount": "50%"},
 }
 
-try:
-    razorpay_client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET)) if razorpay and RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET else None
-except Exception as exc:
-    logging.error("Failed to initialize Razorpay client: %s", exc)
-    razorpay_client = None
+
+def get_razorpay_credentials() -> tuple[str, str]:
+    key_id = os.environ.get("RAZORPAY_KEY_ID", "").strip()
+    key_secret = os.environ.get("RAZORPAY_KEY_SECRET", "").strip()
+    return key_id, key_secret
+
+
+def build_razorpay_client() -> tuple[Optional[object], str]:
+    if not razorpay:
+        return None, "Razorpay SDK is not available in the backend runtime"
+
+    key_id, key_secret = get_razorpay_credentials()
+    if not key_id or not key_secret:
+        return None, "Razorpay credentials are missing in the backend runtime"
+
+    try:
+        return razorpay.Client(auth=(key_id, key_secret)), ""
+    except Exception as exc:
+        logging.error("Failed to initialize Razorpay client: %s", exc)
+        return None, "Razorpay client initialization failed"
 
 
 class CreateOrderRequest(BaseModel):
@@ -89,11 +102,13 @@ async def create_subscription_order(order_data: CreateOrderRequest, current_user
     if order_data.plan not in SUBSCRIPTION_PLANS:
         raise HTTPException(status_code=400, detail="Invalid plan")
 
+    razorpay_client, client_error = build_razorpay_client()
     if not razorpay_client:
-        raise HTTPException(status_code=500, detail="Payment service not available")
+        raise HTTPException(status_code=500, detail=client_error)
 
     plan = SUBSCRIPTION_PLANS[order_data.plan]
     amount_paise = int(plan["price"] * 100)
+    key_id, _ = get_razorpay_credentials()
 
     try:
         order = razorpay_client.order.create(
@@ -116,7 +131,7 @@ async def create_subscription_order(order_data: CreateOrderRequest, current_user
         "amount": plan["price"],
         "amount_paise": amount_paise,
         "currency": "INR",
-        "key_id": RAZORPAY_KEY_ID,
+        "key_id": key_id,
         "plan": order_data.plan,
         "plan_name": plan["name"],
     }
@@ -127,8 +142,9 @@ async def verify_subscription_payment(payment_data: VerifyPaymentRequest, curren
     if payment_data.plan not in SUBSCRIPTION_PLANS:
         raise HTTPException(status_code=400, detail="Invalid plan")
 
+    razorpay_client, client_error = build_razorpay_client()
     if not razorpay_client:
-        raise HTTPException(status_code=500, detail="Payment service not available")
+        raise HTTPException(status_code=500, detail=client_error)
 
     plan = SUBSCRIPTION_PLANS[payment_data.plan]
 
