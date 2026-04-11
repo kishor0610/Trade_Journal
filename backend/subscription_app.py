@@ -1,18 +1,16 @@
 import logging
 import os
 import uuid
+import hashlib
+import hmac
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+import httpx
 from fastapi import Depends, HTTPException
 from pydantic import BaseModel
 
 import server
-
-try:
-    import razorpay
-except ImportError:
-    razorpay = None
 
 app = server.app
 
@@ -29,19 +27,73 @@ def get_razorpay_credentials() -> tuple[str, str]:
     return key_id, key_secret
 
 
-def build_razorpay_client() -> tuple[Optional[object], str]:
-    if not razorpay:
-        return None, "Razorpay SDK is not available in the backend runtime"
-
+def validate_razorpay_credentials() -> tuple[Optional[tuple[str, str]], str]:
     key_id, key_secret = get_razorpay_credentials()
     if not key_id or not key_secret:
         return None, "Razorpay credentials are missing in the backend runtime"
+    return (key_id, key_secret), ""
 
-    try:
-        return razorpay.Client(auth=(key_id, key_secret)), ""
-    except Exception as exc:
-        logging.error("Failed to initialize Razorpay client: %s", exc)
-        return None, "Razorpay client initialization failed"
+
+async def create_razorpay_order(key_id: str, key_secret: str, amount_paise: int, user_id: str, plan_id: str) -> dict:
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(
+            "https://api.razorpay.com/v1/orders",
+            auth=(key_id, key_secret),
+            json={
+                "amount": amount_paise,
+                "currency": "INR",
+                "receipt": f"sub_{user_id}_{int(datetime.now().timestamp())}",
+                "notes": {
+                    "user_id": user_id,
+                    "plan": plan_id,
+                },
+            },
+        )
+
+    if response.status_code >= 400:
+        logging.error("Razorpay order creation failed: %s", response.text)
+        raise HTTPException(status_code=500, detail="Failed to create Razorpay order")
+
+    return response.json()
+
+
+def verify_razorpay_signature(order_id: str, payment_id: str, signature: str, key_secret: str) -> None:
+    payload = f"{order_id}|{payment_id}".encode("utf-8")
+    expected_signature = hmac.new(key_secret.encode("utf-8"), payload, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected_signature, signature):
+        raise HTTPException(status_code=400, detail="Invalid payment signature")
+
+
+async def fetch_razorpay_payment(key_id: str, key_secret: str, payment_id: str) -> dict:
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.get(
+            f"https://api.razorpay.com/v1/payments/{payment_id}",
+            auth=(key_id, key_secret),
+        )
+
+    if response.status_code >= 400:
+        logging.error("Failed to fetch Razorpay payment %s: %s", payment_id, response.text)
+        raise HTTPException(status_code=500, detail="Failed to fetch payment details from Razorpay")
+
+    return response.json()
+
+
+async def capture_razorpay_payment(key_id: str, key_secret: str, payment_id: str, amount_paise: int) -> dict:
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(
+            f"https://api.razorpay.com/v1/payments/{payment_id}/capture",
+            auth=(key_id, key_secret),
+            data={
+                "amount": amount_paise,
+                "currency": "INR",
+            },
+        )
+
+    if response.status_code >= 400:
+        logging.error("Failed to capture Razorpay payment %s: %s", payment_id, response.text)
+        raise HTTPException(status_code=500, detail="Failed to capture Razorpay payment")
+
+    return response.json()
 
 
 class CreateOrderRequest(BaseModel):
@@ -102,26 +154,16 @@ async def create_subscription_order(order_data: CreateOrderRequest, current_user
     if order_data.plan not in SUBSCRIPTION_PLANS:
         raise HTTPException(status_code=400, detail="Invalid plan")
 
-    razorpay_client, client_error = build_razorpay_client()
-    if not razorpay_client:
+    credentials, client_error = validate_razorpay_credentials()
+    if not credentials:
         raise HTTPException(status_code=500, detail=client_error)
 
     plan = SUBSCRIPTION_PLANS[order_data.plan]
     amount_paise = int(plan["price"] * 100)
-    key_id, _ = get_razorpay_credentials()
+    key_id, key_secret = credentials
 
     try:
-        order = razorpay_client.order.create(
-            {
-                "amount": amount_paise,
-                "currency": "INR",
-                "receipt": f"sub_{current_user['id']}_{int(datetime.now().timestamp())}",
-                "notes": {
-                    "user_id": current_user["id"],
-                    "plan": order_data.plan,
-                },
-            }
-        )
+        order = await create_razorpay_order(key_id, key_secret, amount_paise, current_user["id"], order_data.plan)
     except Exception as exc:
         logging.error("Razorpay order creation failed: %s", exc)
         raise HTTPException(status_code=500, detail=f"Failed to create order: {exc}") from exc
@@ -142,27 +184,28 @@ async def verify_subscription_payment(payment_data: VerifyPaymentRequest, curren
     if payment_data.plan not in SUBSCRIPTION_PLANS:
         raise HTTPException(status_code=400, detail="Invalid plan")
 
-    razorpay_client, client_error = build_razorpay_client()
-    if not razorpay_client:
+    credentials, client_error = validate_razorpay_credentials()
+    if not credentials:
         raise HTTPException(status_code=500, detail=client_error)
 
     plan = SUBSCRIPTION_PLANS[payment_data.plan]
+    key_id, key_secret = credentials
 
     try:
-        razorpay_client.utility.verify_payment_signature(
-            {
-                "razorpay_order_id": payment_data.razorpay_order_id,
-                "razorpay_payment_id": payment_data.razorpay_payment_id,
-                "razorpay_signature": payment_data.razorpay_signature,
-            }
+        verify_razorpay_signature(
+            payment_data.razorpay_order_id,
+            payment_data.razorpay_payment_id,
+            payment_data.razorpay_signature,
+            key_secret,
         )
 
-        payment = razorpay_client.payment.fetch(payment_data.razorpay_payment_id)
+        payment = await fetch_razorpay_payment(key_id, key_secret, payment_data.razorpay_payment_id)
         if payment["status"] == "authorized":
-            payment = razorpay_client.payment.capture(
+            payment = await capture_razorpay_payment(
+                key_id,
+                key_secret,
                 payment_data.razorpay_payment_id,
                 int(plan["price"] * 100),
-                "INR",
             )
 
         if payment["status"] != "captured":
@@ -196,8 +239,6 @@ async def verify_subscription_payment(payment_data: VerifyPaymentRequest, curren
                 }
             },
         )
-    except razorpay.errors.SignatureVerificationError as exc:
-        raise HTTPException(status_code=400, detail="Invalid payment signature") from exc
     except HTTPException:
         raise
     except Exception as exc:
