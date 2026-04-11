@@ -36,6 +36,12 @@ def validate_razorpay_credentials() -> tuple[Optional[tuple[str, str]], str]:
 
 
 async def create_razorpay_order(key_id: str, key_secret: str, amount_paise: int, user_id: str, plan_id: str) -> dict:
+    # Razorpay receipt must be <= 40 chars. Keep it deterministic and compact.
+    compact_user = hashlib.sha1(user_id.encode("utf-8")).hexdigest()[:8]
+    compact_plan = (plan_id or "p")[:1]
+    compact_ts = format(int(datetime.now().timestamp()), "x")
+    receipt = f"sub{compact_plan}{compact_ts}{compact_user}"
+
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(
             "https://api.razorpay.com/v1/orders",
@@ -43,7 +49,7 @@ async def create_razorpay_order(key_id: str, key_secret: str, amount_paise: int,
             json={
                 "amount": amount_paise,
                 "currency": "INR",
-                "receipt": f"sub_{user_id}_{int(datetime.now().timestamp())}",
+                "receipt": receipt,
                 "notes": {
                     "user_id": user_id,
                     "plan": plan_id,
