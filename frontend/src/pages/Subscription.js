@@ -41,7 +41,7 @@ const Subscription = () => {
   const [subscription, setSubscription] = useState(null);
   const [plans, setPlans] = useState(DEFAULT_PLANS);
   const [loading, setLoading] = useState(true);
-  const [processing, setProcessing] = useState(false);
+  const [processingPlanId, setProcessingPlanId] = useState(null);
   const [subscriptionApiUnavailable, setSubscriptionApiUnavailable] = useState(false);
 
   useEffect(() => {
@@ -120,25 +120,25 @@ const Subscription = () => {
   };
 
   const handlePayment = async (planId) => {
-    if (processing) return;
+    if (processingPlanId) return;
     if (subscriptionApiUnavailable) {
       toast.error(SUBSCRIPTION_API_UNAVAILABLE_MESSAGE);
       return;
     }
     
-    setProcessing(true);
+    setProcessingPlanId(planId);
     try {
       const token = localStorage.getItem('token');
       if (!token) {
         toast.error('Please login again to continue payment');
-        setProcessing(false);
+        setProcessingPlanId(null);
         return;
       }
 
       const isRazorpayReady = await loadRazorpayScript();
       if (!isRazorpayReady || !window.Razorpay) {
         toast.error('Razorpay checkout failed to load. Please refresh and try again.');
-        setProcessing(false);
+        setProcessingPlanId(null);
         return;
       }
 
@@ -179,11 +179,11 @@ const Subscription = () => {
             
             // Refresh subscription data
             await fetchData();
-            setProcessing(false);
+            setProcessingPlanId(null);
           } catch (error) {
             console.error('Payment verification failed:', error);
             toast.error(error.response?.data?.detail || 'Payment verification failed. Please contact support.');
-            setProcessing(false);
+            setProcessingPlanId(null);
           }
         },
         prefill: {
@@ -195,7 +195,7 @@ const Subscription = () => {
         },
         modal: {
           ondismiss: function() {
-            setProcessing(false);
+            setProcessingPlanId(null);
             toast.error('Payment cancelled');
           }
         }
@@ -206,7 +206,7 @@ const Subscription = () => {
       
       razorpay.on('payment.failed', function (response) {
         toast.error('Payment failed: ' + response.error.description);
-        setProcessing(false);
+        setProcessingPlanId(null);
       });
       
     } catch (error) {
@@ -227,7 +227,7 @@ const Subscription = () => {
       } else {
         toast.error(errorDetail || 'Failed to initiate payment. Please try again.');
       }
-      setProcessing(false);
+      setProcessingPlanId(null);
     }
   };
 
@@ -444,11 +444,11 @@ const Subscription = () => {
                     <Button 
                       className="w-full bg-gradient-to-r from-accent to-purple-600 hover:from-accent/90 hover:to-purple-700 text-white font-semibold"
                       onClick={() => handlePayment(plan.plan_id)}
-                      disabled={processing || subscriptionApiUnavailable}
+                      disabled={Boolean(processingPlanId) || subscriptionApiUnavailable}
                     >
                       {subscriptionApiUnavailable ? (
                         'Backend update required'
-                      ) : processing ? (
+                      ) : processingPlanId === plan.plan_id ? (
                         <>
                           <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
                           Processing...
