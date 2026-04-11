@@ -3,11 +3,15 @@ import os
 import uuid
 from datetime import datetime, timedelta, timezone
 
-import razorpay
 from fastapi import Depends, HTTPException
 from pydantic import BaseModel
 
 import server
+
+try:
+    import razorpay
+except ImportError:
+    razorpay = None
 
 app = server.app
 
@@ -21,7 +25,7 @@ SUBSCRIPTION_PLANS = {
 }
 
 try:
-    razorpay_client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET)) if RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET else None
+    razorpay_client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET)) if razorpay and RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET else None
 except Exception as exc:
     logging.error("Failed to initialize Razorpay client: %s", exc)
     razorpay_client = None
