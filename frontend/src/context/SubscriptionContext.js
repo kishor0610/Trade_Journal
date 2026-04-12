@@ -1,7 +1,10 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 
-const API_URL = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const FALLBACK_BACKEND_URL = 'https://trade-journal-backend-702893411415.asia-south1.run.app';
+const rawBackendUrl = (process.env.REACT_APP_BACKEND_URL || FALLBACK_BACKEND_URL).trim();
+const BACKEND_URL = rawBackendUrl.replace(/\/$/, '').replace(/\/api$/, '');
+const API_URL = `${BACKEND_URL}/api`;
 
 const SubscriptionContext = createContext();
 

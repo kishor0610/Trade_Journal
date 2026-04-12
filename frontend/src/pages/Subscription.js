@@ -6,6 +6,7 @@ import { Button } from '../components/ui/button';
 import { Check, Crown, Zap, Calendar, CreditCard } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../context/AuthContext';
+import { useSubscription } from '../context/SubscriptionContext';
 
 const FALLBACK_BACKEND_URL = 'https://trade-journal-backend-702893411415.asia-south1.run.app';
 const BACKEND_URL = (process.env.REACT_APP_BACKEND_URL || FALLBACK_BACKEND_URL).replace(/\/$/, '');
@@ -38,6 +39,7 @@ const DEFAULT_PLANS = [
 
 const Subscription = () => {
   const { user } = useAuth();
+  const { refreshSubscription } = useSubscription();
   const [subscription, setSubscription] = useState(null);
   const [plans, setPlans] = useState(DEFAULT_PLANS);
   const [loading, setLoading] = useState(true);
@@ -179,6 +181,7 @@ const Subscription = () => {
             
             // Refresh subscription data
             await fetchData();
+            await refreshSubscription();
             setProcessingPlanId(null);
           } catch (error) {
             console.error('Payment verification failed:', error);
