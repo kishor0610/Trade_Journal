@@ -77,7 +77,7 @@ const AdminUsers = () => {
   const handleActivateUser = async (userId, userName) => {
     setActivateLoading(true);
     try {
-      await adminActions.activateUser(userId);
+      await adminApi.post(`/users/${userId}/activate`);
       toast.success(`${userName} activated successfully`);
       fetchUsers();
     } catch (error) {
@@ -93,7 +93,7 @@ const AdminUsers = () => {
     }
     setDeactivateLoading(true);
     try {
-      await adminActions.deactivateUser(userId);
+      await adminApi.post(`/users/${userId}/deactivate`);
       toast.success(`${userName} deactivated successfully`);
       fetchUsers();
     } catch (error) {
