@@ -57,7 +57,7 @@
 
 ### 💳 **Payment System** (Live & Working)
 - ✅ Razorpay LIVE mode integration
-- ✅ 3 plans: Monthly ₹499, Quarterly ₹1399, Yearly ₹5999
+- ✅ 3 plans: Monthly ₹499, Quarterly ₹1399, Yearly ₹2999
 - ✅ Payment verification with signature check
 - ✅ Auto-activation on successful payment
 - ✅ Payment records stored in database
@@ -291,7 +291,7 @@ These are nice-to-have features that can be added later:
 **Pricing**
 - Monthly: ₹499 (30 days)
 - Quarterly: ₹1399 (90 days)
-- Yearly: ₹5999 (365 days)
+- Yearly: ₹2999 (365 days)
 
 **Trial**
 - Duration: 7 days

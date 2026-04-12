@@ -21,7 +21,7 @@
 ### For Users:
 1. **Sign up** → Get 7-day free trial automatically
 2. Navigate to **Subscription** page from sidebar
-3. Choose a plan (Monthly ₹499, Quarterly ₹1399, Yearly ₹5999)
+3. Choose a plan (Monthly ₹499, Quarterly ₹1399, Yearly ₹2999)
 4. Click **"Subscribe Now"**
 5. Complete payment via Razorpay
 6. Subscription activates automatically!

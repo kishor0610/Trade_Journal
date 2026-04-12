@@ -31,7 +31,7 @@ const DEFAULT_PLANS = [
   {
     plan_id: 'yearly',
     name: 'Yearly',
-    price: 5999,
+    price: 2999,
     duration_days: 365,
     discount: '50%',
   },

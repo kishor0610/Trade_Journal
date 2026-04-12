@@ -662,7 +662,7 @@ const AdminUsers = () => {
                   <SelectContent>
                     <SelectItem value="monthly">Monthly (₹499)</SelectItem>
                     <SelectItem value="quarterly">Quarterly (₹1399)</SelectItem>
-                    <SelectItem value="yearly">Yearly (₹5999)</SelectItem>
+                    <SelectItem value="yearly">Yearly (₹2999)</SelectItem>
                   </SelectContent>
                 </Select>
                 <Button

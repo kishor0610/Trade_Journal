@@ -14,7 +14,7 @@ Complete subscription system with Razorpay payments, user management, and automa
 |---------|-------|----------|-------|
 | `monthly` | ₹499 | 30 days | Monthly Plan |
 | `quarterly` | ₹1399 | 90 days | Quarterly Plan |
-| `yearly` | ₹5999 | 365 days | Yearly Plan (50% OFF) |
+| `yearly` | ₹2999 | 365 days | Yearly Plan (50% OFF) |
 
 **Trial:** All new users get 7-day free trial automatically on registration.
 

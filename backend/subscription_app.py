@@ -17,7 +17,7 @@ app = server.app
 SUBSCRIPTION_PLANS = {
     "monthly": {"price": 499, "duration_days": 30, "name": "Monthly Plan"},
     "quarterly": {"price": 1399, "duration_days": 90, "name": "Quarterly Plan"},
-    "yearly": {"price": 5999, "duration_days": 365, "name": "Yearly Plan", "discount": "50%"},
+    "yearly": {"price": 2999, "duration_days": 365, "name": "Yearly Plan", "discount": "50%"},
 }
 
 
