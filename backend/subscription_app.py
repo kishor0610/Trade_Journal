@@ -391,3 +391,47 @@ async def admin_deactivate_subscription(user_id: str, admin: dict = Depends(serv
 
     await server.create_audit_log(admin.get("sub"), "subscription_deactivated", user_id)
     return {"message": "Subscription deactivated"}
+
+
+@app.post("/api/admin/users/{user_id}/activate")
+async def admin_activate_user(user_id: str, admin: dict = Depends(server.get_admin_user)):
+    result = await server.db.users.update_one(
+        {"id": user_id},
+        {
+            "$set": {
+                "status": "active",
+                "last_status_change": datetime.now(timezone.utc).isoformat(),
+            }
+        },
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    try:
+        await server.create_audit_log(admin.get("sub"), "user_activated", user_id)
+    except Exception as audit_exc:
+        logging.error("Failed to write user activate audit log: %s", audit_exc)
+
+    return {"message": "User activated successfully"}
+
+
+@app.post("/api/admin/users/{user_id}/deactivate")
+async def admin_deactivate_user(user_id: str, admin: dict = Depends(server.get_admin_user)):
+    result = await server.db.users.update_one(
+        {"id": user_id},
+        {
+            "$set": {
+                "status": "inactive",
+                "last_status_change": datetime.now(timezone.utc).isoformat(),
+            }
+        },
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    try:
+        await server.create_audit_log(admin.get("sub"), "user_deactivated", user_id)
+    except Exception as audit_exc:
+        logging.error("Failed to write user deactivate audit log: %s", audit_exc)
+
+    return {"message": "User deactivated successfully"}
