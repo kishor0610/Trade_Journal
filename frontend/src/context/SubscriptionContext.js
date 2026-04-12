@@ -43,6 +43,31 @@ export const SubscriptionProvider = ({ children }) => {
     fetchSubscription();
   }, []);
 
+  useEffect(() => {
+    const refreshOnFocus = () => {
+      fetchSubscription();
+    };
+
+    const refreshOnVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchSubscription();
+      }
+    };
+
+    const intervalId = setInterval(() => {
+      fetchSubscription();
+    }, 60000);
+
+    window.addEventListener('focus', refreshOnFocus);
+    document.addEventListener('visibilitychange', refreshOnVisibility);
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('focus', refreshOnFocus);
+      document.removeEventListener('visibilitychange', refreshOnVisibility);
+    };
+  }, []);
+
   const isActive = subscription?.is_active || false;
   const isTrial = subscription?.subscription_status === 'trial';
   const isExpired = subscription?.subscription_status === 'expired';
