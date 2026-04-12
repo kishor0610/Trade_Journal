@@ -131,6 +131,14 @@ class VerifyPaymentRequest(BaseModel):
     plan: str
 
 
+class ExtendSubscriptionRequest(BaseModel):
+    days: int
+
+
+class ChangePlanRequest(BaseModel):
+    plan: str
+
+
 async def check_subscription_status(user: dict) -> bool:
     if user.get("subscription_status") != "active":
         return False
@@ -275,3 +283,91 @@ async def verify_subscription_payment(payment_data: VerifyPaymentRequest, curren
         "message": "Payment verified and subscription activated",
         "subscription_end_date": end_date.isoformat(),
     }
+
+
+@app.patch("/api/admin/subscriptions/{user_id}/extend")
+async def admin_extend_subscription(
+    user_id: str,
+    extend_data: ExtendSubscriptionRequest,
+    admin: dict = Depends(server.get_admin_user),
+):
+    user = await server.db.users.find_one({"id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    current_end = user.get("subscription_end_date")
+    if current_end:
+        if isinstance(current_end, str):
+            current_end = datetime.fromisoformat(current_end.replace("Z", "+00:00"))
+    else:
+        current_end = datetime.now(timezone.utc)
+
+    new_end = current_end + timedelta(days=extend_data.days)
+
+    await server.db.users.update_one(
+        {"id": user_id},
+        {
+            "$set": {
+                "subscription_end_date": new_end.isoformat(),
+                "subscription_status": "active",
+            }
+        },
+    )
+
+    await server.create_audit_log(admin.get("sub"), "subscription_extended", user_id, {"days": extend_data.days})
+    return {"message": f"Subscription extended by {extend_data.days} days", "new_end_date": new_end.isoformat()}
+
+
+@app.patch("/api/admin/subscriptions/{user_id}/change-plan")
+async def admin_change_user_plan(
+    user_id: str,
+    plan_data: ChangePlanRequest,
+    admin: dict = Depends(server.get_admin_user),
+):
+    if plan_data.plan not in SUBSCRIPTION_PLANS:
+        raise HTTPException(status_code=400, detail="Invalid plan")
+
+    plan = SUBSCRIPTION_PLANS[plan_data.plan]
+    new_end = datetime.now(timezone.utc) + timedelta(days=plan["duration_days"])
+
+    result = await server.db.users.update_one(
+        {"id": user_id},
+        {
+            "$set": {
+                "subscription_plan": plan_data.plan,
+                "subscription_end_date": new_end.isoformat(),
+                "subscription_status": "active",
+            }
+        },
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    await server.create_audit_log(admin.get("sub"), "plan_changed", user_id, {"new_plan": plan_data.plan})
+    return {"message": f"Plan changed to {plan_data.plan}", "new_end_date": new_end.isoformat()}
+
+
+@app.post("/api/admin/subscriptions/{user_id}/activate")
+async def admin_activate_subscription(user_id: str, admin: dict = Depends(server.get_admin_user)):
+    result = await server.db.users.update_one(
+        {"id": user_id},
+        {"$set": {"subscription_status": "active"}},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    await server.create_audit_log(admin.get("sub"), "subscription_activated", user_id)
+    return {"message": "Subscription activated"}
+
+
+@app.post("/api/admin/subscriptions/{user_id}/deactivate")
+async def admin_deactivate_subscription(user_id: str, admin: dict = Depends(server.get_admin_user)):
+    result = await server.db.users.update_one(
+        {"id": user_id},
+        {"$set": {"subscription_status": "expired"}},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    await server.create_audit_log(admin.get("sub"), "subscription_deactivated", user_id)
+    return {"message": "Subscription deactivated"}
