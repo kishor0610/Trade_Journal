@@ -37,6 +37,8 @@ const AdminUsers = () => {
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [emailData, setEmailData] = useState({ subject: '', message: '' });
   const [actionLoading, setActionLoading] = useState(false);
+  const [activateLoading, setActivateLoading] = useState(false);
+  const [deactivateLoading, setDeactivateLoading] = useState(false);
   const [extendLoading, setExtendLoading] = useState(false);
   const [reduceLoading, setReduceLoading] = useState(false);
   const [changePlanLoading, setChangePlanLoading] = useState(false);
@@ -73,7 +75,7 @@ const AdminUsers = () => {
   };
 
   const handleActivateUser = async (userId, userName) => {
-    setActionLoading(true);
+    setActivateLoading(true);
     try {
       await adminActions.activateUser(userId);
       toast.success(`${userName} activated successfully`);
@@ -81,7 +83,7 @@ const AdminUsers = () => {
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to activate user');
     } finally {
-      setActionLoading(false);
+      setActivateLoading(false);
     }
   };
 
@@ -89,7 +91,7 @@ const AdminUsers = () => {
     if (!window.confirm(`Are you sure you want to deactivate ${userName}?`)) {
       return;
     }
-    setActionLoading(true);
+    setDeactivateLoading(true);
     try {
       await adminActions.deactivateUser(userId);
       toast.success(`${userName} deactivated successfully`);
@@ -97,7 +99,7 @@ const AdminUsers = () => {
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to deactivate user');
     } finally {
-      setActionLoading(false);
+      setDeactivateLoading(false);
     }
   };
 
