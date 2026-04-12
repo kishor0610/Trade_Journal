@@ -292,6 +292,9 @@ async def admin_extend_subscription(
     admin: dict = Depends(server.get_admin_user),
 ):
     try:
+        if extend_data.days <= 0:
+            raise HTTPException(status_code=400, detail="Days must be greater than 0")
+
         user = await server.db.users.find_one({"id": user_id}, {"_id": 0})
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
@@ -326,6 +329,58 @@ async def admin_extend_subscription(
     except Exception as exc:
         logging.error("Admin extend subscription failed: %s", exc)
         raise HTTPException(status_code=500, detail=f"Failed to extend subscription: {exc}") from exc
+
+
+@app.patch("/api/admin/subscriptions/{user_id}/reduce")
+async def admin_reduce_subscription(
+    user_id: str,
+    reduce_data: ExtendSubscriptionRequest,
+    admin: dict = Depends(server.get_admin_user),
+):
+    try:
+        if reduce_data.days <= 0:
+            raise HTTPException(status_code=400, detail="Days must be greater than 0")
+
+        user = await server.db.users.find_one({"id": user_id}, {"_id": 0})
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        current_end = user.get("subscription_end_date")
+        if current_end:
+            if isinstance(current_end, str):
+                current_end = datetime.fromisoformat(current_end.replace("Z", "+00:00"))
+        else:
+            current_end = datetime.now(timezone.utc)
+
+        new_end = current_end - timedelta(days=reduce_data.days)
+        now = datetime.now(timezone.utc)
+        next_status = "active" if new_end > now else "expired"
+
+        await server.db.users.update_one(
+            {"id": user_id},
+            {
+                "$set": {
+                    "subscription_end_date": new_end.isoformat(),
+                    "subscription_status": next_status,
+                }
+            },
+        )
+
+        try:
+            await server.create_audit_log(admin.get("sub"), "subscription_reduced", user_id, {"days": reduce_data.days})
+        except Exception as audit_exc:
+            logging.error("Failed to write subscription reduce audit log: %s", audit_exc)
+
+        return {
+            "message": f"Subscription reduced by {reduce_data.days} days",
+            "new_end_date": new_end.isoformat(),
+            "subscription_status": next_status,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logging.error("Admin reduce subscription failed: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Failed to reduce subscription: {exc}") from exc
 
 
 @app.patch("/api/admin/subscriptions/{user_id}/change-plan")

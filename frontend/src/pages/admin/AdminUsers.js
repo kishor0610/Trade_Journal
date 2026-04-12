@@ -2,9 +2,9 @@ import React, { useState,useEffect } from 'react';
 import adminApi from '../../lib/adminApi';
 import * as adminActions from '../../lib/adminActions';
 import { 
-  Search, Filter, MoreVertical, UserCheck, UserX, 
+  Search, Filter, MoreVertical, UserCheck, UserX,
   Mail, RefreshCw, Download, Eye, Trash2, Key, CreditCard,
-  ArrowUpDown, ChevronLeft, ChevronRight, Clock, Plus
+  ArrowUpDown, ChevronLeft, ChevronRight, Clock, Plus, Minus
 } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -160,7 +160,7 @@ const AdminUsers = () => {
   };
   const openSubscriptionModal = (user) => {
     setSelectedUser(user);
-    setSubscriptionData({ days: 30,plan: 'monthly' });
+    setSubscriptionData({ days: 30, reduceDays: 30, plan: 'monthly' });
     setShowSubscriptionModal(true);
   };
 
@@ -180,6 +180,27 @@ const AdminUsers = () => {
       fetchUsers();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to extend subscription');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleReduceSubscription = async () => {
+    if (!subscriptionData.reduceDays || subscriptionData.reduceDays < 1) {
+      toast.error('Please provide valid number of days to reduce');
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      await adminApi.patch(`/subscriptions/${selectedUser.id}/reduce`, {
+        days: subscriptionData.reduceDays,
+      });
+      toast.success(`Reduced subscription by ${subscriptionData.reduceDays} days`);
+      setShowSubscriptionModal(false);
+      fetchUsers();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to reduce subscription');
     } finally {
       setActionLoading(false);
     }
@@ -649,6 +670,35 @@ const AdminUsers = () => {
               </div>
               <p className="text-xs text-muted-foreground">
                 Common: 30 days (1mo), 90 days (3mo), 365 days (1yr)
+              </p>
+            </div>
+
+            {/* Reduce Subscription */}
+            <div className="space-y-3">
+              <h4 className="font-semibold text-sm flex items-center gap-2">
+                <Minus className="w-4 h-4 text-red-400" />
+                Reduce Subscription
+              </h4>
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  min="1"
+                  max="3650"
+                  placeholder="Days"
+                  value={subscriptionData.reduceDays}
+                  onChange={(e) => setSubscriptionData({ ...subscriptionData, reduceDays: parseInt(e.target.value) || 0 })}
+                  className="flex-1"
+                />
+                <Button
+                  onClick={handleReduceSubscription}
+                  disabled={actionLoading}
+                  className="bg-red-600 hover:bg-red-700"
+                >
+                  {actionLoading ? 'Reducing...' : 'Reduce'}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Reducing may expire access immediately if end date goes below today.
               </p>
             </div>
 
