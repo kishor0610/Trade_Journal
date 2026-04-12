@@ -172,7 +172,9 @@ const AdminUsers = () => {
     
     setActionLoading(true);
     try {
-      await adminActions.extendSubscription(selectedUser.id, subscriptionData.days);
+      await adminApi.patch(`/subscriptions/${selectedUser.id}/extend`, {
+        days: subscriptionData.days,
+      });
       toast.success(`Extended subscription by ${subscriptionData.days} days`);
       setShowSubscriptionModal(false);
       fetchUsers();
@@ -191,7 +193,9 @@ const AdminUsers = () => {
     
     setActionLoading(true);
     try {
-      await adminActions.changeUserPlan(selectedUser.id, subscriptionData.plan);
+      await adminApi.patch(`/subscriptions/${selectedUser.id}/change-plan`, {
+        plan: subscriptionData.plan,
+      });
       toast.success('Plan changed successfully');
       setShowSubscriptionModal(false);
       fetchUsers();
