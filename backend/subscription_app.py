@@ -291,31 +291,41 @@ async def admin_extend_subscription(
     extend_data: ExtendSubscriptionRequest,
     admin: dict = Depends(server.get_admin_user),
 ):
-    user = await server.db.users.find_one({"id": user_id}, {"_id": 0})
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    try:
+        user = await server.db.users.find_one({"id": user_id}, {"_id": 0})
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
 
-    current_end = user.get("subscription_end_date")
-    if current_end:
-        if isinstance(current_end, str):
-            current_end = datetime.fromisoformat(current_end.replace("Z", "+00:00"))
-    else:
-        current_end = datetime.now(timezone.utc)
+        current_end = user.get("subscription_end_date")
+        if current_end:
+            if isinstance(current_end, str):
+                current_end = datetime.fromisoformat(current_end.replace("Z", "+00:00"))
+        else:
+            current_end = datetime.now(timezone.utc)
 
-    new_end = current_end + timedelta(days=extend_data.days)
+        new_end = current_end + timedelta(days=extend_data.days)
 
-    await server.db.users.update_one(
-        {"id": user_id},
-        {
-            "$set": {
-                "subscription_end_date": new_end.isoformat(),
-                "subscription_status": "active",
-            }
-        },
-    )
+        await server.db.users.update_one(
+            {"id": user_id},
+            {
+                "$set": {
+                    "subscription_end_date": new_end.isoformat(),
+                    "subscription_status": "active",
+                }
+            },
+        )
 
-    await server.create_audit_log(admin.get("sub"), "subscription_extended", user_id, {"days": extend_data.days})
-    return {"message": f"Subscription extended by {extend_data.days} days", "new_end_date": new_end.isoformat()}
+        try:
+            await server.create_audit_log(admin.get("sub"), "subscription_extended", user_id, {"days": extend_data.days})
+        except Exception as audit_exc:
+            logging.error("Failed to write subscription extend audit log: %s", audit_exc)
+
+        return {"message": f"Subscription extended by {extend_data.days} days", "new_end_date": new_end.isoformat()}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logging.error("Admin extend subscription failed: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Failed to extend subscription: {exc}") from exc
 
 
 @app.patch("/api/admin/subscriptions/{user_id}/change-plan")
@@ -324,27 +334,37 @@ async def admin_change_user_plan(
     plan_data: ChangePlanRequest,
     admin: dict = Depends(server.get_admin_user),
 ):
-    if plan_data.plan not in SUBSCRIPTION_PLANS:
-        raise HTTPException(status_code=400, detail="Invalid plan")
+    try:
+        if plan_data.plan not in SUBSCRIPTION_PLANS:
+            raise HTTPException(status_code=400, detail="Invalid plan")
 
-    plan = SUBSCRIPTION_PLANS[plan_data.plan]
-    new_end = datetime.now(timezone.utc) + timedelta(days=plan["duration_days"])
+        plan = SUBSCRIPTION_PLANS[plan_data.plan]
+        new_end = datetime.now(timezone.utc) + timedelta(days=plan["duration_days"])
 
-    result = await server.db.users.update_one(
-        {"id": user_id},
-        {
-            "$set": {
-                "subscription_plan": plan_data.plan,
-                "subscription_end_date": new_end.isoformat(),
-                "subscription_status": "active",
-            }
-        },
-    )
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="User not found")
+        result = await server.db.users.update_one(
+            {"id": user_id},
+            {
+                "$set": {
+                    "subscription_plan": plan_data.plan,
+                    "subscription_end_date": new_end.isoformat(),
+                    "subscription_status": "active",
+                }
+            },
+        )
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="User not found")
 
-    await server.create_audit_log(admin.get("sub"), "plan_changed", user_id, {"new_plan": plan_data.plan})
-    return {"message": f"Plan changed to {plan_data.plan}", "new_end_date": new_end.isoformat()}
+        try:
+            await server.create_audit_log(admin.get("sub"), "plan_changed", user_id, {"new_plan": plan_data.plan})
+        except Exception as audit_exc:
+            logging.error("Failed to write plan change audit log: %s", audit_exc)
+
+        return {"message": f"Plan changed to {plan_data.plan}", "new_end_date": new_end.isoformat()}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logging.error("Admin change plan failed: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Failed to change plan: {exc}") from exc
 
 
 @app.post("/api/admin/subscriptions/{user_id}/activate")
