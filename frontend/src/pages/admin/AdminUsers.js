@@ -37,9 +37,12 @@ const AdminUsers = () => {
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [emailData, setEmailData] = useState({ subject: '', message: '' });
   const [actionLoading, setActionLoading] = useState(false);
+  const [extendLoading, setExtendLoading] = useState(false);
+  const [reduceLoading, setReduceLoading] = useState(false);
+  const [changePlanLoading, setChangePlanLoading] = useState(false);
   const [pagination, setPagination] = useState({ skip: 0, limit: 50, total: 0 });
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
-  const [subscriptionData, setSubscriptionData] = useState({ days: 30, plan: 'monthly' });
+  const [subscriptionData, setSubscriptionData] = useState({ days: 30, reduceDays: 30, plan: 'monthly' });
 
   useEffect(() => {
     fetchUsers();
@@ -170,7 +173,7 @@ const AdminUsers = () => {
       return;
     }
     
-    setActionLoading(true);
+    setExtendLoading(true);
     try {
       await adminApi.patch(`/subscriptions/${selectedUser.id}/extend`, {
         days: subscriptionData.days,
@@ -181,7 +184,7 @@ const AdminUsers = () => {
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to extend subscription');
     } finally {
-      setActionLoading(false);
+      setExtendLoading(false);
     }
   };
 
@@ -191,7 +194,7 @@ const AdminUsers = () => {
       return;
     }
 
-    setActionLoading(true);
+    setReduceLoading(true);
     try {
       await adminApi.patch(`/subscriptions/${selectedUser.id}/reduce`, {
         days: subscriptionData.reduceDays,
@@ -202,7 +205,7 @@ const AdminUsers = () => {
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to reduce subscription');
     } finally {
-      setActionLoading(false);
+      setReduceLoading(false);
     }
   };
 
@@ -212,7 +215,7 @@ const AdminUsers = () => {
       return;
     }
     
-    setActionLoading(true);
+    setChangePlanLoading(true);
     try {
       await adminApi.patch(`/subscriptions/${selectedUser.id}/change-plan`, {
         plan: subscriptionData.plan,
@@ -223,7 +226,7 @@ const AdminUsers = () => {
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to change plan');
     } finally {
-      setActionLoading(false);
+      setChangePlanLoading(false);
     }
   };
   const exportData = async () => {
@@ -662,10 +665,10 @@ const AdminUsers = () => {
                 />
                 <Button 
                   onClick={handleExtendSubscription}
-                  disabled={actionLoading}
+                  disabled={extendLoading}
                   className="bg-violet-600 hover:bg-violet-700"
                 >
-                  {actionLoading ? 'Extending...' : 'Extend'}
+                  {extendLoading ? 'Extending...' : 'Extend'}
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
@@ -691,10 +694,10 @@ const AdminUsers = () => {
                 />
                 <Button
                   onClick={handleReduceSubscription}
-                  disabled={actionLoading}
+                  disabled={reduceLoading}
                   className="bg-red-600 hover:bg-red-700"
                 >
-                  {actionLoading ? 'Reducing...' : 'Reduce'}
+                  {reduceLoading ? 'Reducing...' : 'Reduce'}
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
@@ -721,10 +724,10 @@ const AdminUsers = () => {
                 </Select>
                 <Button
                   onClick={handleChangePlan}
-                  disabled={actionLoading}
+                  disabled={changePlanLoading}
                   className="bg-violet-600 hover:bg-violet-700"
                 >
-                  {actionLoading ? 'Changing...' : 'Change'}
+                  {changePlanLoading ? 'Changing...' : 'Change'}
                 </Button>
               </div>
             </div>
