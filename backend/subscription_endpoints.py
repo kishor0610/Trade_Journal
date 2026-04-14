@@ -1,4 +1,5 @@
 # CRITICAL: Install Razorpay Python SDK first
+# Deployment trigger: minor change for commit (2026-04-14)
 # [FORCE PUSH TEST] - Copilot added this comment to trigger a backend commit.
 # pip install razorpay
 
