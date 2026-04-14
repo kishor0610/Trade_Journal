@@ -1,42 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Switch } from '../components/ui/switch';
-// TTS audio playback hook
-function useInsightTTS(insightText, enabled, playKey) {
+// TTS audio playback hook - plays base64 audio from AI insights response
+function useInsightTTS(audioBase64, enabled, playKey) {
   const audioRef = useRef(null);
   useEffect(() => {
-    if (!enabled || !insightText) return;
-    let audio;
+    if (!enabled || !audioBase64) return;
     let revoked = false;
-    const fetchAudio = async () => {
-      try {
-        const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/ai/insights/tts`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            text: insightText,
-            voice_id: 'Eve',
-            output_format: { codec: 'mp3', sample_rate: 44100, bit_rate: 128000 },
-            language: 'en',
-          })
-        });
-        if (!res.ok) return;
-        const blob = await res.blob();
-        if (revoked) return;
-        const url = URL.createObjectURL(blob);
-        audio = new Audio(url);
-        audioRef.current = audio;
-        audio.play();
-        audio.onended = () => {
-          URL.revokeObjectURL(url);
-        };
-      } catch (e) {
-        // ignore
+    try {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
       }
-    };
-    fetchAudio();
+      const audio = new Audio(`data:audio/mp3;base64,${audioBase64}`);
+      if (revoked) return;
+      audioRef.current = audio;
+      audio.play().catch(() => {});
+    } catch (e) {
+      // ignore playback errors
+    }
     return () => {
       revoked = true;
       if (audioRef.current) {
@@ -44,7 +25,7 @@ function useInsightTTS(insightText, enabled, playKey) {
         audioRef.current = null;
       }
     };
-  }, [insightText, enabled, playKey]);
+  }, [audioBase64, enabled, playKey]);
   return audioRef;
 }
 import { motion, AnimatePresence } from 'framer-motion';
@@ -389,8 +370,8 @@ function AIInsights() {
   const [loading, setLoading] = useState(false);
   const [userCurrency, setUserCurrency] = useState('USD');
   const [playKey, setPlayKey] = useState(0);
-  // Play TTS when enabled and new insight arrives
-  useInsightTTS(insight?.insight, speechEnabled && !!insight?.insight, playKey);
+  // Play TTS when enabled and new insight arrives (audio from backend response)
+  useInsightTTS(insight?.audio, speechEnabled && !!insight?.audio, playKey);
 
   // Fetch user's currency from their MT5 account
   useEffect(() => {
@@ -602,7 +583,7 @@ function AIInsights() {
               </div>
               <div>
                 <h3 className="text-lg font-heading font-bold text-white">AI Analysis</h3>
-                <p className="text-xs text-gray-500">Powered by Groq · llama-3.3</p>
+                <p className="text-xs text-gray-500">Powered by Groq · Hinglish Analysis</p>
               </div>
             </div>
             <div className="prose prose-invert max-w-none">

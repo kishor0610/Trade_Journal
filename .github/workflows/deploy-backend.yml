@@ -32,6 +32,7 @@ jobs:
           RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID || secrets.KEY_ID }}
           RAZORPAY_KEY_SECRET: ${{ secrets.RAZORPAY_KEY_SECRET || secrets.KEY_SECRET }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
           MONGO_URL: ${{ secrets.MONGO_URL }}
           DB_NAME: ${{ secrets.DB_NAME }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
@@ -42,6 +43,12 @@ jobs:
             ENV_VARS="${ENV_VARS},GROQ_API_KEY=${GROQ_API_KEY}"
           else
             echo "Warning: GROQ_API_KEY secret is missing. AI Insights will be disabled."
+          fi
+
+          if [ -n "${XAI_API_KEY}" ]; then
+            ENV_VARS="${ENV_VARS},XAI_API_KEY=${XAI_API_KEY}"
+          else
+            echo "Warning: XAI_API_KEY secret is missing. TTS will be disabled."
           fi
 
           if [ -n "${MONGO_URL}" ]; then

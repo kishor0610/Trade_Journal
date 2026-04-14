@@ -19,6 +19,9 @@ import asyncio
 import secrets
 import resend
 import httpx
+import base64
+import hashlib
+import time
 from collections import defaultdict
 from groq import Groq
 
@@ -61,6 +64,13 @@ if RESEND_API_KEY:
 GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')
 groq_client = None
 
+# Initialize xAI TTS
+XAI_API_KEY = os.environ.get('XAI_API_KEY', '')
+
+# AI Insights cache: hash(trade_data+question) -> {text, audio_base64, timestamp}
+ai_insights_cache = {}
+AI_CACHE_TTL = 300  # 5 minutes
+
 # News cache (in-memory)
 news_cache = {
     'data': None,
@@ -81,6 +91,47 @@ quotes_cache = {
 QUOTES_CACHE_TTL = 5  # 5 seconds (market data needs frequent updates)
 if GROQ_API_KEY:
     groq_client = Groq(api_key=GROQ_API_KEY)
+
+async def generate_tts(text):
+    """Convert text to speech using xAI TTS API. Returns mp3 bytes or None."""
+    if not XAI_API_KEY:
+        logging.warning("XAI_API_KEY not configured, skipping TTS")
+        return None
+    tts_text = text[:2000] if len(text) > 2000 else text
+    url = "https://api.x.ai/v1/tts"
+    headers = {
+        "Authorization": f"Bearer {XAI_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "text": tts_text,
+        "voice_id": "Chloe",
+        "output_format": {
+            "codec": "mp3",
+            "sample_rate": 44100,
+            "bit_rate": 128000
+        },
+        "language": "en"
+    }
+    try:
+        tts_start = time.time()
+        async with httpx.AsyncClient(timeout=30) as client_http:
+            res = await client_http.post(url, headers=headers, json=payload)
+        tts_elapsed = time.time() - tts_start
+        logging.info(f"TTS latency: {tts_elapsed:.2f}s")
+        if res.status_code != 200:
+            logging.error(f"TTS error {res.status_code}: {res.text[:200]}")
+            # Retry once
+            async with httpx.AsyncClient(timeout=30) as client_http:
+                res = await client_http.post(url, headers=headers, json=payload)
+            if res.status_code != 200:
+                logging.error(f"TTS retry failed {res.status_code}")
+                return None
+        return res.content
+    except Exception as e:
+        logging.error(f"TTS exception: {str(e)}")
+        return None
+
 
 # Create the main app
 app = FastAPI(title="TradeLedger API", version="2.1.0")
@@ -2232,8 +2283,15 @@ async def get_ai_insights(request: AIInsightRequest, current_user: dict = Depend
             reverse=True
         )
         
-        # Build prompt for Groq
+        # Build prompt for Groq (Hinglish output)
         user_question = request.question or "Analyze my trading performance and provide insights on how I can improve."
+        
+        # Cache key based on summary data + question
+        cache_key = hashlib.md5(f"{total_trades}:{total_pnl:.2f}:{win_rate:.1f}:{user_question}".encode()).hexdigest()
+        cached = ai_insights_cache.get(cache_key)
+        if cached and (time.time() - cached['timestamp']) < AI_CACHE_TTL:
+            logging.info("AI insights cache hit")
+            return cached['response']
         
         summary_text = f"""
 Trading Performance Summary:
@@ -2256,6 +2314,7 @@ User question: {user_question}
 """
         
         # Call Groq API
+        groq_start = time.time()
         message = groq_client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             max_tokens=4096,
@@ -2263,14 +2322,18 @@ User question: {user_question}
             messages=[
                 {
                     "role": "system",
-                    "content": """You are an expert trading coach and performance analyst. Rules:
+                    "content": """You are an expert trading coach and performance analyst. You MUST respond in Hinglish (Hindi + English mix), like a trader casually explaining to a friend. Keep it natural, not robotic translation. Use trading terms in English but explain in Hinglish.
+
+Rules:
 1. ALWAYS answer the user's EXACT question — do NOT give a generic overview unless asked for one.
 2. Use the real trading data provided. Reference specific numbers, instruments, and percentages.
 3. Never give short or vague answers. Minimum 4 detailed paragraphs.
 4. Use **bold** for key values and section headings.
 5. If the user asks about a specific topic (e.g. risk management, mistakes, instruments), focus 80% of your answer on that topic.
 6. Include actionable, specific recommendations based on the data.
-7. If the user sends a casual message like 'hi' or 'hello', respond naturally but still share one interesting insight from their data."""
+7. If the user sends a casual message like 'hi' or 'hello', respond naturally but still share one interesting insight from their data.
+8. IMPORTANT: Write the ENTIRE response in Hinglish. Mix Hindi and English naturally. Example: "Bhai tera win rate **67.5%** hai jo decent hai, lekin tera risk-reward ratio improve karna padega."
+9. Keep instrument names, numbers, and trading terms (stop-loss, take-profit, risk-reward etc.) in English."""
                 },
                 {
                     "role": "user",
@@ -2285,6 +2348,17 @@ Answer this question thoroughly: {user_question}"""
         )
         
         insight_text = message.choices[0].message.content
+        groq_elapsed = time.time() - groq_start
+        logging.info(f"Groq latency: {groq_elapsed:.2f}s")
+        
+        # Generate TTS audio from Hinglish text
+        audio_base64 = None
+        try:
+            audio_bytes = await generate_tts(insight_text)
+            if audio_bytes:
+                audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
+        except Exception as tts_err:
+            logging.error(f"TTS generation failed (non-blocking): {str(tts_err)}")
         
         # Build chart data for frontend visualization
         instrument_chart = [
@@ -2324,8 +2398,9 @@ Answer this question thoroughly: {user_question}"""
                 ai_currency = t['currency']
                 break
         
-        return {
+        response_data = {
             "insight": insight_text,
+            "audio": audio_base64,
             "summary": {
                 "total_trades": total_trades,
                 "total_pnl": round(total_pnl, 2),
@@ -2354,7 +2429,12 @@ Answer this question thoroughly: {user_question}"""
             },
             "source": "groq"
         }
-        
+        # Cache the response
+        ai_insights_cache[cache_key] = {'response': response_data, 'timestamp': time.time()}
+        if len(ai_insights_cache) > 50:
+            oldest_key = min(ai_insights_cache, key=lambda k: ai_insights_cache[k]['timestamp'])
+            del ai_insights_cache[oldest_key]
+        return response_data
     except Exception as e:
         logging.error(f"AI insights error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to generate insights: {str(e)}")
