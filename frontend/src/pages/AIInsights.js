@@ -1,4 +1,46 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+// TTS audio playback hook
+function useInsightTTS(insightText, enabled) {
+  const audioRef = useRef(null);
+  useEffect(() => {
+    if (!enabled || !insightText) return;
+    let audio;
+    let revoked = false;
+    const fetchAudio = async () => {
+      try {
+        const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/ai/insights/tts`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ text: insightText })
+        });
+        if (!res.ok) return;
+        const blob = await res.blob();
+        if (revoked) return;
+        const url = URL.createObjectURL(blob);
+        audio = new Audio(url);
+        audioRef.current = audio;
+        audio.play();
+        audio.onended = () => {
+          URL.revokeObjectURL(url);
+        };
+      } catch (e) {
+        // ignore
+      }
+    };
+    fetchAudio();
+    return () => {
+      revoked = true;
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, [insightText, enabled]);
+  return audioRef;
+}
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import withSubscriptionLock from '../hoc/withSubscriptionLock';
@@ -335,10 +377,13 @@ const SuggestedQuestion = ({ question, onClick, index }) => (
 );
 
 function AIInsights() {
+  const [speechEnabled, setSpeechEnabled] = useState(false);
   const [question, setQuestion] = useState('');
   const [insight, setInsight] = useState(null);
   const [loading, setLoading] = useState(false);
   const [userCurrency, setUserCurrency] = useState('USD');
+  // Play TTS when enabled and new insight arrives
+  useInsightTTS(insight?.insight, speechEnabled && !!insight?.insight);
 
   // Fetch user's currency from their MT5 account
   useEffect(() => {
@@ -415,6 +460,18 @@ function AIInsights() {
         <p className="text-muted-foreground mt-1">Get AI-powered analysis of your trading performance</p>
       </div>
 
+      {/* Speech Toggle */}
+      <div className="flex items-center gap-3 mb-2">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={speechEnabled}
+            onChange={e => setSpeechEnabled(e.target.checked)}
+            className="accent-accent w-4 h-4"
+          />
+          <span className="text-sm text-gray-300">Speak Insights</span>
+        </label>
+      </div>
       {/* Input Section */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
