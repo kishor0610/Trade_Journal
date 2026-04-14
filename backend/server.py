@@ -313,6 +313,47 @@ async def get_admin_user(credentials: HTTPAuthorizationCredentials = Depends(sec
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
+# ============ SUBSCRIPTION / TRIAL HELPERS ============
+
+TRIAL_DURATION_DAYS = 14
+
+async def check_subscription_status(user: dict) -> bool:
+    """Check if user has active or trial subscription"""
+    status = user.get('subscription_status')
+    if status in ('active', 'trial'):
+        end_date = user.get('subscription_end_date')
+        if end_date:
+            if isinstance(end_date, str):
+                end_date = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+            if end_date > datetime.now(timezone.utc):
+                return True
+    return False
+
+async def assign_trial(user_id: str):
+    """Assign free trial to new user"""
+    trial_end = datetime.now(timezone.utc) + timedelta(days=TRIAL_DURATION_DAYS)
+    await db.users.update_one(
+        {"id": user_id},
+        {"$set": {
+            "subscription_status": "trial",
+            "subscription_plan": None,
+            "subscription_start_date": datetime.now(timezone.utc).isoformat(),
+            "subscription_end_date": trial_end.isoformat(),
+            "role": "user",
+            "status": "active"
+        }}
+    )
+
+async def require_active_subscription(user: dict = Depends(get_current_user)):
+    """Require active subscription to access feature"""
+    is_active = await check_subscription_status(user)
+    if not is_active:
+        raise HTTPException(
+            status_code=403,
+            detail="Active subscription required to access this feature"
+        )
+    return user
+
 # ============ PNL CALCULATION ============
 
 # Contract size multipliers for different instruments
@@ -529,6 +570,8 @@ async def register(user_data: UserRegister):
     }
     
     await db.users.insert_one(user_doc)
+    # Assign 14-day trial on registration
+    await assign_trial(user_id)
     token = create_access_token(user_id, user_data.email)
     
     return TokenResponse(
