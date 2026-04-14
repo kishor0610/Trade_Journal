@@ -15,6 +15,7 @@ import Analytics from './pages/Analytics';
 import AIInsights from './pages/AIInsights';
 import Accounts from './pages/Accounts';
 import Subscription from './pages/Subscription';
+import Referral from './pages/Referral';
 import Leaderboard from './pages/Leaderboard';
 import RiskCalculator from './pages/RiskCalculator';
 import ForexCalendar from './pages/ForexCalendar';
@@ -117,6 +118,11 @@ function AppRoutes() {
       <Route path="/subscription" element={
         <ProtectedRoute>
           <Subscription />
+        </ProtectedRoute>
+      } />
+      <Route path="/referral" element={
+        <ProtectedRoute>
+          <Referral />
         </ProtectedRoute>
       } />
       <Route path="/analytics" element={

@@ -14,7 +14,8 @@ import {
   Calculator,
   Calendar,
   Trophy,
-  CreditCard
+  CreditCard,
+  Gift
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '../components/ui/dropdown-menu';
 import { Toaster } from '../components/ui/sonner';
@@ -27,6 +28,7 @@ const navItems = [
   { path: '/analytics', icon: BarChart3, label: 'Analytics' },
   { path: '/insights', icon: Sparkles, label: 'AI Insights' },
   { path: '/subscription', icon: CreditCard, label: 'Subscription' },
+  { path: '/referral', icon: Gift, label: 'Refer & Earn' },
 ];
 
 const toolsItems = [

@@ -1,15 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { TrendingUp, Mail, Lock, User, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { TrendingUp, Mail, Lock, User, ArrowRight, Eye, EyeOff, Gift } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function Register() {
   const canvasRef = useRef(null);
+  const [searchParams] = useSearchParams();
+  const referralCode = searchParams.get('ref');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -134,8 +136,12 @@ export default function Register() {
     setLoading(true);
     
     try {
-      await register(email, password, name);
-      toast.success('Account created successfully!');
+      await register(email, password, name, referralCode);
+      if (referralCode) {
+        toast.success('Account created successfully! Welcome to TradeLedger via referral 🎉');
+      } else {
+        toast.success('Account created successfully!');
+      }
       navigate('/dashboard');
     } catch (error) {
       const detail = error.response?.data?.detail || '';
@@ -177,6 +183,16 @@ export default function Register() {
 
           <h1 className="mb-2 text-4xl font-heading font-black">Create account</h1>
           <p className="mb-8 text-[#9ec7cc]">Start your trading journal journey</p>
+
+          {referralCode && (
+            <div className="mb-6 p-4 rounded-lg border border-purple-500/30 bg-purple-500/10 flex items-center gap-3">
+              <Gift className="w-5 h-5 text-purple-400" />
+              <div>
+                <p className="text-sm font-semibold text-purple-300">Referred by a friend!</p>
+                <p className="text-xs text-purple-400/80">Get +15 days bonus when you subscribe</p>
+              </div>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">

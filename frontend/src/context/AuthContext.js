@@ -44,8 +44,12 @@ export function AuthProvider({ children }) {
     return userData;
   };
 
-  const register = async (email, password, name) => {
-    const response = await axios.post(`${API_URL}/auth/register`, { email, password, name });
+  const register = async (email, password, name, referral_code = null) => {
+    const payload = { email, password, name };
+    if (referral_code) {
+      payload.referral_code = referral_code;
+    }
+    const response = await axios.post(`${API_URL}/auth/register`, payload);
     const { access_token, user: userData } = response.data;
     
     localStorage.setItem('token', access_token);
