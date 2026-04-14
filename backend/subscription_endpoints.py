@@ -4,13 +4,13 @@
 # pip install razorpay
 
 # Add to requirements.txt:
-razorpay==1.4.2
+# razorpay==1.4.2
 
 # These are the NEW API endpoints to add to server.py:
 
 # ============ SUBSCRIPTION HELPER FUNCTIONS ============
 
-TRIAL_DURATION_DAYS = 7  # Default trial duration in days
+TRIAL_DURATION_DAYS = 14  # Default trial duration in days
 
 async def check_subscription_status(user: dict) -> bool:
     """Check if user has active subscription"""
@@ -459,7 +459,7 @@ async def refund_payment(payment_id: str, refund_data: RefundRequest, admin: dic
 # Modify the existing @api_router.post("/auth/register") endpoint
 # Add this after creating the user:
 
-await assign_trial(user_id)
+# await assign_trial(user_id)  # Moved to server.py inline
 
 # ============ AUTO-EXPIRY CRON JOB ============
 
