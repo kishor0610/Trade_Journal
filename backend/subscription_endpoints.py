@@ -10,6 +10,8 @@ razorpay==1.4.2
 
 # ============ SUBSCRIPTION HELPER FUNCTIONS ============
 
+TRIAL_DURATION_DAYS = 7  # Default trial duration in days
+
 async def check_subscription_status(user: dict) -> bool:
     """Check if user has active subscription"""
     if user.get('subscription_status') == 'active':
