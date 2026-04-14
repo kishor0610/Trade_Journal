@@ -16,10 +16,9 @@ class ReferralCodeResponse(BaseModel):
 
 class ReferralStatsResponse(BaseModel):
     total_signups: int
-    total_paid: int
+    successful_referrals: int  # Changed from total_paid
     total_xp_earned: int
-    current_xp_balance: int
-    referred_users: list
+    referrals: list  # Changed from referred_users
 
 class XPRedemptionRequest(BaseModel):
     xp_amount: int
@@ -37,7 +36,7 @@ def create_referral_endpoints(api_router, referral_service, get_current_user, FR
     async def get_referral_code(current_user: dict = Depends(get_current_user)):
         """Get or create user's referral code"""
         try:
-            user_id = current_user['sub']
+            user_id = current_user['id']  # Changed from 'sub' to 'id'
             code = await referral_service.create_or_get_referral_code(user_id)
             link = f"{FRONTEND_URL}/register?ref={code}"
             
@@ -49,41 +48,52 @@ def create_referral_endpoints(api_router, referral_service, get_current_user, FR
             logging.error(f"Failed to get referral code: {str(e)}")
             raise HTTPException(status_code=500, detail="Failed to generate referral code")
     
-    @api_router.get("/referral/stats", response_model=ReferralStatsResponse)
+    @api_router.get("/referral/stats")
     async def get_referral_stats(current_user: dict = Depends(get_current_user)):
         """Get user's referral statistics"""
         try:
-            user_id = current_user['sub']
+            user_id = current_user['id']
             stats = await referral_service.get_referral_stats(user_id)
-            xp_balance = await referral_service.get_user_xp_balance(user_id)
+            
+            # Transform the response to match frontend expectations
+            referrals = []
+            for user in stats.get('referred_users', []):
+                referrals.append({
+                    "referred_user_email": user.get('email', 'N/A'),
+                    "status": user.get('status', 'signed_up'),
+                    "referred_at": user.get('signup_date'),
+                    "xp_earned": user.get('xp_earned', 0)
+                })
             
             return {
-                **stats,
-                "current_xp_balance": xp_balance
+                "total_signups": stats.get('total_signups', 0),
+                "successful_referrals": stats.get('total_paid', 0),
+                "total_xp_earned": stats.get('total_xp_earned', 0),
+                "referrals": referrals
             }
         except Exception as e:
             logging.error(f"Failed to get referral stats: {str(e)}")
-            raise HTTPException(status_code=500, detail="Failed to fetch referral statistics")
+            raise HTTPException(status_code=500, detail=str(e))
     
-    @api_router.get("/wallet/balance")
+    @api_router.get("/referral/wallet/balance")
     async def get_xp_balance(current_user: dict = Depends(get_current_user)):
         """Get user's current XP balance"""
         try:
-            user_id = current_user['sub']
+            user_id = current_user['id']  # Changed from 'sub' to 'id'
             balance = await referral_service.get_user_xp_balance(user_id)
             return {"xp_balance": balance, "xp_value_inr": balance}  # 1 XP = ₹1
         except Exception as e:
             logging.error(f"Failed to get XP balance: {str(e)}")
             raise HTTPException(status_code=500, detail="Failed to fetch balance")
     
-    @api_router.get("/wallet/transactions")
+    @api_router.get("/referral/wallet/transactions")
     async def get_xp_transactions(
         limit: int = 50,
         current_user: dict = Depends(get_current_user)
     ):
         """Get user's XP transaction history"""
         try:
-            user_id = current_user['sub']
+            user_id = current_user['id']  # Changed from 'sub' to 'id'
             transactions = await referral_service.get_xp_transactions(user_id, limit)
             return {"transactions": transactions}
         except Exception as e:
@@ -99,16 +109,28 @@ def create_admin_referral_endpoints(admin_router, referral_service, db, get_admi
     async def get_referrals_overview(admin: dict = Depends(get_admin_user)):
         """Get overview of all referrals"""
         try:
-            total_referrals = await db.referrals.count_documents({})
-            paid_referrals = await db.referrals.count_documents({"status": "paid"})
-            total_xp_distributed = paid_referrals * 100
+            # Count unique referrers (users with referral codes)
+            total_referrers = await db.users.count_documents({"referral_code": {"$exists": True}})
+            
+            # Count total signups via referrals
+            total_signups = await db.referrals.count_documents({})
+            
+            # Count successful conversions (paid referrals)
+            successful_conversions = await db.referrals.count_documents({"status": "paid"})
+            
+            # Calculate total XP distributed
+            pipeline = [
+                {"$match": {"type": "referral_reward"}},
+                {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
+            ]
+            xp_result = await db.xp_transactions.aggregate(pipeline).to_list(1)
+            total_xp_distributed = xp_result[0]['total'] if xp_result else 0
             
             return {
-                "total_referrals": total_referrals,
-                "paid_referrals": paid_referrals,
-                "signup_only": total_referrals - paid_referrals,
-                "total_xp_distributed": total_xp_distributed,
-                "total_value_inr": total_xp_distributed
+                "total_referrers": total_referrers,
+                "total_signups": total_signups,
+                "successful_conversions": successful_conversions,
+                "total_xp_distributed": total_xp_distributed
             }
         except Exception as e:
             logging.error(f"Failed to get referrals overview: {str(e)}")
@@ -121,43 +143,33 @@ def create_admin_referral_endpoints(admin_router, referral_service, db, get_admi
         status: Optional[str] = None,
         admin: dict = Depends(get_admin_user)
     ):
-        """List all referrals with pagination"""
+        """List all referrers with their aggregated stats"""
         try:
-            query = {}
-            if status:
-                query['status'] = status
+            # Get all users who have referral codes
+            users = await db.users.find(
+                {"referral_code": {"$exists": True}},
+                {"id": 1, "email": 1, "referral_code": 1}
+            ).skip(skip).limit(limit).to_list(limit)
             
-            referrals = await db.referrals.find(query).skip(skip).limit(limit).to_list(limit)
-            
-            # Enrich with user data
             enriched = []
-            for ref in referrals:
-                referrer = await db.users.find_one(
-                    {"id": ref['referrer_id']},
-                    {"email": 1, "name": 1}
-                )
-                referred = await db.users.find_one(
-                    {"id": ref['referred_user_id']},
-                    {"email": 1, "name": 1, "subscription_status": 1}
-                )
+            for user in users:
+                user_id = user.get('id')
+                
+                # Get stats for this referrer
+                stats = await referral_service.get_referral_stats(user_id)
+                xp_balance = await referral_service.get_user_xp_balance(user_id)
                 
                 enriched.append({
-                    "id": ref['id'],
-                    "referrer": {
-                        "email": referrer.get('email') if referrer else 'N/A',
-                        "name": referrer.get('name') if referrer else 'Unknown'
-                    },
-                    "referred": {
-                        "email": referred.get('email') if referred else 'N/A',
-                        "name": referred.get('name') if referred else 'Unknown',
-                        "subscription_status": referred.get('subscription_status') if referred else 'N/A'
-                    },
-                    "status": ref['status'],
-                    "xp_given": ref.get('xp_given', False),
-                    "created_at": ref['created_at']
+                    "referrer_id": user_id,
+                    "referrer_email": user.get('email', 'Unknown'),
+                    "referral_code": user.get('referral_code', 'N/A'),
+                    "total_signups": stats.get('total_signups', 0),
+                    "successful_referrals": stats.get('total_paid', 0),
+                    "total_xp_earned": stats.get('total_xp_earned', 0),
+                    "xp_balance": xp_balance
                 })
             
-            total = await db.referrals.count_documents(query)
+            total = await db.users.count_documents({"referral_code": {"$exists": True}})
             
             return {
                 "referrals": enriched,
@@ -240,14 +252,54 @@ def create_admin_referral_endpoints(admin_router, referral_service, db, get_admi
             logging.error(f"Failed to get XP transactions: {str(e)}")
             raise HTTPException(status_code=500, detail="Failed to fetch transactions")
     
-    @admin_router.post("/wallet/credit/{user_id}")
+    @admin_router.post("/referrals/wallet/credit")
     async def admin_credit_xp(
+        request: dict,
+        admin: dict = Depends(get_admin_user)
+    ):
+        """Admin credits XP to user (manual reward)"""
+        try:
+            user_id = request.get('user_id')
+            amount = request.get('amount')
+            reason = request.get('reason', 'admin_credit')
+            
+            if not user_id or not amount:
+                raise HTTPException(status_code=400, detail="user_id and amount are required")
+            
+            if amount <= 0:
+                raise HTTPException(status_code=400, detail="Amount must be positive")
+            
+            user = await db.users.find_one({"id": user_id})
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+            
+            await referral_service.credit_xp(
+                user_id=user_id,
+                amount=amount,
+                reason=f"admin_credit: {reason}",
+                reference_id=admin.get('id', admin.get('sub'))
+            )
+            
+            new_balance = await referral_service.get_user_xp_balance(user_id)
+            
+            return {
+                "message": f"Credited {amount} XP to user",
+                "new_balance": new_balance
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            logging.error(f"Failed to credit XP: {str(e)}")
+            raise HTTPException(status_code=500, detail="Failed to credit XP")
+    
+    @admin_router.post("/wallet/credit/{user_id}")
+    async def admin_credit_xp_legacy(
         user_id: str,
         amount: int,
         reason: Optional[str] = "admin_credit",
         admin: dict = Depends(get_admin_user)
     ):
-        """Admin credits XP to user (manual reward)"""
+        """Admin credits XP to user (manual reward) - legacy endpoint"""
         try:
             if amount <= 0:
                 raise HTTPException(status_code=400, detail="Amount must be positive")
@@ -260,7 +312,7 @@ def create_admin_referral_endpoints(admin_router, referral_service, db, get_admi
                 user_id=user_id,
                 amount=amount,
                 reason=f"admin_credit: {reason}",
-                reference_id=admin.get('sub')
+                reference_id=admin.get('id', admin.get('sub'))
             )
             
             new_balance = await referral_service.get_user_xp_balance(user_id)
