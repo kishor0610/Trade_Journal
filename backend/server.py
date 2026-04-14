@@ -272,6 +272,12 @@ class CandleResponse(BaseModel):
 class AIInsightRequest(BaseModel):
     question: Optional[str] = None
 
+class TTSRequest(BaseModel):
+    text: str
+    voice_id: Optional[str] = "Fritz-PlayAI"
+    output_format: Optional[Dict[str, Any]] = None
+    language: Optional[str] = "en"
+
 
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
@@ -2220,14 +2226,15 @@ User question: {user_question}
             messages=[
                 {
                     "role": "system",
-                    "content": """You are an expert trading coach and performance analyst. Rules:
-1. ALWAYS answer the user's EXACT question — do NOT give a generic overview unless asked for one.
-2. Use the real trading data provided. Reference specific numbers, instruments, and percentages.
-3. Never give short or vague answers. Minimum 4 detailed paragraphs.
-4. Use **bold** for key values and section headings.
-5. If the user asks about a specific topic (e.g. risk management, mistakes, instruments), focus 80% of your answer on that topic.
-6. Include actionable, specific recommendations based on the data.
-7. If the user sends a casual message like 'hi' or 'hello', respond naturally but still share one interesting insight from their data."""
+                    "content": """You are an expert trading coach and performance analyst. You MUST respond in Hinglish (a natural mix of Hindi and English, written in Roman script — e.g. "Bhai, aapki win rate 65% hai jo kaafi acchi hai!"). Rules:
+1. ALWAYS respond in Hinglish (Hindi + English mix in Roman script). Never use pure English or pure Hindi.
+2. ALWAYS answer the user's EXACT question — do NOT give a generic overview unless asked for one.
+3. Use the real trading data provided. Reference specific numbers, instruments, and percentages.
+4. Never give short or vague answers. Minimum 4 detailed paragraphs.
+5. Use **bold** for key values and section headings.
+6. If the user asks about a specific topic (e.g. risk management, mistakes, instruments), focus 80% of your answer on that topic.
+7. Include actionable, specific recommendations based on the data.
+8. If the user sends a casual message like 'hi' or 'hello', respond naturally in Hinglish but still share one interesting insight from their data."""
                 },
                 {
                     "role": "user",
@@ -2315,6 +2322,106 @@ Answer this question thoroughly: {user_question}"""
     except Exception as e:
         logging.error(f"AI insights error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to generate insights: {str(e)}")
+
+
+# Voice ID mapping from xAI/generic names to Groq PlayAI voices
+_VOICE_MAP = {
+    "Eve": "Nova-PlayAI",
+    "Adam": "Fritz-PlayAI",
+    "Rachel": "Celeste-PlayAI",
+    "Domi": "Sienna-PlayAI",
+    "Bella": "Stella-PlayAI",
+    "Elli": "Eleanor-PlayAI",
+    "Josh": "James-PlayAI",
+    "Arnold": "Atlas-PlayAI",
+    "Antoni": "Angelo-PlayAI",
+    "Sam": "Sage-PlayAI",
+}
+
+
+@api_router.post("/ai/insights/tts")
+async def get_ai_insights_tts(request: TTSRequest, current_user: dict = Depends(get_current_user)):
+    """Convert insight text to speech using Groq PlayAI TTS."""
+    if not groq_client:
+        raise HTTPException(status_code=503, detail="AI service (Groq) is not configured")
+
+    if not request.text or not request.text.strip():
+        raise HTTPException(status_code=400, detail="Text is required")
+
+    try:
+        # Map incoming voice ID to a Groq PlayAI voice name
+        groq_voice = _VOICE_MAP.get(request.voice_id or "Eve", "Fritz-PlayAI")
+
+        # Groq TTS supports up to ~4096 chars; truncate gracefully
+        tts_text = request.text[:4096]
+
+        response = groq_client.audio.speech.create(
+            model="playai-tts",
+            voice=groq_voice,
+            input=tts_text,
+            response_format="mp3",
+        )
+
+        audio_bytes = response.read()
+        return StreamingResponse(
+            io.BytesIO(audio_bytes),
+            media_type="audio/mpeg",
+            headers={"Content-Disposition": "inline; filename=insight.mp3"},
+        )
+
+    except Exception as e:
+        logging.error(f"TTS error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"TTS generation failed: {str(e)}")
+
+
+@api_router.get("/ai/insights/hinglish-debug")
+async def hinglish_debug():
+    """Return a sample Hinglish insight for frontend testing (no auth required)."""
+    sample_insight = (
+        "Bhai, aapki overall trading performance dekhi toh kuch interesting cheezein nazar aayi hain! "
+        "Aapka **win rate 65%** hai jo industry average se kaafi better hai — iska matlab hai ki aap "
+        "zyada trades sahi direction mein le rahe ho.\n\n"
+        "**Risk Management** ke baare mein baat karein toh, aapke average winning trade ka size "
+        "average losing trade se **1.8x bada** hai. Yeh ek achhi baat hai, lekin bhai aur improve "
+        "kar sakte ho. Ideal risk-reward ratio **1:2 ya usse zyaada** hona chahiye.\n\n"
+        "**XAU/USD** aapka sabse profitable instrument raha hai — wahan se aapne consistent returns "
+        "liye hain. Doosri taraf **EUR/USD** mein thoda struggle dikh raha hai. Shayad us pair ka "
+        "analysis aur deeply karo ya temporarily avoid karo jab tak confidence build na ho jaaye.\n\n"
+        "Meri recommendation hai ki aap apna **stop-loss discipline** aur tight karo aur position "
+        "sizing pe zyaada dhyan do. Ek consistent trading plan follow karo aur emotional decisions "
+        "se bachho — yahi sabse badi cheez hai jo aapko next level pe le jaayegi!"
+    )
+    return {
+        "insight": sample_insight,
+        "summary": {
+            "total_trades": 30,
+            "total_pnl": 1250.0,
+            "win_rate": 65.0,
+            "profit_factor": 1.8,
+            "expectancy": 41.67,
+            "avg_win": 95.0,
+            "avg_loss": 52.5,
+            "winning_trades": 20,
+            "losing_trades": 10,
+            "gross_profit": 1900.0,
+            "gross_loss": 525.0,
+            "currency": "USD",
+        },
+        "charts": {
+            "instruments": [
+                {"name": "XAU/USD", "pnl": 850.0, "trades": 15, "wins": 11, "winRate": 73.3},
+                {"name": "EUR/USD", "pnl": 400.0, "trades": 10, "wins": 6, "winRate": 60.0},
+                {"name": "NAS100", "pnl": 0.0, "trades": 5, "wins": 3, "winRate": 60.0},
+            ],
+            "direction": {
+                "long": {"total": 18, "wins": 13, "pnl": 820.0},
+                "short": {"total": 12, "wins": 7, "pnl": 430.0},
+            },
+            "best_trade": {"pnl": 320.0, "instrument": "XAU/USD"},
+            "worst_trade": {"pnl": -110.0, "instrument": "EUR/USD"},
+        },
+        "source": "debug",
+    }
 
 
 # ============ IMPORT ROUTES ============
