@@ -39,11 +39,23 @@ async def test_rest_tts():
             },
             {
                 "text": test_text,
-                "voice": "shimmer"
+                "voice": "shimmer",
+                "language": "en"
             },
             {
                 "text": test_text,
-                "voice_id": "shimmer"
+                "voice_id": "Chloe",
+                "language": "en"
+            },
+            {
+                "text": test_text,
+                "voice_id": "Chloe",
+                "language": "en",
+                "output_format": {
+                    "codec": "mp3",
+                    "sample_rate": 44100,
+                    "bit_rate": 128000
+                }
             }
         ]
         
