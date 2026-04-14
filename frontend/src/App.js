@@ -29,6 +29,7 @@ import AdminTickets from './pages/admin/AdminTickets';
 import AdminLogs from './pages/admin/AdminLogs';
 import AdminPayments from './pages/admin/AdminPayments';
 import AdminSettings from './pages/admin/AdminSettings';
+import AdminReferrals from './pages/admin/AdminReferrals';
 import './App.css';
 
 // Protected Route wrapper
@@ -96,6 +97,7 @@ function AppRoutes() {
         <Route path="tickets" element={<AdminTickets />} />
         <Route path="logs" element={<AdminLogs />} />
         <Route path="payments" element={<AdminPayments />} />
+        <Route path="referrals" element={<AdminReferrals />} />
         <Route path="settings" element={<AdminSettings />} />
       </Route>
       

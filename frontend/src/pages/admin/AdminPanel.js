@@ -3,7 +3,7 @@ import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, Server, Database, LifeBuoy, 
   Activity, DollarSign, Settings, LogOut, Menu, X,
-  Bell, Search, ChevronDown
+  Bell, Search, ChevronDown, Gift
 } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { toast } from 'sonner';
@@ -46,6 +46,7 @@ const AdminPanel = () => {
     { path: '/admin/tickets', icon: LifeBuoy, label: 'Support Tickets', badge: 0 },
     { path: '/admin/logs', icon: Activity, label: 'Logs & Monitoring' },
     { path: '/admin/payments', icon: DollarSign, label: 'Payments' },
+    { path: '/admin/referrals', icon: Gift, label: 'Referrals & XP' },
     { path: '/admin/settings', icon: Settings, label: 'Settings' },
   ];
 
