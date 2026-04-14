@@ -4,19 +4,27 @@ import { Switch } from '../components/ui/switch';
 function useInsightTTS(audioBase64, enabled, playKey) {
   const audioRef = useRef(null);
   useEffect(() => {
-    if (!enabled || !audioBase64) return;
+    if (!enabled || !audioBase64) {
+      if (enabled && !audioBase64) {
+        console.warn('TTS enabled but no audio data received from backend');
+      }
+      return;
+    }
     let revoked = false;
     try {
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current = null;
       }
+      console.log('Playing TTS audio, length:', audioBase64.length);
       const audio = new Audio(`data:audio/mp3;base64,${audioBase64}`);
       if (revoked) return;
       audioRef.current = audio;
-      audio.play().catch(() => {});
+      audio.play().catch((err) => {
+        console.error('Audio playback failed:', err);
+      });
     } catch (e) {
-      // ignore playback errors
+      console.error('TTS playback error:', e);
     }
     return () => {
       revoked = true;
@@ -419,6 +427,12 @@ function AIInsights() {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
+      console.log('AI Insights response:', response.data);
+      if (response.data.audio) {
+        console.log('Audio data received, length:', response.data.audio.length);
+      } else {
+        console.warn('No audio data in response - TTS may have failed on backend');
+      }
       setInsight(response.data);
       setPlayKey(k => k + 1); // force TTS to play every time
       toast.success('Insights generated successfully');
