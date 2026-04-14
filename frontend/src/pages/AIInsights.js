@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Switch } from '../components/ui/switch';
 // TTS audio playback hook
-function useInsightTTS(insightText, enabled) {
+function useInsightTTS(insightText, enabled, playKey) {
   const audioRef = useRef(null);
   useEffect(() => {
     if (!enabled || !insightText) return;
@@ -44,7 +44,7 @@ function useInsightTTS(insightText, enabled) {
         audioRef.current = null;
       }
     };
-  }, [insightText, enabled]);
+  }, [insightText, enabled, playKey]);
   return audioRef;
 }
 import { motion, AnimatePresence } from 'framer-motion';
@@ -388,8 +388,9 @@ function AIInsights() {
   const [insight, setInsight] = useState(null);
   const [loading, setLoading] = useState(false);
   const [userCurrency, setUserCurrency] = useState('USD');
+  const [playKey, setPlayKey] = useState(0);
   // Play TTS when enabled and new insight arrives
-  useInsightTTS(insight?.insight, speechEnabled && !!insight?.insight);
+  useInsightTTS(insight?.insight, speechEnabled && !!insight?.insight, playKey);
 
   // Fetch user's currency from their MT5 account
   useEffect(() => {
@@ -438,6 +439,7 @@ function AIInsights() {
         }
       });
       setInsight(response.data);
+      setPlayKey(k => k + 1); // force TTS to play every time
       toast.success('Insights generated successfully');
     } catch (error) {
       if (error.response?.status === 503) {
