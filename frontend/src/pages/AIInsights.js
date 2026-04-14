@@ -486,7 +486,7 @@ function AIInsights() {
           <span className="text-sm text-gray-300 mr-2">Speak Insights</span>
           <Switch checked={speechEnabled} onCheckedChange={setSpeechEnabled} />
         </label>
-        <Button size="sm" variant="outline" onClick={playHinglishDebug} style={{marginLeft: 12}}>Debug Hinglish TTS</Button>
+        <Button size="sm" variant="outline" onClick={playHinglishDebug} className="ml-3">Debug Hinglish TTS</Button>
       </div>
       {/* Input Section */}
       <motion.div

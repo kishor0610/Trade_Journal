@@ -274,7 +274,7 @@ class AIInsightRequest(BaseModel):
 
 class TTSRequest(BaseModel):
     text: str
-    voice_id: Optional[str] = "Fritz-PlayAI"
+    voice_id: Optional[str] = "Eve"
     output_format: Optional[Dict[str, Any]] = None
     language: Optional[str] = "en"
 
