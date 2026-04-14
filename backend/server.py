@@ -112,7 +112,7 @@ async def generate_tts(text):
         }
         payload = {
             "text": tts_text,
-            "voice": "shimmer",
+            "voice": "SAL",
             "language": "en"
         }
         
