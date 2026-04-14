@@ -6,7 +6,7 @@ import { Button } from '../../components/ui/button';
 import { Users, TrendingUp, Award, DollarSign, Search, Filter, Download } from 'lucide-react';
 import { toast } from 'sonner';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
+const API_URL = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const AdminReferrals = () => {
   const [overview, setOverview] = useState(null);

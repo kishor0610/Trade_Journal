@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Copy, Check, Users, Award, TrendingUp, Gift } from 'lucide-react';
-import Layout from '../components/Layout';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Button } from '../components/ui/button';
+import { toast } from 'sonner';
+
+const API_URL = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const Referral = () => {
   const [referralData, setReferralData] = useState(null);
@@ -16,18 +20,24 @@ const Referral = () => {
     try {
       const token = localStorage.getItem('token');
       
+      if (!token) {
+        toast.error('Please login to view referral data');
+        setLoading(false);
+        return;
+      }
+
+      const headers = { 'Authorization': `Bearer ${token}` };
+      
       // Fetch referral code and stats
       const [codeRes, statsRes, balanceRes] = await Promise.all([
-        fetch(`${process.env.REACT_APP_API_URL}/api/referral/code`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }),
-        fetch(`${process.env.REACT_APP_API_URL}/api/referral/stats`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }),
-        fetch(`${process.env.REACT_APP_API_URL}/api/referral/wallet/balance`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
+        fetch(`${API_URL}/referral/code`, { headers }),
+        fetch(`${API_URL}/referral/stats`, { headers }),
+        fetch(`${API_URL}/referral/wallet/balance`, { headers })
       ]);
+
+      if (!codeRes.ok || !statsRes.ok || !balanceRes.ok) {
+        throw new Error('Failed to fetch referral data');
+      }
 
       const codeData = await codeRes.json();
       const statsData = await statsRes.json();
@@ -38,10 +48,11 @@ const Referral = () => {
         stats: statsData,
         referrals: statsData.referrals || []
       });
-      setXpBalance(balanceData.xp_balance);
+      setXpBalance(balanceData.xp_balance || 0);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching referral data:', error);
+      toast.error('Failed to load referral data');
       setLoading(false);
     }
   };
@@ -49,221 +60,236 @@ const Referral = () => {
   const copyReferralLink = () => {
     if (referralData?.code) {
       const link = `${window.location.origin}/register?ref=${referralData.code}`;
-      navigator.clipboard.writeText(link);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      navigator.clipboard.writeText(link).then(() => {
+        setCopied(true);
+        toast.success('Referral link copied to clipboard!');
+        setTimeout(() => setCopied(false), 2000);
+      }).catch(() => {
+        toast.error('Failed to copy link');
+      });
     }
   };
 
   if (loading) {
     return (
-      <Layout>
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
-        </div>
-      </Layout>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="w-8 h-8 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
+      </div>
     );
   }
 
   return (
-    <Layout>
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 p-6">
+    <div className="min-h-screen bg-background p-4 md:p-8">
+      <div className="max-w-7xl mx-auto space-y-8">
         {/* Header */}
-        <div className="max-w-6xl mx-auto mb-8">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent mb-2">
+        <div>
+          <h1 className="text-4xl md:text-5xl font-bold mb-2 bg-gradient-to-r from-accent via-purple-500 to-pink-500 bg-clip-text text-transparent">
             Refer & Earn
           </h1>
-          <p className="text-gray-600">
+          <p className="text-muted-foreground text-lg">
             Share your referral link and earn 100 XP for every successful subscription!
           </p>
         </div>
 
         {/* Stats Cards */}
-        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow border border-purple-100">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl">
-                <Award className="w-6 h-6 text-white" />
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card className="border-accent/20 bg-card/50 backdrop-blur">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-accent/20 rounded-xl">
+                  <Award className="w-6 h-6 text-accent" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">XP Balance</p>
+                  <p className="text-3xl font-bold">{xpBalance}</p>
+                </div>
               </div>
-            </div>
-            <h3 className="text-2xl font-bold text-gray-800">{xpBalance}</h3>
-            <p className="text-sm text-gray-500">XP Balance</p>
-          </div>
+            </CardContent>
+          </Card>
 
-          <div className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow border border-blue-100">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl">
-                <Users className="w-6 h-6 text-white" />
+          <Card className="border-blue-500/20 bg-card/50 backdrop-blur">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-blue-500/20 rounded-xl">
+                  <Users className="w-6 h-6 text-blue-400" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Total Sign-ups</p>
+                  <p className="text-3xl font-bold">{referralData?.stats?.total_signups || 0}</p>
+                </div>
               </div>
-            </div>
-            <h3 className="text-2xl font-bold text-gray-800">
-              {referralData?.stats?.total_signups || 0}
-            </h3>
-            <p className="text-sm text-gray-500">Total Sign-ups</p>
-          </div>
+            </CardContent>
+          </Card>
 
-          <div className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow border border-green-100">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-gradient-to-br from-green-500 to-green-600 rounded-xl">
-                <TrendingUp className="w-6 h-6 text-white" />
+          <Card className="border-green-500/20 bg-card/50 backdrop-blur">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-green-500/20 rounded-xl">
+                  <TrendingUp className="w-6 h-6 text-green-400" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Paid Subscribers</p>
+                  <p className="text-3xl font-bold">{referralData?.stats?.successful_referrals || 0}</p>
+                </div>
               </div>
-            </div>
-            <h3 className="text-2xl font-bold text-gray-800">
-              {referralData?.stats?.successful_referrals || 0}
-            </h3>
-            <p className="text-sm text-gray-500">Paid Subscribers</p>
-          </div>
+            </CardContent>
+          </Card>
 
-          <div className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow border border-indigo-100">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl">
-                <Gift className="w-6 h-6 text-white" />
+          <Card className="border-purple-500/20 bg-card/50 backdrop-blur">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-purple-500/20 rounded-xl">
+                  <Gift className="w-6 h-6 text-purple-400" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Total XP Earned</p>
+                  <p className="text-3xl font-bold">{referralData?.stats?.total_xp_earned || 0}</p>
+                </div>
               </div>
-            </div>
-            <h3 className="text-2xl font-bold text-gray-800">
-              {referralData?.stats?.total_xp_earned || 0}
-            </h3>
-            <p className="text-sm text-gray-500">Total XP Earned</p>
-          </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Referral Link Card */}
-        <div className="max-w-6xl mx-auto mb-8">
-          <div className="bg-gradient-to-br from-purple-600 via-blue-600 to-indigo-600 rounded-2xl p-8 shadow-2xl">
-            <h2 className="text-2xl font-bold text-white mb-4">Your Referral Link</h2>
-            <p className="text-purple-100 mb-6">
+        <Card className="border-accent/20 bg-gradient-to-br from-accent/10 to-purple-500/10 backdrop-blur">
+          <CardHeader>
+            <CardTitle className="text-2xl">Your Referral Link</CardTitle>
+            <p className="text-muted-foreground">
               Share this link with your friends. When they sign up and purchase a subscription, you'll earn 100 XP!
             </p>
-            <div className="flex items-center gap-4">
-              <div className="flex-1 bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
-                <code className="text-white font-mono text-sm break-all">
-                  {window.location.origin}/register?ref={referralData?.code || 'LOADING'}
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col md:flex-row items-center gap-4">
+              <div className="flex-1 w-full">
+                <code className="block bg-background/50 border border-accent/30 rounded-lg px-4 py-3 text-sm font-mono break-all">
+                  {window.location.origin}/register?ref={referralData?.code || 'LOADING...'}
                 </code>
               </div>
-              <button
+              <Button
                 onClick={copyReferralLink}
-                className="bg-white text-purple-600 px-6 py-4 rounded-xl font-semibold hover:bg-purple-50 transition-colors flex items-center gap-2 shadow-lg"
+                className="bg-accent hover:bg-accent/90 text-accent-foreground font-semibold whitespace-nowrap"
+                disabled={!referralData?.code}
               >
                 {copied ? (
                   <>
-                    <Check className="w-5 h-5" />
+                    <Check className="w-4 h-4 mr-2" />
                     Copied!
                   </>
                 ) : (
                   <>
-                    <Copy className="w-5 h-5" />
+                    <Copy className="w-4 h-4 mr-2" />
                     Copy Link
                   </>
                 )}
-              </button>
+              </Button>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* How it Works */}
-        <div className="max-w-6xl mx-auto mb-8">
-          <div className="bg-white rounded-2xl p-8 shadow-lg border border-gray-100">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">How It Works</h2>
+        <Card className="border-border/50 bg-card/50 backdrop-blur">
+          <CardHeader>
+            <CardTitle>How It Works</CardTitle>
+          </CardHeader>
+          <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="text-center">
-                <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <span className="text-2xl font-bold text-purple-600">1</span>
+              <div className="text-center space-y-3">
+                <div className="w-16 h-16 mx-auto bg-accent/20 rounded-full flex items-center justify-center">
+                  <span className="text-2xl font-bold text-accent">1</span>
                 </div>
-                <h3 className="font-semibold text-gray-800 mb-2">Share Your Link</h3>
-                <p className="text-sm text-gray-600">
+                <h3 className="font-semibold">Share Your Link</h3>
+                <p className="text-sm text-muted-foreground">
                   Copy and share your unique referral link with friends
                 </p>
               </div>
-              <div className="text-center">
-                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <span className="text-2xl font-bold text-blue-600">2</span>
+              <div className="text-center space-y-3">
+                <div className="w-16 h-16 mx-auto bg-blue-500/20 rounded-full flex items-center justify-center">
+                  <span className="text-2xl font-bold text-blue-400">2</span>
                 </div>
-                <h3 className="font-semibold text-gray-800 mb-2">They Subscribe</h3>
-                <p className="text-sm text-gray-600">
+                <h3 className="font-semibold">They Subscribe</h3>
+                <p className="text-sm text-muted-foreground">
                   When they purchase a premium subscription, they get +15 days bonus
                 </p>
               </div>
-              <div className="text-center">
-                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <span className="text-2xl font-bold text-green-600">3</span>
+              <div className="text-center space-y-3">
+                <div className="w-16 h-16 mx-auto bg-green-500/20 rounded-full flex items-center justify-center">
+                  <span className="text-2xl font-bold text-green-400">3</span>
                 </div>
-                <h3 className="font-semibold text-gray-800 mb-2">Earn Rewards</h3>
-                <p className="text-sm text-gray-600">
+                <h3 className="font-semibold">Earn Rewards</h3>
+                <p className="text-sm text-muted-foreground">
                   You earn 100 XP (₹100 value) instantly after their payment
                 </p>
               </div>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Referrals Table */}
-        <div className="max-w-6xl mx-auto">
-          <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100">
-            <div className="p-6 border-b border-gray-100">
-              <h2 className="text-2xl font-bold text-gray-800">Your Referrals</h2>
-              <p className="text-sm text-gray-500 mt-1">
-                Track all users who signed up using your referral link
-              </p>
-            </div>
+        <Card className="border-border/50 bg-card/50 backdrop-blur">
+          <CardHeader>
+            <CardTitle>Your Referrals</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Track all users who signed up using your referral link
+            </p>
+          </CardHeader>
+          <CardContent>
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50">
+                <thead className="border-b border-border">
                   <tr>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                       User
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                       Status
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                       Sign-up Date
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                       XP Earned
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-border/50">
                   {referralData?.referrals?.length > 0 ? (
                     referralData.referrals.map((referral, index) => (
-                      <tr key={index} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-blue-500 rounded-full flex items-center justify-center text-white font-semibold">
+                      <tr key={index} className="hover:bg-accent/5 transition-colors">
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-gradient-to-br from-accent to-purple-500 rounded-full flex items-center justify-center text-white font-semibold">
                               {referral.referred_user_email?.charAt(0).toUpperCase() || 'U'}
                             </div>
-                            <div className="ml-4">
-                              <div className="text-sm font-medium text-gray-900">
-                                {referral.referred_user_email || 'Anonymous'}
-                              </div>
+                            <div className="text-sm font-medium">
+                              {referral.referred_user_email || 'Anonymous'}
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-4 py-4 whitespace-nowrap">
                           {referral.status === 'paid' ? (
-                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
                               Subscribed ✓
                             </span>
                           ) : (
-                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                            <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
                               Signed Up
                             </span>
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-muted-foreground">
                           {new Date(referral.referred_at).toLocaleDateString('en-US', {
                             year: 'numeric',
                             month: 'short',
                             day: 'numeric'
                           })}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-4 py-4 whitespace-nowrap">
                           {referral.status === 'paid' ? (
-                            <span className="text-sm font-semibold text-green-600">
+                            <span className="text-sm font-semibold text-green-400">
                               +100 XP
                             </span>
                           ) : (
-                            <span className="text-sm text-gray-400">
+                            <span className="text-sm text-muted-foreground">
                               Pending
                             </span>
                           )}
@@ -272,11 +298,11 @@ const Referral = () => {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="4" className="px-6 py-12 text-center">
-                        <div className="flex flex-col items-center">
-                          <Users className="w-16 h-16 text-gray-300 mb-4" />
-                          <p className="text-gray-500 font-medium">No referrals yet</p>
-                          <p className="text-sm text-gray-400 mt-1">
+                      <td colSpan="4" className="px-4 py-12 text-center">
+                        <div className="flex flex-col items-center gap-3">
+                          <Users className="w-16 h-16 text-muted-foreground/50" />
+                          <p className="text-muted-foreground font-medium">No referrals yet</p>
+                          <p className="text-sm text-muted-foreground/70">
                             Start sharing your link to see referrals here
                           </p>
                         </div>
@@ -286,10 +312,10 @@ const Referral = () => {
                 </tbody>
               </table>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
-    </Layout>
+    </div>
   );
 };
 

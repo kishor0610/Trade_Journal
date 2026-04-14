@@ -332,21 +332,21 @@ const Subscription = () => {
 
         {/* XP Wallet Balance */}
         {xpBalance > 0 && (
-          <Card className="border-purple-500/30 bg-gradient-to-br from-purple-500/10 to-indigo-500/10 backdrop-blur">
+          <Card className="border-accent/30 bg-gradient-to-br from-accent/10 to-purple-500/10 backdrop-blur">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="p-3 bg-purple-500 rounded-xl">
+                  <div className="p-3 bg-accent rounded-xl">
                     <Wallet className="w-6 h-6 text-white" />
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">XP Wallet Balance</p>
-                    <p className="text-2xl font-bold text-purple-600">{xpBalance} XP</p>
+                    <p className="text-2xl font-bold text-accent">{xpBalance} XP</p>
                   </div>
                 </div>
                 <div className="text-right">
                   <p className="text-sm text-muted-foreground">Discount Value</p>
-                  <p className="text-2xl font-bold text-green-600">₹{xpBalance}</p>
+                  <p className="text-2xl font-bold text-green-400">₹{xpBalance}</p>
                 </div>
               </div>
               <p className="text-xs text-muted-foreground mt-4">
@@ -496,7 +496,7 @@ const Subscription = () => {
                   <div className="pt-4 border-t border-border/50">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
-                        <Wallet className="w-4 h-4 text-purple-500" />
+                        <Wallet className="w-4 h-4 text-accent" />
                         <span className="text-sm font-medium">Use XP Wallet</span>
                       </div>
                       <span className="text-xs text-muted-foreground">
@@ -505,38 +505,43 @@ const Subscription = () => {
                     </div>
                     
                     <div className="space-y-3">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="range"
-                          min="0"
-                          max={Math.min(xpBalance, plan.price - 1)}
-                          value={xpToUse[plan.plan_id] || 0}
-                          onChange={(e) => handleXpChange(plan.plan_id, e.target.value)}
-                          className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                          disabled={subscription?.subscription_plan === plan.plan_id}
-                        />
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 relative">
+                          <input
+                            type="range"
+                            min="0"
+                            max={Math.min(xpBalance, plan.price - 1)}
+                            value={xpToUse[plan.plan_id] || 0}
+                            onChange={(e) => handleXpChange(plan.plan_id, e.target.value)}
+                            className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-accent [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:cursor-pointer"
+                            disabled={subscription?.subscription_plan === plan.plan_id}
+                            style={{
+                              background: `linear-gradient(to right, hsl(var(--accent)) 0%, hsl(var(--accent)) ${((xpToUse[plan.plan_id] || 0) / Math.min(xpBalance, plan.price - 1)) * 100}%, hsl(var(--muted)) ${((xpToUse[plan.plan_id] || 0) / Math.min(xpBalance, plan.price - 1)) * 100}%, hsl(var(--muted)) 100%)`
+                            }}
+                          />
+                        </div>
                         <input
                           type="number"
                           min="0"
                           max={Math.min(xpBalance, plan.price - 1)}
                           value={xpToUse[plan.plan_id] || 0}
                           onChange={(e) => handleXpChange(plan.plan_id, e.target.value)}
-                          className="w-16 px-2 py-1 text-sm text-center border border-border rounded bg-background"
+                          className="w-20 px-3 py-2 text-sm text-center border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-accent"
                           disabled={subscription?.subscription_plan === plan.plan_id}
                         />
                       </div>
                       
                       {xpToUse[plan.plan_id] > 0 && (
-                        <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-3 space-y-1">
+                        <div className="bg-accent/10 border border-accent/20 rounded-lg p-3 space-y-1">
                           <div className="flex justify-between text-sm">
                             <span className="text-muted-foreground">Base Price:</span>
                             <span className="font-medium">₹{plan.price}</span>
                           </div>
-                          <div className="flex justify-between text-sm text-purple-600">
-                            <span>XP Discount:</span>
-                            <span className="font-semibold">-₹{xpToUse[plan.plan_id]}</span>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-accent">XP Discount:</span>
+                            <span className="font-semibold text-accent">-₹{xpToUse[plan.plan_id]}</span>
                           </div>
-                          <div className="flex justify-between text-base font-bold pt-2 border-t border-purple-500/20">
+                          <div className="flex justify-between text-base font-bold pt-2 border-t border-accent/20">
                             <span>Final Price:</span>
                             <span className="text-accent">₹{getFinalPrice(plan.plan_id)}</span>
                           </div>
