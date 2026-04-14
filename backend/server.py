@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime, timezone, timedelta, date
 import jwt
 import bcrypt
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, Response as FastAPIResponse
 import io
 import csv
 import asyncio
@@ -271,6 +271,13 @@ class CandleResponse(BaseModel):
 
 class AIInsightRequest(BaseModel):
     question: Optional[str] = None
+
+
+class TTSRequest(BaseModel):
+    text: str
+    voice_id: Optional[str] = "Ravi-PlayAI"
+    output_format: Optional[dict] = None
+    language: Optional[str] = "en"
 
 
 def hash_password(password: str) -> str:
@@ -2220,14 +2227,15 @@ User question: {user_question}
             messages=[
                 {
                     "role": "system",
-                    "content": """You are an expert trading coach and performance analyst. Rules:
+                    "content": """You are an expert trading coach and performance analyst. Respond in Hinglish (a natural mix of Hindi and English, written in Roman script — do NOT use Devanagari). Rules:
 1. ALWAYS answer the user's EXACT question — do NOT give a generic overview unless asked for one.
 2. Use the real trading data provided. Reference specific numbers, instruments, and percentages.
 3. Never give short or vague answers. Minimum 4 detailed paragraphs.
 4. Use **bold** for key values and section headings.
 5. If the user asks about a specific topic (e.g. risk management, mistakes, instruments), focus 80% of your answer on that topic.
 6. Include actionable, specific recommendations based on the data.
-7. If the user sends a casual message like 'hi' or 'hello', respond naturally but still share one interesting insight from their data."""
+7. If the user sends a casual message like 'hi' or 'hello', respond naturally but still share one interesting insight from their data.
+8. Write in Hinglish throughout — mix Hindi words and phrases naturally with English technical terms. For example: "Aapka win rate 60% hai, jo kaafi acha hai" or "Risk management pe dhyan do". Technical trading terms like P&L, stop loss, take profit, instruments can stay in English."""
                 },
                 {
                     "role": "user",
@@ -2315,6 +2323,46 @@ Answer this question thoroughly: {user_question}"""
     except Exception as e:
         logging.error(f"AI insights error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to generate insights: {str(e)}")
+
+
+@api_router.post("/ai/insights/tts")
+async def get_insights_tts(request: TTSRequest, current_user: dict = Depends(get_current_user)):
+    """Convert AI insight text to speech using Groq PlayAI TTS."""
+    if not groq_client:
+        raise HTTPException(status_code=503, detail="AI service is not configured")
+
+    try:
+        # Map common voice names to Groq PlayAI voices; default to Ravi (Indian accent, suits Hinglish)
+        voice_map = {
+            "eve": "Arista-PlayAI",
+            "ravi": "Ravi-PlayAI",
+            "aditi": "Aditi-PlayAI",
+        }
+        voice = voice_map.get((request.voice_id or "").lower(), "Ravi-PlayAI")
+
+        text_input = request.text
+        if len(text_input) > 4096:
+            logging.warning(f"TTS input truncated from {len(text_input)} to 4096 characters")
+            text_input = text_input[:4096]
+
+        response = groq_client.audio.speech.create(
+            model="playai-tts",
+            voice=voice,
+            input=text_input,
+            response_format="mp3",
+        )
+
+        audio_bytes = response.content
+        if not audio_bytes:
+            raise HTTPException(status_code=500, detail="TTS API returned empty audio")
+
+        return FastAPIResponse(content=audio_bytes, media_type="audio/mpeg")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"TTS error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate speech: {str(e)}")
 
 
 # ============ IMPORT ROUTES ============
