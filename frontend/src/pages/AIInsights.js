@@ -392,6 +392,18 @@ function AIInsights() {
   // Play TTS when enabled and new insight arrives
   useInsightTTS(insight?.insight, speechEnabled && !!insight?.insight, playKey);
 
+  // Debug: Play Hinglish sample via TTS
+  const playHinglishDebug = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/ai/insights/hinglish-debug`);
+      setInsight(res.data);
+      setPlayKey(k => k + 1);
+      toast.success('Hinglish debug sample loaded and played!');
+    } catch (e) {
+      toast.error('Failed to load Hinglish debug sample');
+    }
+  };
+
   // Fetch user's currency from their MT5 account
   useEffect(() => {
     const fetchUserCurrency = async () => {
@@ -468,12 +480,13 @@ function AIInsights() {
         <p className="text-muted-foreground mt-1">Get AI-powered analysis of your trading performance</p>
       </div>
 
-      {/* Speech Toggle - Modern Switch */}
+      {/* Speech Toggle - Modern Switch + Debug Button */}
       <div className="flex items-center gap-3 mb-2">
         <label className="flex items-center gap-2 cursor-pointer select-none">
           <span className="text-sm text-gray-300 mr-2">Speak Insights</span>
           <Switch checked={speechEnabled} onCheckedChange={setSpeechEnabled} />
         </label>
+        <Button size="sm" variant="outline" onClick={playHinglishDebug} className="ml-3">Debug Hinglish TTS</Button>
       </div>
       {/* Input Section */}
       <motion.div
