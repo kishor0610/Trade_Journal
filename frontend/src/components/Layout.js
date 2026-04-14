@@ -24,10 +24,13 @@ const navItems = [
   { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/journal', icon: BookOpen, label: 'Journal' },
   { path: '/accounts', icon: Wallet, label: 'Accounts' },
-  { path: '/subscription', icon: CreditCard, label: 'Subscription' },
   { path: '/analytics', icon: BarChart3, label: 'Analytics' },
-  { path: '/leaderboard', icon: Trophy, label: 'Leaderboard' },
   { path: '/insights', icon: Sparkles, label: 'AI Insights' },
+  { path: '/subscription', icon: CreditCard, label: 'Subscription' },
+];
+
+const toolsItems = [
+  { path: '/leaderboard', icon: Trophy, label: 'Leaderboard' },
   { path: '/risk-calculator', icon: Calculator, label: 'Risk Calculator' },
   { path: '/forex-calendar', icon: Calendar, label: 'Forex Calendar' },
 ];
@@ -139,29 +142,19 @@ const Layout = ({ children }) => {
           {navItems.map((item) => (
             <NavItem key={item.path} {...item} />
           ))}
-          
-          {/* Coming Soon Items */}
-          <div className="pt-4 mt-4 border-t-2 border-transparent relative -mx-4 px-4"
-            style={{
-              backgroundImage: 'linear-gradient(#1a1a1a, #1a1a1a), linear-gradient(90deg, #ec4899, #8b5cf6, #3b82f6, #06b6d4, #10b981, #f59e0b, #ef4444, #ec4899)',
-              backgroundOrigin: 'border-box',
-              backgroundClip: 'padding-box, border-box',
-              backgroundSize: '100% 100%, 400% 100%',
-              animation: 'rotate-coming-soon-border 3s linear infinite',
-            }}
-          >
-            <style>{`
-              @keyframes rotate-coming-soon-border {
-                0% { background-position: 0% 50%, 0% 50%; }
-                100% { background-position: 0% 50%, 400% 50%; }
-              }
-            `}</style>
-            <p className="text-xs text-muted-foreground mb-2 px-0">Coming Soon</p>
-            <div className="flex items-center gap-3 px-4 py-3 text-muted-foreground/50 cursor-not-allowed">
-              <Copy className="w-5 h-5" />
-              <span className="hidden md:inline">Trade Copier</span>
+          {/* Tools Dropdown */}
+          <details className="group mt-4">
+            <summary className="flex items-center gap-3 px-4 py-3 rounded-lg cursor-pointer hover:bg-white/5 transition-all text-muted-foreground group-open:text-white">
+              <span className="w-5 h-5 flex items-center justify-center"><Calculator className="w-5 h-5" /></span>
+              <span className="hidden md:inline">Tools</span>
+              <span className="ml-auto text-xs">▼</span>
+            </summary>
+            <div className="pl-6 mt-2 space-y-1">
+              {toolsItems.map((item) => (
+                <NavItem key={item.path} {...item} />
+              ))}
             </div>
-          </div>
+          </details>
         </nav>
 
         {/* User Section */}
