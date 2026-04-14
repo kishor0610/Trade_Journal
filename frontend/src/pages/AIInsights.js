@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Switch } from '../components/ui/switch';
 // TTS audio playback hook
 function useInsightTTS(insightText, enabled) {
   const audioRef = useRef(null);
@@ -14,7 +15,12 @@ function useInsightTTS(insightText, enabled) {
             'Authorization': `Bearer ${localStorage.getItem('token')}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ text: insightText })
+          body: JSON.stringify({
+            text: insightText,
+            voice_id: 'Eve',
+            output_format: { codec: 'mp3', sample_rate: 44100, bit_rate: 128000 },
+            language: 'en',
+          })
         });
         if (!res.ok) return;
         const blob = await res.blob();
@@ -460,16 +466,11 @@ function AIInsights() {
         <p className="text-muted-foreground mt-1">Get AI-powered analysis of your trading performance</p>
       </div>
 
-      {/* Speech Toggle */}
+      {/* Speech Toggle - Modern Switch */}
       <div className="flex items-center gap-3 mb-2">
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={speechEnabled}
-            onChange={e => setSpeechEnabled(e.target.checked)}
-            className="accent-accent w-4 h-4"
-          />
-          <span className="text-sm text-gray-300">Speak Insights</span>
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <span className="text-sm text-gray-300 mr-2">Speak Insights</span>
+          <Switch checked={speechEnabled} onCheckedChange={setSpeechEnabled} />
         </label>
       </div>
       {/* Input Section */}
