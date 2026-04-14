@@ -13,6 +13,8 @@ from pydantic import BaseModel
 import server
 
 app = server.app
+db = server.db
+referral_service = server.referral_service
 
 SUBSCRIPTION_PLANS = {
     "monthly": {"price": 499, "duration_days": 30, "name": "Monthly Plan"},
@@ -122,6 +124,7 @@ async def capture_razorpay_payment(key_id: str, key_secret: str, payment_id: str
 
 class CreateOrderRequest(BaseModel):
     plan: str
+    xp_amount: int = 0  # XP to redeem for discount (1 XP = ₹1)
 
 
 class VerifyPaymentRequest(BaseModel):
@@ -191,11 +194,53 @@ async def create_subscription_order(order_data: CreateOrderRequest, current_user
         raise HTTPException(status_code=500, detail=client_error)
 
     plan = SUBSCRIPTION_PLANS[order_data.plan]
-    amount_paise = int(plan["price"] * 100)
+    base_price = plan["price"]
+    
+    # Calculate discounted price if XP is used
+    final_price = base_price
+    xp_used = 0
+    
+    if order_data.xp_amount > 0:
+        # Check XP balance
+        user_xp = await db.users.find_one({"id": current_user["id"]}, {"xp_balance": 1})
+        current_balance = user_xp.get("xp_balance", 0) if user_xp else 0
+        
+        if order_data.xp_amount > current_balance:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Insufficient XP balance. Available: {current_balance} XP"
+            )
+        
+        # Validate XP amount doesn't exceed price
+        if order_data.xp_amount > base_price:
+            raise HTTPException(
+                status_code=400,
+                detail=f"XP amount cannot exceed plan price (₹{base_price})"
+            )
+        
+        # Calculate final price (1 XP = ₹1)
+        final_price = base_price - order_data.xp_amount
+        xp_used = order_data.xp_amount
+        
+        # Minimum ₹1 must be paid via Razorpay
+        if final_price < 1:
+            raise HTTPException(
+                status_code=400,
+                detail="Final amount must be at least ₹1"
+            )
+    
+    amount_paise = int(final_price * 100)
     key_id, key_secret = credentials
 
     try:
         order = await create_razorpay_order(key_id, key_secret, amount_paise, current_user["id"], order_data.plan)
+        
+        # Add XP info to order notes
+        if xp_used > 0:
+            order['notes'] = order.get('notes', {})
+            order['notes']['xp_used'] = xp_used
+            order['notes']['base_price'] = base_price
+            
     except HTTPException:
         raise
     except Exception as exc:
@@ -204,7 +249,9 @@ async def create_subscription_order(order_data: CreateOrderRequest, current_user
 
     return {
         "order_id": order["id"],
-        "amount": plan["price"],
+        "amount": final_price,
+        "base_price": base_price,
+        "xp_used": xp_used,
         "amount_paise": amount_paise,
         "currency": "INR",
         "key_id": key_id,
@@ -239,20 +286,40 @@ async def verify_subscription_payment(payment_data: VerifyPaymentRequest, curren
                 key_id,
                 key_secret,
                 payment_data.razorpay_payment_id,
-                int(plan["price"] * 100),
+                payment["amount"],  # Use actual payment amount, not base plan price
             )
 
         if payment["status"] != "captured":
             raise HTTPException(status_code=400, detail="Payment not completed")
 
+        # Extract XP info from payment notes
+        payment_notes = payment.get("notes", {})
+        xp_used = int(payment_notes.get("xp_used", 0))
+        base_price = int(payment_notes.get("base_price", plan["price"]))
+        
         start_date = datetime.now(timezone.utc)
         end_date = start_date + timedelta(days=plan["duration_days"])
 
+        # Deduct XP if it was used (BEFORE processing rewards)
+        if xp_used > 0:
+            deduct_success = await referral_service.debit_xp(
+                current_user["id"],
+                xp_used,
+                f"Subscription payment for {payment_data.plan} plan"
+            )
+            if not deduct_success:
+                logging.error(f"Failed to deduct XP for user {current_user['id']} after payment")
+                # Don't fail the payment, but log the error
+        
+        # Store payment record with XP info
         await server.db.payments.insert_one(
             {
                 "id": str(uuid.uuid4()),
                 "user_id": current_user["id"],
                 "amount": payment["amount"] / 100,
+                "base_price": base_price,
+                "xp_used": xp_used,
+                "final_amount": (payment["amount"] / 100),
                 "plan": payment_data.plan,
                 "status": "success",
                 "razorpay_order_id": payment_data.razorpay_order_id,
@@ -262,6 +329,7 @@ async def verify_subscription_payment(payment_data: VerifyPaymentRequest, curren
             }
         )
 
+        # Update user subscription
         await server.db.users.update_one(
             {"id": current_user["id"]},
             {
@@ -273,6 +341,20 @@ async def verify_subscription_payment(payment_data: VerifyPaymentRequest, curren
                 }
             },
         )
+        
+        # Process referral rewards AFTER successful payment
+        try:
+            await referral_service.process_successful_payment(
+                user_id=current_user["id"],
+                plan=payment_data.plan,
+                amount_paid=base_price,  # Use base price for reward calculation
+                payment_id=payment_data.razorpay_payment_id
+            )
+            logging.info(f"Processed referral rewards for user {current_user['id']}")
+        except Exception as reward_error:
+            logging.error(f"Failed to process referral rewards: {reward_error}")
+            # Don't fail the payment if rewards fail
+            
     except HTTPException:
         raise
     except Exception as exc:

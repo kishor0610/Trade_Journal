@@ -24,6 +24,8 @@ import hashlib
 import time
 from collections import defaultdict
 from groq import Groq
+from referral_service import ReferralService
+from referral_endpoints import create_referral_endpoints, create_admin_referral_endpoints
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -35,6 +37,9 @@ if not mongo_url:
 
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ.get('DB_NAME', 'trade_ledger')]
+
+# Initialize Referral Service
+referral_service = ReferralService(db)
 
 # JWT Settings
 JWT_SECRET = os.environ.get('JWT_SECRET', 'trading_journal_secret')
@@ -149,6 +154,7 @@ class UserRegister(BaseModel):
     email: EmailStr
     password: str
     name: str
+    referral_code: Optional[str] = None  # Referral code from link
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -617,10 +623,25 @@ async def register(user_data: UserRegister):
         "email": user_data.email,
         "name": user_data.name,
         "password": hash_password(user_data.password),
+        "xp_balance": 0,  # Initialize XP wallet
+        "xp_updated_at": now,
         "created_at": now
     }
     
     await db.users.insert_one(user_doc)
+    
+    # Track referral if code provided (reward only on payment, not signup)
+    if user_data.referral_code:
+        try:
+            await referral_service.track_signup_from_referral(
+                new_user_id=user_id,
+                referral_code=user_data.referral_code.upper()
+            )
+            logging.info(f"Referral tracked for new user: {user_id}")
+        except Exception as e:
+            logging.error(f"Failed to track referral: {str(e)}")
+            # Don't fail registration if referral tracking fails
+    
     # Assign 14-day trial on registration
     await assign_trial(user_id)
     token = create_access_token(user_id, user_data.email)
@@ -751,6 +772,9 @@ async def verify_reset_token(token: str):
         raise HTTPException(status_code=400, detail="Reset token has expired")
     
     return {"valid": True, "email": reset_doc['email']}
+
+# ============ REFERRAL ENDPOINTS ============
+create_referral_endpoints(api_router, referral_service, get_current_user, FRONTEND_URL)
 
 # ============ ADMIN ROUTES ============
 
@@ -1004,6 +1028,10 @@ async def get_all_trades_data(admin: dict = Depends(get_admin_user), limit: int 
         return {"total_trades": total_trades, "returned": len(trades), "trades": trades}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch trades: {str(e)}")
+
+# ============ ADMIN REFERRAL ENDPOINTS ============
+create_admin_referral_endpoints(admin_router, referral_service, db, get_admin_user)
+
 # ============ MT5 ACCOUNT ROUTES ============
 
 @api_router.post("/mt5/metaapi-token")
