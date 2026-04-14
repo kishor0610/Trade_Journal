@@ -349,7 +349,7 @@ const Subscription = () => {
               {subscription.subscription_status === 'trial' && (
                 <div className="mt-6 p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
                   <p className="text-sm text-blue-600 dark:text-blue-400">
-                    🎉 You're on a <strong>7-day free trial</strong>! Upgrade to a paid plan to continue accessing premium features after your trial ends.
+                    🎉 You're on a <strong>14-day free trial</strong>! Upgrade to a paid plan to continue accessing premium features after your trial ends.
                   </p>
                 </div>
               )}
