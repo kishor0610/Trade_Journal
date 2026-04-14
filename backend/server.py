@@ -93,43 +93,88 @@ if GROQ_API_KEY:
     groq_client = Groq(api_key=GROQ_API_KEY)
 
 async def generate_tts(text):
-    """Convert text to speech using xAI TTS API. Returns mp3 bytes or None."""
+    """Convert text to speech using xAI Realtime WebSocket API. Returns mp3 bytes or None."""
     if not XAI_API_KEY:
         logging.warning("XAI_API_KEY not configured, skipping TTS")
         return None
+    
+    # Truncate text to avoid TTS API limits (keep first ~2000 chars)
     tts_text = text[:2000] if len(text) > 2000 else text
-    url = "https://api.x.ai/v1/tts"
-    headers = {
-        "Authorization": f"Bearer {XAI_API_KEY}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "text": tts_text,
-        "voice_id": "Chloe",
-        "output_format": {
-            "codec": "mp3",
-            "sample_rate": 44100,
-            "bit_rate": 128000
-        },
-        "language": "en"
-    }
+    
     try:
+        import websockets
+        import json
+        
         tts_start = time.time()
-        async with httpx.AsyncClient(timeout=30) as client_http:
-            res = await client_http.post(url, headers=headers, json=payload)
+        audio_chunks = []
+        
+        # Connect to xAI realtime WebSocket API
+        uri = "wss://api.x.ai/v1/realtime"
+        headers = {"Authorization": f"Bearer {XAI_API_KEY}"}
+        
+        async with websockets.connect(uri, extra_headers=headers) as ws:
+            # Configure session with voice
+            await ws.send(json.dumps({
+                "type": "session.update",
+                "session": {
+                    "voice": "Eve",
+                    "instructions": "You are a helpful trading assistant. Provide insights clearly and concisely."
+                }
+            }))
+            
+            # Send the text message
+            await ws.send(json.dumps({
+                "type": "conversation.item.create",
+                "item": {
+                    "type": "message",
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": tts_text}]
+                }
+            }))
+            
+            # Request response generation
+            await ws.send(json.dumps({"type": "response.create"}))
+            
+            # Collect audio chunks
+            async for message in ws:
+                try:
+                    event = json.loads(message)
+                    
+                    # Collect audio data chunks
+                    if event.get("type") == "response.audio.delta":
+                        audio_data = event.get("delta", "")
+                        if audio_data:
+                            audio_chunks.append(audio_data)
+                    
+                    # Stop when response is complete
+                    elif event.get("type") == "response.done":
+                        break
+                    
+                    # Handle errors
+                    elif event.get("type") == "error":
+                        logging.error(f"TTS WebSocket error: {event.get('error', {})}")
+                        return None
+                        
+                except json.JSONDecodeError:
+                    continue
+        
         tts_elapsed = time.time() - tts_start
-        logging.info(f"TTS latency: {tts_elapsed:.2f}s")
-        if res.status_code != 200:
-            logging.error(f"TTS error {res.status_code}: {res.text[:200]}")
-            # Retry once
-            async with httpx.AsyncClient(timeout=30) as client_http:
-                res = await client_http.post(url, headers=headers, json=payload)
-            if res.status_code != 200:
-                logging.error(f"TTS retry failed {res.status_code}")
-                return None
-        return res.content
+        logging.info(f"TTS WebSocket latency: {tts_elapsed:.2f}s")
+        
+        # Combine audio chunks if any were received
+        if audio_chunks:
+            # Audio chunks are base64, decode them and combine
+            combined_audio = b''.join([base64.b64decode(chunk) for chunk in audio_chunks])
+            return combined_audio
+        else:
+            logging.warning("No audio chunks received from TTS WebSocket")
+            return None
+            
+    except ImportError:
+        logging.error("websockets library not installed. Run: pip install websockets")
+        return None
     except Exception as e:
-        logging.error(f"TTS exception: {str(e)}")
+        logging.error(f"TTS WebSocket exception: {str(e)}")
         return None
 
 
