@@ -129,7 +129,7 @@ async def generate_ai_insights_with_xai_grok(prompt: str, system_prompt: str):
         logging.info(f"📡 Trying xAI /v1/chat/completions with {model_name}...")
         logging.info(f"   Prompt length: {len(prompt)} chars")
         
-        async with httpx.AsyncClient(timeout=30) as http_client:
+        async with httpx.AsyncClient(timeout=12) as http_client:
             res = await http_client.post(url, headers=headers, json=payload)
         
         logging.info(f"📨 {model_name} response status: {res.status_code}")
@@ -154,12 +154,12 @@ async def generate_ai_insights_with_xai_grok(prompt: str, system_prompt: str):
                 err_msg = res.text
             raise Exception(f"{model_name} error ({res.status_code}): {err_msg[:300]}")
 
-    # ---- Attempt 1: grok-3-mini via /v1/chat/completions (fast, low-token model) ----
+    # ---- Attempt 1: grok-3-fast via /v1/chat/completions (fast, low-cost model) ----
     try:
-        return await try_chat_completions("grok-3-mini", {"temperature": 0.7})
+        return await try_chat_completions("grok-3-fast", {"temperature": 0.7})
     except Exception as e1:
         last_error = str(e1)
-        logging.error(f"❌ grok-3-mini failed: {last_error}")
+        logging.error(f"❌ grok-3-fast failed: {last_error}")
     
     # ---- Attempt 2: grok-3 via /v1/chat/completions (stable fallback) ----
     try:

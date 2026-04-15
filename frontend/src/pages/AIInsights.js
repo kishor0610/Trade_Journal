@@ -426,7 +426,7 @@ function AIInsights() {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
-        timeout: 20000
+        timeout: 35000
       });
       console.log('AI Insights response:', response.data);
       if (response.data.audio) {
@@ -443,8 +443,10 @@ function AIInsights() {
         toast.error(detail || 'AI service is not configured');
       } else if (error.response?.status === 500) {
         toast.error(detail ? `Error: ${detail.substring(0, 120)}` : 'Failed to generate insights. Please try again.');
+      } else if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        toast.error('Request timed out. Please try again.');
       } else {
-        toast.error(detail || 'Failed to get insights');
+        toast.error(detail || 'Failed to get insights. Please try again.');
       }
       console.error(error);
     } finally {
