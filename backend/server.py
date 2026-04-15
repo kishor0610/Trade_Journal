@@ -659,7 +659,7 @@ async def get_trade_summaries_by_user(user_ids: List[str]) -> Dict[str, Dict[str
 
 # ============ AUTH ROUTES ============
 
-@api_router.post("/auth/register", response_model=TokenResponse)
+@api_router.post("/auth/register")
 async def register(user_data: UserRegister):
     existing = await db.users.find_one({"email": user_data.email})
     if existing:
@@ -702,12 +702,27 @@ async def register(user_data: UserRegister):
     
     token = create_access_token(user_id, user_data.email)
     
-    return TokenResponse(
-        access_token=token,
-        user=UserResponse(id=user_id, email=user_data.email, name=user_data.name, created_at=now)
-    )
+    # Include subscription status in register response too
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": {
+            "id": user_id,
+            "email": user_data.email,
+            "name": user_data.name,
+            "created_at": now
+        },
+        "subscription": {
+            "user_id": user_id,
+            "subscription_status": "trial",
+            "subscription_plan": None,
+            "subscription_start_date": now,
+            "subscription_end_date": trial_end.isoformat(),
+            "is_active": True  # Trial is always active initially
+        }
+    }
 
-@api_router.post("/auth/login", response_model=TokenResponse)
+@api_router.post("/auth/login")
 async def login(user_data: UserLogin):
     user = await db.users.find_one({"email": user_data.email}, {"_id": 0})
     if not user or not verify_password(user_data.password, user['password']):
@@ -715,10 +730,27 @@ async def login(user_data: UserLogin):
     
     token = create_access_token(user['id'], user['email'])
     
-    return TokenResponse(
-        access_token=token,
-        user=UserResponse(id=user['id'], email=user['email'], name=user['name'], created_at=user['created_at'])
-    )
+    # Include subscription status in login response to avoid frontend delay
+    is_active = await check_subscription_status(user)
+    
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": {
+            "id": user['id'],
+            "email": user['email'],
+            "name": user['name'],
+            "created_at": user['created_at']
+        },
+        "subscription": {
+            "user_id": user['id'],
+            "subscription_status": user.get('subscription_status', 'expired'),
+            "subscription_plan": user.get('subscription_plan'),
+            "subscription_start_date": user.get('subscription_start_date'),
+            "subscription_end_date": user.get('subscription_end_date'),
+            "is_active": is_active
+        }
+    }
 
 @api_router.get("/auth/me", response_model=UserResponse)
 async def get_me(current_user: dict = Depends(get_current_user)):

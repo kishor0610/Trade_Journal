@@ -17,8 +17,18 @@ export const useSubscription = () => {
 };
 
 export const SubscriptionProvider = ({ children }) => {
-  const [subscription, setSubscription] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Initialize from localStorage to avoid loading delay on fresh login
+  const getCachedSubscription = () => {
+    try {
+      const cached = localStorage.getItem('subscription__data');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  };
+  
+  const [subscription, setSubscription] = useState(getCachedSubscription());
+  const [loading, setLoading] = useState(!getCachedSubscription()); // Skip loading if cached data exists
 
   const fetchSubscription = async () => {
     try {
@@ -26,11 +36,14 @@ export const SubscriptionProvider = ({ children }) => {
       if (!token) {
         setLoading(false);
         return;
-}
+      }
       
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       const response = await axios.get(`${API_URL}/subscriptions/my-subscription`);
       setSubscription(response.data);
+      
+      // Cache the subscription data
+      localStorage.setItem('subscription__data', JSON.stringify(response.data));
     } catch (error) {
       console.error('Failed to fetch subscription:', error);
       setSubscription(null);
