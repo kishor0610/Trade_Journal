@@ -22,7 +22,7 @@ const AdminReferrals = () => {
 
   const fetchData = async () => {
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = localStorage.getItem('adminToken');
       
       if (!token) {
         toast.error('Please login as admin');
@@ -62,7 +62,7 @@ const AdminReferrals = () => {
     }
 
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = localStorage.getItem('adminToken');
       await axios.post(
         `${API_URL}/admin/referrals/wallet/credit`,
         {

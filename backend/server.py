@@ -2288,9 +2288,10 @@ async def market_live_candles_ws(
 @api_router.post("/ai/insights")
 async def get_ai_insights(request: AIInsightRequest, current_user: dict = Depends(get_current_user)):
     """Get AI-powered trading insights using xAI Grok (fallback to Groq if needed)."""
-    # Primary: Use xAI Grok, Fallback: Use Groq
+    # Check if any AI service is available
     if not xai_grok_enabled and not groq_client:
-        raise HTTPException(status_code=503, detail="AI service is not configured")
+        logging.error("No AI service configured - XAI_API_KEY and GROQ_API_KEY both missing")
+        raise HTTPException(status_code=503, detail="AI service is not configured. Please contact support.")
     
     try:
         # Fetch user's closed trades
@@ -2419,9 +2420,33 @@ Answer this question thoroughly: {user_question}"""
         
         try:
             if xai_grok_enabled:
-                insight_text = await generate_ai_insights_with_xai_grok(full_prompt, system_prompt)
+                try:
+                    logging.info("Attempting xAI Grok API...")
+                    insight_text = await generate_ai_insights_with_xai_grok(full_prompt, system_prompt)
+                    logging.info("xAI Grok success")
+                except Exception as xai_error:
+                    logging.error(f"xAI Grok failed: {str(xai_error)}")
+                    if groq_client:
+                        logging.info("Falling back to Groq...")
+                        ai_source = "groq"
+                        groq_start = time.time()
+                        message = groq_client.chat.completions.create(
+                            model="llama-3.3-70b-versatile",
+                            max_tokens=4096,
+                            temperature=0.7,
+                            messages=[
+                                {"role": "system", "content": system_prompt},
+                                {"role": "user", "content": full_prompt}
+                            ]
+                        )
+                        insight_text = message.choices[0].message.content
+                        groq_elapsed = time.time() - groq_start
+                        logging.info(f"Groq fallback success: {groq_elapsed:.2f}s")
+                    else:
+                        raise xai_error
             elif groq_client:
-                # Fallback to Groq
+                # Use Groq directly if xAI not configured
+                logging.info("Using Groq API (xAI not configured)...")
                 ai_source = "groq"
                 groq_start = time.time()
                 message = groq_client.chat.completions.create(
@@ -2435,12 +2460,13 @@ Answer this question thoroughly: {user_question}"""
                 )
                 insight_text = message.choices[0].message.content
                 groq_elapsed = time.time() - groq_start
-                logging.info(f"Groq latency (fallback): {groq_elapsed:.2f}s")
+                logging.info(f"Groq success: {groq_elapsed:.2f}s")
             else:
                 raise Exception("No AI service available")
         except Exception as ai_error:
-            logging.error(f"AI generation error: {str(ai_error)}")
-            raise HTTPException(status_code=500, detail=f"AI service error: {str(ai_error)}")
+            error_msg = str(ai_error)
+            logging.error(f"AI generation error: {error_msg}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to generate insights. Please try again later.")
         
         if not insight_text:
             raise HTTPException(status_code=500, detail="Failed to generate insights")
