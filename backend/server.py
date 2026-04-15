@@ -871,6 +871,21 @@ async def verify_reset_token(token: str):
 # ============ REFERRAL ENDPOINTS ============
 create_referral_endpoints(api_router, referral_service, get_current_user, FRONTEND_URL)
 
+# ============ SUBSCRIPTION ENDPOINTS ============
+
+@api_router.get("/subscriptions/my-subscription")
+async def get_my_subscription(current_user: dict = Depends(get_current_user)):
+    """Get current user subscription status"""
+    is_active = await check_subscription_status(current_user)
+    return {
+        "user_id": current_user['id'],
+        "subscription_status": current_user.get('subscription_status', 'expired'),
+        "subscription_plan": current_user.get('subscription_plan'),
+        "subscription_start_date": current_user.get('subscription_start_date'),
+        "subscription_end_date": current_user.get('subscription_end_date'),
+        "is_active": is_active
+    }
+
 # ============ ADMIN ROUTES ============
 
 @admin_router.post("/login", response_model=AdminTokenResponse)
