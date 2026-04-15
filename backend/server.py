@@ -24,7 +24,6 @@ import base64
 import hashlib
 import time
 from collections import defaultdict
-from groq import Groq
 from referral_service import ReferralService
 from referral_endpoints import create_referral_endpoints, create_admin_referral_endpoints
 
@@ -66,10 +65,6 @@ FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
 if RESEND_API_KEY:
     resend.api_key = RESEND_API_KEY
 
-# Initialize Groq (keeping for fallback, but will use xAI Grok primarily)
-GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')
-groq_client = None
-
 # Initialize xAI for both TTS and Grok LLM
 XAI_API_KEY = os.environ.get('XAI_API_KEY', '')
 xai_grok_enabled = bool(XAI_API_KEY)
@@ -96,95 +91,132 @@ quotes_cache = {
     'timestamp': None
 }
 QUOTES_CACHE_TTL = 5  # 5 seconds (market data needs frequent updates)
-if GROQ_API_KEY:
-    groq_client = Groq(api_key=GROQ_API_KEY)
 
 async def generate_ai_insights_with_xai_grok(prompt: str, system_prompt: str):
-    """Use xAI Grok API for AI insights generation. Returns text response."""
+    """Use xAI Grok API for AI insights generation. Returns text response.
+    
+    Tries /v1/chat/completions first (OpenAI-compatible, most reliable).
+    Falls back to /v1/responses if chat completions fails.
+    """
     if not XAI_API_KEY:
         logging.error("❌ XAI_API_KEY not configured")
         raise Exception("xAI Grok API not configured")
     
+    headers = {
+        "Authorization": f"Bearer {XAI_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    
+    grok_start = time.time()
+    
+    # ---- Attempt 1: /v1/chat/completions (OpenAI-compatible, standard format) ----
     try:
-        grok_start = time.time()
-        
-        # xAI Grok uses /v1/responses endpoint (from xAI console documentation)
-        url = "https://api.x.ai/v1/responses"
-        headers = {
-            "Authorization": f"Bearer {XAI_API_KEY}",
-            "Content-Type": "application/json",
-        }
-        
-        # Combine system and user prompts into single input
-        full_input = f"{system_prompt}\n\n{prompt}"
-        
+        url = "https://api.x.ai/v1/chat/completions"
         payload = {
-            "model": "grok-4.20-0309-reasoning",  # Premium reasoning model
-            "max_output_tokens": 2000000,  # Premium tier allows up to 2M tokens
-            "stream": False,  # Non-streaming for easier handling
-            "input": full_input  # xAI uses "input" field, not "messages"
+            "model": "grok-4-0709",  # Current stable Grok 4 model
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt}
+            ],
+            "max_tokens": 4096,
+            "temperature": 0.7,
+            "stream": False
         }
         
-        logging.info("📡 Calling xAI Grok API...")
-        logging.info(f"   URL: {url}")
-        logging.info(f"   Model: {payload['model']}")
-        logging.info(f"   Input length: {len(full_input)} chars")
-        logging.info(f"   Max tokens: {payload['max_output_tokens']}")
+        logging.info("📡 Attempt 1: xAI /v1/chat/completions with grok-4-0709...")
+        logging.info(f"   Prompt length: {len(prompt)} chars")
         
-        async with httpx.AsyncClient(timeout=180) as client:  # Reasoning model may take longer
+        async with httpx.AsyncClient(timeout=180) as client:
             res = await client.post(url, headers=headers, json=payload)
         
-        logging.info(f"📨 xAI API response status: {res.status_code}")
+        logging.info(f"📨 chat/completions response status: {res.status_code}")
+        logging.info(f"📦 Response body (first 500): {res.text[:500]}")
         
         if res.status_code == 200:
             data = res.json()
-            logging.info(f"📦 Response keys: {list(data.keys())}")
+            insight_text = None
+            if 'choices' in data and len(data['choices']) > 0:
+                insight_text = data['choices'][0].get('message', {}).get('content')
+            if insight_text:
+                elapsed = time.time() - grok_start
+                logging.info(f"✅ xAI chat/completions success! {elapsed:.2f}s, {len(insight_text)} chars")
+                return insight_text
+            else:
+                logging.error(f"❌ chat/completions: no content in choices. Keys: {list(data.keys())}")
+                logging.error(f"Full response: {json.dumps(data, indent=2)[:1000]}")
+        else:
+            logging.error(f"❌ chat/completions failed ({res.status_code}): {res.text[:500]}")
+    except Exception as e1:
+        logging.error(f"❌ chat/completions exception: {str(e1)}")
+    
+    # ---- Attempt 2: /v1/responses endpoint (xAI native format) ----
+    try:
+        url2 = "https://api.x.ai/v1/responses"
+        full_input = f"{system_prompt}\n\n{prompt}"
+        payload2 = {
+            "model": "grok-4-0709",
+            "max_output_tokens": 4096,
+            "stream": False,
+            "input": full_input
+        }
+        
+        logging.info("📡 Attempt 2: xAI /v1/responses with grok-4-0709...")
+        
+        async with httpx.AsyncClient(timeout=180) as client:
+            res2 = await client.post(url2, headers=headers, json=payload2)
+        
+        logging.info(f"📨 /v1/responses status: {res2.status_code}")
+        logging.info(f"📦 Response body (first 500): {res2.text[:500]}")
+        
+        if res2.status_code == 200:
+            data2 = res2.json()
+            insight_text = None
             
-            # xAI response format: check "output" field first (most likely)
-            insight_text = data.get('output')
+            # /v1/responses returns output as array of message objects
+            output = data2.get('output', [])
+            if isinstance(output, list):
+                for item in output:
+                    if isinstance(item, dict):
+                        # Each item has type and content
+                        content = item.get('content', [])
+                        if isinstance(content, list):
+                            for c in content:
+                                if isinstance(c, dict) and c.get('type') == 'output_text':
+                                    insight_text = c.get('text', '')
+                                    break
+                        elif isinstance(content, str):
+                            insight_text = content
+                        if insight_text:
+                            break
+            elif isinstance(output, str):
+                insight_text = output
             
-            # Fallback: check other possible fields
+            # Also check top-level text fields
             if not insight_text:
                 for field in ['response', 'text', 'content', 'message']:
-                    if field in data:
-                        insight_text = data[field]
-                        logging.info(f"✅ Found response in field: {field}")
+                    val = data2.get(field)
+                    if val and isinstance(val, str):
+                        insight_text = val
                         break
             
-            # Check for choices array (OpenAI-compatible format)
-            if not insight_text and 'choices' in data and len(data['choices']) > 0:
-                choice = data['choices'][0]
-                if isinstance(choice, dict):
-                    insight_text = choice.get('message', {}).get('content') or choice.get('text')
-                    if insight_text:
-                        logging.info("✅ Found response in choices[0]")
-            
-            if not insight_text:
-                logging.error(f"❌ Could not find text in response")
-                logging.error(f"Full response structure: {json.dumps(data, indent=2)}")
-                raise Exception(f"Empty response from xAI. Response keys: {list(data.keys())}")
-            
-            grok_elapsed = time.time() - grok_start
-            logging.info(f"⏱️  xAI latency: {grok_elapsed:.2f}s, Response: {len(insight_text)} chars")
-            return insight_text
+            if insight_text:
+                elapsed = time.time() - grok_start
+                logging.info(f"✅ xAI /v1/responses success! {elapsed:.2f}s, {len(insight_text)} chars")
+                return insight_text
+            else:
+                logging.error(f"❌ /v1/responses: could not extract text. Keys: {list(data2.keys())}")
+                logging.error(f"Full response: {json.dumps(data2, indent=2)[:1000]}")
+                raise Exception(f"No text in xAI response. Keys: {list(data2.keys())}")
         else:
-            error_body = res.text
-            logging.error(f"❌ xAI API failed with status {res.status_code}")
-            logging.error(f"Response: {error_body[:1000]}")
-            
-            # Try to parse error message
             try:
-                error_data = res.json()
-                error_msg = error_data.get('error', {}).get('message', error_body)
-                logging.error(f"Parsed error: {error_msg}")
-            except:
-                error_msg = error_body
-            
-            raise Exception(f"xAI API error ({res.status_code}): {error_msg[:300]}")
-            
-    except Exception as e:
-        logging.error(f"❌ xAI Grok exception: {str(e)}", exc_info=True)
-        raise
+                err_data = res2.json()
+                err_msg = err_data.get('error', {}).get('message', res2.text)
+            except Exception:
+                err_msg = res2.text
+            raise Exception(f"xAI /v1/responses error ({res2.status_code}): {err_msg[:300]}")
+    except Exception as e2:
+        logging.error(f"❌ /v1/responses exception: {str(e2)}")
+        raise Exception(f"Both xAI endpoints failed. Last error: {str(e2)[:300]}")
 
 async def generate_tts(text):
     """Convert text to speech using xAI TTS API. Returns mp3 bytes or None."""
@@ -1183,10 +1215,7 @@ async def check_ai_config():
         "xai_configured": bool(XAI_API_KEY),
         "xai_key_length": len(XAI_API_KEY) if XAI_API_KEY else 0,
         "xai_key_prefix": XAI_API_KEY[:10] + "..." if XAI_API_KEY and len(XAI_API_KEY) > 10 else "NOT_SET",
-        "groq_configured": bool(GROQ_API_KEY),
-        "groq_key_length": len(GROQ_API_KEY) if GROQ_API_KEY else 0,
         "xai_grok_enabled": xai_grok_enabled,
-        "groq_client_available": groq_client is not None
     }
 
 # ============ MT5 ACCOUNT ROUTES ============
@@ -2394,13 +2423,11 @@ async def market_live_candles_ws(
 
 @api_router.post("/ai/insights")
 async def get_ai_insights(request: AIInsightRequest, current_user: dict = Depends(get_current_user)):
-    """Get AI-powered trading insights using xAI Grok (fallback to Groq if needed)."""
-    # Log available AI services
-    logging.info(f"AI Services - xAI enabled: {xai_grok_enabled}, Groq available: {groq_client is not None}")
+    """Get AI-powered trading insights using xAI Grok premium reasoning model."""
+    logging.info(f"AI Insights request - xAI enabled: {xai_grok_enabled}")
     
-    # Check if any AI service is available
-    if not xai_grok_enabled and not groq_client:
-        logging.error("No AI service configured - XAI_API_KEY and GROQ_API_KEY both missing")
+    if not xai_grok_enabled:
+        logging.error("No AI service configured - XAI_API_KEY missing")
         raise HTTPException(status_code=503, detail="AI service is not configured. Please contact support.")
     
     try:
@@ -2473,7 +2500,7 @@ async def get_ai_insights(request: AIInsightRequest, current_user: dict = Depend
             reverse=True
         )
         
-        # Build prompt for Groq (Hinglish output)
+        # Build prompt for xAI Grok (Hinglish output)
         user_question = request.question or "Analyze my trading performance and provide insights on how I can improve."
         
         # Cache key based on summary data + question
@@ -2503,19 +2530,43 @@ Recent 10 trades P&L: ${sum(t.get('pnl', 0) or 0 for t in closed_trades[:10]):.2
 User question: {user_question}
 """
         
-        # System prompt for Hinglish responses
-        system_prompt = """You are an expert trading coach and performance analyst. You MUST respond in Hinglish (Hindi + English mix), like a trader casually explaining to a friend. Keep it natural, not robotic translation. Use trading terms in English but explain in Hinglish.
+        # System prompt for Hinglish responses with structured sections for frontend color rendering
+        system_prompt = """You are an expert trading coach and performance analyst. You MUST respond in Hinglish (Hindi + English mix), like a knowledgeable trader casually explaining to a friend. Keep it natural and conversational.
 
-Rules:
-1. ALWAYS answer the user's EXACT question — do NOT give a generic overview unless asked for one.
-2. Use the real trading data provided. Reference specific numbers, instruments, and percentages.
-3. Never give short or vague answers. Minimum 4 detailed paragraphs.
-4. Use **bold** for key values and section headings.
-5. If the user asks about a specific topic (e.g. risk management, mistakes, instruments), focus 80% of your answer on that topic.
-6. Include actionable, specific recommendations based on the data.
-7. If the user sends a casual message like 'hi' or 'hello', respond naturally but still share one interesting insight from their data.
-8. IMPORTANT: Write the ENTIRE response in Hinglish. Mix Hindi and English naturally. Example: "Bhai tera win rate **67.5%** hai jo decent hai, lekin tera risk-reward ratio improve karna padega."
-9. Keep instrument names, numbers, and trading terms (stop-loss, take-profit, risk-reward etc.) in English."""
+FORMATTING RULES (very important for rendering):
+1. Structure your response with clear section headings. Each heading should be on its own line, wrapped in double asterisks: **Heading Name**
+2. Under each heading, use bullet points starting with '- ' for key points.
+3. Use **bold** for key numbers, instruments, and important values inline.
+4. Separate sections with a blank line.
+5. Minimum 4 sections with headings.
+
+EXAMPLE FORMAT:
+**Overall Performance Analysis**
+
+Bhai tera overall performance dekha toh **win rate 67.5%** hai jo kaafi decent hai.
+
+**Top Instruments**
+
+- XAU/USD: Isme tera **$450 profit** tha, yeh tera best instrument hai.
+- NAS100: Yahaan thodi dikkat hai, **-$120 loss** hua.
+
+**Risk Management**
+
+- Stop-loss properly nahi laga raha tu. Average loss **$45** hai.
+- Risk-reward ratio improve kar, **minimum 1:2** rakha kar.
+
+**Action Plan**
+
+- Pehle XAU/USD pe focus kar, isme tera edge clear hai.
+- Position sizing fix kar — ek trade mein **2% se zyada risk** mat le.
+
+CONTENT RULES:
+1. ALWAYS answer the user's EXACT question — specific topic pe 80% focus karo.
+2. Use the real trading data provided. Reference specific numbers and instruments.
+3. Write the ENTIRE response in Hinglish. Mix Hindi and English naturally.
+4. Keep instrument names (XAU/USD, NAS100 etc.), numbers, and trading terms (stop-loss, take-profit, risk-reward, win rate, profit factor, drawdown) in English.
+5. If the user sends 'hi' or 'hello', respond warmly but still share one key insight from their data.
+6. Never give vague or generic answers — be specific with their actual numbers."""
 
         full_prompt = f"""{summary_text}
 
@@ -2524,82 +2575,26 @@ All instruments breakdown:
 
 Answer this question thoroughly: {user_question}"""
         
-        # Try xAI Grok first, fallback to Groq if needed
+        # Use xAI Grok (Premium Reasoning Model)
         insight_text = None
-        ai_source = "unknown"
+        ai_source = "xai-grok"
         
-        # First attempt: xAI Grok (premium reasoning model)
-        if xai_grok_enabled:
-            try:
-                logging.info("🚀 Attempting xAI Grok API (Premium Reasoning)...")
-                insight_text = await generate_ai_insights_with_xai_grok(full_prompt, system_prompt)
-                ai_source = "xai-grok"
-                logging.info("✅ xAI Grok success")
-            except Exception as xai_error:
-                logging.error(f"❌ xAI Grok failed: {str(xai_error)}")
-                
-                # Fallback to Groq if available
-                if groq_client:
-                    try:
-                        logging.info("🔄 Falling back to Groq...")
-                        groq_start = time.time()
-                        message = groq_client.chat.completions.create(
-                            model="llama-3.3-70b-versatile",
-                            max_tokens=4096,
-                            temperature=0.7,
-                            messages=[
-                                {"role": "system", "content": system_prompt},
-                                {"role": "user", "content": full_prompt}
-                            ]
-                        )
-                        insight_text = message.choices[0].message.content
-                        ai_source = "groq"
-                        groq_elapsed = time.time() - groq_start
-                        logging.info(f"✅ Groq fallback success: {groq_elapsed:.2f}s")
-                    except Exception as groq_error:
-                        logging.error(f"❌ Groq fallback also failed: {str(groq_error)}")
-                        # If both fail, raise informative error
-                        raise HTTPException(
-                            status_code=503,
-                            detail=f"AI services unavailable. xAI error: {str(xai_error)[:150]}. Groq error: {str(groq_error)[:150]}"
-                        )
-                else:
-                    # No Groq available, raise xAI error
-                    raise HTTPException(
-                        status_code=503,
-                        detail=f"xAI Grok error: {str(xai_error)[:300]}"
-                    )
-        
-        # If xAI not configured, use Groq directly
-        elif groq_client:
-            try:
-                logging.info("🚀 Using Groq directly (xAI not configured)...")
-                groq_start = time.time()
-                message = groq_client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                    max_tokens=4096,
-                    temperature=0.7,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": full_prompt}
-                    ]
-                )
-                insight_text = message.choices[0].message.content
-                ai_source = "groq"
-                groq_elapsed = time.time() - groq_start
-                logging.info(f"✅ Groq success: {groq_elapsed:.2f}s")
-            except Exception as groq_error:
-                logging.error(f"❌ Groq error: {str(groq_error)}")
-                raise HTTPException(
-                    status_code=503,
-                    detail=f"Groq API error: {str(groq_error)[:300]}"
-                )
-        else:
-            # No AI service available
-            logging.error("❌ No AI service configured")
+        if not xai_grok_enabled:
+            logging.error("❌ XAI_API_KEY not configured")
             raise HTTPException(
                 status_code=503,
-                detail="AI service not configured. Please add XAI_API_KEY or GROQ_API_KEY to environment variables."
+                detail="xAI Grok API not configured. Please add XAI_API_KEY to environment variables."
+            )
+        
+        try:
+            logging.info("🚀 Calling xAI Grok API (Premium Reasoning Model)...")
+            insight_text = await generate_ai_insights_with_xai_grok(full_prompt, system_prompt)
+            logging.info("✅ xAI Grok success!")
+        except Exception as xai_error:
+            logging.error(f"❌ xAI Grok failed: {str(xai_error)}")
+            raise HTTPException(
+                status_code=503,
+                detail=f"xAI Grok API error: {str(xai_error)[:300]}"
             )
         
         # Verify we got a response
