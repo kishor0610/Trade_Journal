@@ -107,21 +107,22 @@ async def generate_ai_insights_with_xai_grok(prompt: str, system_prompt: str):
     try:
         grok_start = time.time()
         
-        # xAI uses /responses endpoint, not /chat/completions
-        url = "https://api.x.ai/v1/responses"
+        # Use chat completions endpoint with grok-beta (more stable)
+        url = "https://api.x.ai/v1/chat/completions"
         headers = {
             "Authorization": f"Bearer {XAI_API_KEY}",
             "Content-Type": "application/json",
         }
         
-        # Combine system prompt and user prompt into single input
-        full_input = f"{system_prompt}\n\n{prompt}"
-        
         payload = {
-            "model": "grok-4.20-0309-reasoning",  # Correct model name
-            "input": full_input,  # xAI uses "input" not "messages"
-            "max_output_tokens": 4096,
-            "stream": False  # Non-streaming for easier handling
+            "model": "grok-beta",
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.7,
+            "max_tokens": 4096,
+            "stream": False
         }
         
         logging.info("Calling xAI Grok API for insights...")
@@ -137,27 +138,27 @@ async def generate_ai_insights_with_xai_grok(prompt: str, system_prompt: str):
             data = res.json()
             logging.info(f"xAI API response keys: {list(data.keys())}")
             
-            # Try different response field names (API format may vary)
-            insight_text = None
-            for field in ['output', 'text', 'content', 'response', 'message']:
-                if field in data:
-                    insight_text = data[field]
-                    logging.info(f"Found response in field: {field}")
-                    break
-            
-            # Check if it's in a nested structure like choices[0].message.content
-            if not insight_text and 'choices' in data and len(data['choices']) > 0:
+            # Standard OpenAI-compatible format
+            if 'choices' in data and len(data['choices']) > 0:
                 choice = data['choices'][0]
                 if 'message' in choice and 'content' in choice['message']:
                     insight_text = choice['message']['content']
-                    logging.info("Found response in choices[0].message.content")
                 elif 'text' in choice:
                     insight_text = choice['text']
-                    logging.info("Found response in choices[0].text")
-            
-            if not insight_text:
-                logging.error(f"Could not find text in xAI response. Full response: {data}")
-                raise Exception(f"Empty or unrecognized response format from xAI. Response keys: {list(data.keys())}")
+                else:
+                    raise Exception(f"Unexpected choice format: {choice.keys()}")
+            else:
+                # Try alternative response formats
+                insight_text = None
+                for field in ['output', 'text', 'content', 'response']:
+                    if field in data:
+                        insight_text = data[field]
+                        logging.info(f"Found response in field: {field}")
+                        break
+                
+                if not insight_text:
+                    logging.error(f"Could not find text in xAI response. Full response: {data}")
+                    raise Exception(f"Empty or unrecognized response format. Response keys: {list(data.keys())}")
             
             grok_elapsed = time.time() - grok_start
             logging.info(f"xAI Grok latency: {grok_elapsed:.2f}s, Response length: {len(insight_text)} chars")
