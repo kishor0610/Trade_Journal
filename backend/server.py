@@ -2382,6 +2382,9 @@ async def market_live_candles_ws(
 @api_router.post("/ai/insights")
 async def get_ai_insights(request: AIInsightRequest, current_user: dict = Depends(get_current_user)):
     """Get AI-powered trading insights using xAI Grok (fallback to Groq if needed)."""
+    # Log available AI services
+    logging.info(f"AI Services - xAI enabled: {xai_grok_enabled}, Groq available: {groq_client is not None}")
+    
     # Check if any AI service is available
     if not xai_grok_enabled and not groq_client:
         logging.error("No AI service configured - XAI_API_KEY and GROQ_API_KEY both missing")
@@ -2510,10 +2513,11 @@ Answer this question thoroughly: {user_question}"""
         
         # Try xAI Grok first, fallback to Groq if needed
         insight_text = None
-        ai_source = "xai-grok"
+        ai_source = "groq"  # Temporarily using Groq directly until xAI is debugged
         
         try:
-            if xai_grok_enabled:
+            # Temporarily skip xAI and use Groq directly (xAI debugging needed)
+            if False and xai_grok_enabled:
                 try:
                     logging.info("Attempting xAI Grok API...")
                     insight_text = await generate_ai_insights_with_xai_grok(full_prompt, system_prompt)
