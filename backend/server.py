@@ -123,18 +123,24 @@ async def generate_ai_insights_with_xai_grok(prompt: str, system_prompt: str):
         }
         
         logging.info("Calling xAI Grok API for insights...")
+        logging.debug(f"xAI API URL: {url}")
+        logging.debug(f"xAI API Key present: {bool(XAI_API_KEY)}, Length: {len(XAI_API_KEY) if XAI_API_KEY else 0}")
+        
         async with httpx.AsyncClient(timeout=60) as client:
             res = await client.post(url, headers=headers, json=payload)
+        
+        logging.info(f"xAI Grok API response status: {res.status_code}")
         
         if res.status_code == 200:
             data = res.json()
             insight_text = data['choices'][0]['message']['content']
             grok_elapsed = time.time() - grok_start
-            logging.info(f"xAI Grok latency: {grok_elapsed:.2f}s")
+            logging.info(f"xAI Grok latency: {grok_elapsed:.2f}s, Response length: {len(insight_text)} chars")
             return insight_text
         else:
-            error_msg = f"Grok API failed ({res.status_code}): {res.text[:300]}"
+            error_msg = f"Grok API failed ({res.status_code}): {res.text[:500]}"
             logging.error(error_msg)
+            logging.error(f"Full response body: {res.text}")
             raise Exception(error_msg)
             
     except Exception as e:
@@ -2466,7 +2472,33 @@ Answer this question thoroughly: {user_question}"""
         except Exception as ai_error:
             error_msg = str(ai_error)
             logging.error(f"AI generation error: {error_msg}", exc_info=True)
-            raise HTTPException(status_code=500, detail=f"Failed to generate insights. Please try again later.")
+            
+            # Provide specific error messages based on error type
+            if "XAI_API_KEY" in error_msg or "xAI Grok API not configured" in error_msg:
+                raise HTTPException(
+                    status_code=503, 
+                    detail="AI service is temporarily unavailable. Our team has been notified."
+                )
+            elif "GROQ_API_KEY" in error_msg or "No AI service available" in error_msg:
+                raise HTTPException(
+                    status_code=503,
+                    detail="AI service is not configured. Please contact support."
+                )
+            elif "timeout" in error_msg.lower():
+                raise HTTPException(
+                    status_code=504,
+                    detail="AI service timeout. Please try again in a few seconds."
+                )
+            elif "401" in error_msg or "403" in error_msg or "authentication" in error_msg.lower():
+                raise HTTPException(
+                    status_code=503,
+                    detail="AI service authentication issue. Our team has been notified."
+                )
+            else:
+                raise HTTPException(
+                    status_code=500, 
+                    detail=f"Failed to generate insights: {error_msg[:100]}. Please try again or contact support."
+                )
         
         if not insight_text:
             raise HTTPException(status_code=500, detail="Failed to generate insights")

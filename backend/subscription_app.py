@@ -302,14 +302,34 @@ async def verify_subscription_payment(payment_data: VerifyPaymentRequest, curren
 
         # Deduct XP if it was used (BEFORE processing rewards)
         if xp_used > 0:
+            # Re-verify XP balance before deduction
+            user = await server.db.users.find_one({"id": current_user["id"]}, {"xp_balance": 1})
+            current_balance = user.get("xp_balance", 0) if user else 0
+            
+            if current_balance < xp_used:
+                logging.error(f"XP balance changed! User {current_user['id']} tried to use {xp_used} XP but only has {current_balance} XP")
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"XP balance insufficient. You have {current_balance} XP but tried to use {xp_used} XP. Please contact support for refund."
+                )
+            
             deduct_success = await referral_service.debit_xp(
                 current_user["id"],
                 xp_used,
-                f"Subscription payment for {payment_data.plan} plan"
+                f"Subscription payment for {payment_data.plan} plan (Payment ID: {payment_data.razorpay_payment_id})"
             )
+            
             if not deduct_success:
-                logging.error(f"Failed to deduct XP for user {current_user['id']} after payment")
-                # Don't fail the payment, but log the error
+                logging.error(f"CRITICAL: Failed to deduct {xp_used} XP for user {current_user['id']} after successful payment {payment_data.razorpay_payment_id}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Payment successful but XP deduction failed. Please contact support immediately with payment ID: {payment_data.razorpay_payment_id}"
+                )
+            
+            logging.info(f"Successfully deducted {xp_used} XP from user {current_user['id']}")
+        
+        start_date = datetime.now(timezone.utc)
+        end_date = start_date + timedelta(days=plan["duration_days"])
         
         # Store payment record with XP info
         await server.db.payments.insert_one(

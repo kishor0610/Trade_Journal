@@ -78,9 +78,14 @@ class ReferralService:
         logging.info(f"Referral tracked: {referrer_id} -> {new_user_id}")
         return True
     
-    async def process_successful_payment(self, user_id: str, payment_id: str) -> Dict[str, Any]:
+    async def process_successful_payment(self, user_id: str, plan: str, amount_paid: float, payment_id: str) -> Dict[str, Any]:
         """
         Process referral rewards after successful payment
+        Args:
+            user_id: The user who made the payment
+            plan: Subscription plan type (monthly, quarterly, yearly)
+            amount_paid: Base amount paid (before XP discount)
+            payment_id: Razorpay payment ID
         Returns: {bonus_days: int, xp_earned_by_referrer: int}
         """
         result = {"bonus_days": 0, "xp_earned_by_referrer": 0}
@@ -92,6 +97,7 @@ class ReferralService:
         })
         
         if not referral:
+            logging.info(f"No pending referral found for user {user_id}")
             return result
         
         # Prevent duplicate processing
@@ -106,7 +112,20 @@ class ReferralService:
             bonus_days = 15
             result['bonus_days'] = bonus_days
             
-            # This will be applied in the payment webhook
+            # Extend subscription by 15 days
+            user = await self.users.find_one({"id": user_id})
+            if user:
+                from datetime import datetime as dt, timedelta
+                current_end = user.get('subscription_end_date')
+                if current_end:
+                    if isinstance(current_end, str):
+                        current_end = dt.fromisoformat(current_end.replace("Z", "+00:00"))
+                    new_end = current_end + timedelta(days=bonus_days)
+                    await self.users.update_one(
+                        {"id": user_id},
+                        {"$set": {"subscription_end_date": new_end.isoformat()}}
+                    )
+                    logging.info(f"Extended subscription for {user_id} by {bonus_days} days")
             
             # 2. Give referrer 100 XP
             xp_amount = 100
@@ -126,6 +145,8 @@ class ReferralService:
                     "reward_applied": True,
                     "xp_given": True,
                     "payment_id": payment_id,
+                    "plan": plan,
+                    "amount_paid": amount_paid,
                     "processed_at": datetime.now(timezone.utc).isoformat()
                 }}
             )
@@ -133,7 +154,7 @@ class ReferralService:
             logging.info(f"Referral rewards processed: {referrer_id} earned {xp_amount} XP, {user_id} got {bonus_days} days bonus")
             
         except Exception as e:
-            logging.error(f"Failed to process referral rewards: {str(e)}")
+            logging.error(f"Failed to process referral rewards: {str(e)}", exc_info=True)
             
         return result
     
