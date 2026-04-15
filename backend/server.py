@@ -15,6 +15,7 @@ import bcrypt
 from fastapi.responses import StreamingResponse
 import io
 import csv
+import json
 import asyncio
 import secrets
 import resend
@@ -107,29 +108,29 @@ async def generate_ai_insights_with_xai_grok(prompt: str, system_prompt: str):
     try:
         grok_start = time.time()
         
-        # Use chat completions endpoint with grok-beta (more stable)
-        url = "https://api.x.ai/v1/chat/completions"
+        # xAI Grok uses /v1/responses endpoint (from xAI console documentation)
+        url = "https://api.x.ai/v1/responses"
         headers = {
             "Authorization": f"Bearer {XAI_API_KEY}",
             "Content-Type": "application/json",
         }
         
+        # Combine system and user prompts into single input
+        full_input = f"{system_prompt}\n\n{prompt}"
+        
         payload = {
-            "model": "grok-beta",
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt}
-            ],
-            "temperature": 0.7,
-            "max_tokens": 4096,
-            "stream": False
+            "model": "grok-beta",  # Using stable grok-beta model
+            "max_output_tokens": 4096,
+            "stream": False,  # Non-streaming mode
+            "input": full_input  # xAI uses "input" field, not "messages"
         }
         
         logging.info("Calling xAI Grok API for insights...")
         logging.debug(f"xAI API URL: {url}")
-        logging.debug(f"xAI API Key present: {bool(XAI_API_KEY)}, Length: {len(XAI_API_KEY) if XAI_API_KEY else 0}")
+        logging.debug(f"xAI Model: {payload['model']}")
+        logging.debug(f"Input length: {len(full_input)} chars")
         
-        async with httpx.AsyncClient(timeout=90) as client:
+        async with httpx.AsyncClient(timeout=120) as client:
             res = await client.post(url, headers=headers, json=payload)
         
         logging.info(f"xAI Grok API response status: {res.status_code}")
@@ -138,36 +139,45 @@ async def generate_ai_insights_with_xai_grok(prompt: str, system_prompt: str):
             data = res.json()
             logging.info(f"xAI API response keys: {list(data.keys())}")
             
-            # Standard OpenAI-compatible format
-            if 'choices' in data and len(data['choices']) > 0:
-                choice = data['choices'][0]
-                if 'message' in choice and 'content' in choice['message']:
-                    insight_text = choice['message']['content']
-                elif 'text' in choice:
-                    insight_text = choice['text']
-                else:
-                    raise Exception(f"Unexpected choice format: {choice.keys()}")
-            else:
-                # Try alternative response formats
-                insight_text = None
-                for field in ['output', 'text', 'content', 'response']:
+            # xAI response format: check "output" field first (most likely)
+            insight_text = data.get('output')
+            
+            # Fallback: check other possible fields
+            if not insight_text:
+                for field in ['response', 'text', 'content', 'message']:
                     if field in data:
                         insight_text = data[field]
                         logging.info(f"Found response in field: {field}")
                         break
-                
-                if not insight_text:
-                    logging.error(f"Could not find text in xAI response. Full response: {data}")
-                    raise Exception(f"Empty or unrecognized response format. Response keys: {list(data.keys())}")
+            
+            # Check for choices array (OpenAI-compatible format)
+            if not insight_text and 'choices' in data and len(data['choices']) > 0:
+                choice = data['choices'][0]
+                if isinstance(choice, dict):
+                    insight_text = choice.get('message', {}).get('content') or choice.get('text')
+                    if insight_text:
+                        logging.info("Found response in choices[0]")
+            
+            if not insight_text:
+                logging.error(f"Could not find text in xAI response. Full response: {json.dumps(data, indent=2)}")
+                raise Exception(f"Empty or unrecognized response format. Response keys: {list(data.keys())}")
             
             grok_elapsed = time.time() - grok_start
             logging.info(f"xAI Grok latency: {grok_elapsed:.2f}s, Response length: {len(insight_text)} chars")
             return insight_text
         else:
-            error_msg = f"Grok API failed ({res.status_code}): {res.text[:500]}"
-            logging.error(error_msg)
-            logging.error(f"Full response body: {res.text}")
-            raise Exception(error_msg)
+            error_body = res.text
+            logging.error(f"xAI API failed with status {res.status_code}")
+            logging.error(f"Response body: {error_body[:1000]}")
+            
+            # Try to parse error message
+            try:
+                error_data = res.json()
+                error_msg = error_data.get('error', {}).get('message', error_body)
+            except:
+                error_msg = error_body
+            
+            raise Exception(f"xAI API error ({res.status_code}): {error_msg[:300]}")
             
     except Exception as e:
         logging.error(f"xAI Grok exception: {str(e)}", exc_info=True)
@@ -2513,11 +2523,10 @@ Answer this question thoroughly: {user_question}"""
         
         # Try xAI Grok first, fallback to Groq if needed
         insight_text = None
-        ai_source = "groq"  # Temporarily using Groq directly until xAI is debugged
+        ai_source = "xai-grok"
         
         try:
-            # Temporarily skip xAI and use Groq directly (xAI debugging needed)
-            if False and xai_grok_enabled:
+            if xai_grok_enabled:
                 try:
                     logging.info("Attempting xAI Grok API...")
                     insight_text = await generate_ai_insights_with_xai_grok(full_prompt, system_prompt)
