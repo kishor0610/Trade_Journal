@@ -2492,27 +2492,33 @@ Answer this question thoroughly: {user_question}"""
             if "XAI_API_KEY" in error_msg or "xAI Grok API not configured" in error_msg:
                 raise HTTPException(
                     status_code=503, 
-                    detail="AI service is temporarily unavailable. Our team has been notified."
+                    detail=f"xAI Grok API error: {error_msg[:200]}"
                 )
             elif "GROQ_API_KEY" in error_msg or "No AI service available" in error_msg:
                 raise HTTPException(
                     status_code=503,
-                    detail="AI service is not configured. Please contact support."
+                    detail=f"No AI service available: {error_msg[:200]}"
                 )
             elif "timeout" in error_msg.lower():
                 raise HTTPException(
                     status_code=504,
-                    detail="AI service timeout. Please try again in a few seconds."
+                    detail=f"AI service timeout: {error_msg[:200]}"
                 )
-            elif "401" in error_msg or "403" in error_msg or "authentication" in error_msg.lower():
+            elif "401" in error_msg or "403" in error_msg or "authentication" in error_msg.lower() or "unauthorized" in error_msg.lower():
                 raise HTTPException(
                     status_code=503,
-                    detail="AI service authentication issue. Our team has been notified."
+                    detail=f"AI API authentication failed: {error_msg[:200]}. Please check your API keys."
+                )
+            elif "Grok API failed" in error_msg:
+                # Extract the actual xAI error
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"xAI Grok API error: {error_msg[:300]}"
                 )
             else:
                 raise HTTPException(
                     status_code=500, 
-                    detail=f"Failed to generate insights: {error_msg[:100]}. Please try again or contact support."
+                    detail=f"AI generation failed: {error_msg[:200]}"
                 )
         
         if not insight_text:
