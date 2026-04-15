@@ -113,13 +113,13 @@ async def generate_ai_insights_with_xai_grok(prompt: str, system_prompt: str):
     try:
         url = "https://api.x.ai/v1/chat/completions"
         payload = {
-            "model": "grok-4-0709",  # Current stable Grok 4 model
+            "model": "grok-4",  # grok-4 is an alias to latest stable Grok 4 (reasoning model)
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt}
             ],
             "max_tokens": 4096,
-            "temperature": 0.7,
+            # NOTE: No temperature, presence_penalty, frequency_penalty or stop - Grok 4 reasoning model doesn't support them
             "stream": False
         }
         
@@ -154,7 +154,7 @@ async def generate_ai_insights_with_xai_grok(prompt: str, system_prompt: str):
         url2 = "https://api.x.ai/v1/responses"
         full_input = f"{system_prompt}\n\n{prompt}"
         payload2 = {
-            "model": "grok-4-0709",
+            "model": "grok-4",
             "max_output_tokens": 4096,
             "stream": False,
             "input": full_input
