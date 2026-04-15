@@ -139,8 +139,12 @@ export default function Register() {
       await register(email, password, name, referralCode);
       if (referralCode) {
         toast.success('Account created successfully! Welcome to TradeLedger via referral 🎉');
+        // Remind user about referral bonus
+        setTimeout(() => {
+          toast.success('🎁 Don\'t forget: Upgrade to unlock +15 days bonus!', { duration: 5000 });
+        }, 2000);
       } else {
-        toast.success('Account created successfully!');
+        toast.success('Account created successfully! You have 14 days free trial.');
       }
       navigate('/dashboard');
     } catch (error) {
