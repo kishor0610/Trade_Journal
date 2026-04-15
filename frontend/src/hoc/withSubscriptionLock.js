@@ -6,18 +6,22 @@ import { Lock } from 'lucide-react';
 
 const withSubscriptionLock = (WrappedComponent, featureName = 'this feature') => {
   return (props) => {
-    const { isActive, isTrial, loading } = useSubscription();
+    const { isActive, isTrial, loading, subscription } = useSubscription();
     const [showUpgradeModal, setShowUpgradeModal] = useState(false);
     const navigate = useNavigate();
 
+    // A token exists but subscription hasn't loaded yet — treat as loading
+    const hasToken = !!localStorage.getItem('token');
+    const isResolvingSubscription = hasToken && subscription === null;
+
     useEffect(() => {
       // If not active and not on trial, show modal
-      if (!loading && !isActive && !isTrial) {
+      if (!loading && !isResolvingSubscription && !isActive && !isTrial) {
         setShowUpgradeModal(true);
       }
-    }, [isActive, isTrial, loading]);
+    }, [isActive, isTrial, loading, isResolvingSubscription]);
 
-    if (loading) {
+    if (loading || isResolvingSubscription) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-background">
           <div className="w-8 h-8 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
@@ -25,7 +29,7 @@ const withSubscriptionLock = (WrappedComponent, featureName = 'this feature') =>
       );
     }
 
-    // Show locked overlay if subscription is expired
+    // Show locked overlay if subscription is truly expired (no token ambiguity)
     if (!isActive && !isTrial) {
       return (
         <div className="min-h-screen p-8">

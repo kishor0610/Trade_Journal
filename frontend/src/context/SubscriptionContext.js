@@ -56,6 +56,19 @@ export const SubscriptionProvider = ({ children }) => {
     fetchSubscription();
   }, []);
 
+  // Listen for login/register events and instantly apply cached subscription data
+  useEffect(() => {
+    const handleSubscriptionRefresh = () => {
+      const cached = getCachedSubscription();
+      if (cached) {
+        setSubscription(cached);
+        setLoading(false);
+      }
+    };
+    window.addEventListener('subscription:refresh', handleSubscriptionRefresh);
+    return () => window.removeEventListener('subscription:refresh', handleSubscriptionRefresh);
+  }, []);
+
   useEffect(() => {
     const refreshOnFocus = () => {
       fetchSubscription();

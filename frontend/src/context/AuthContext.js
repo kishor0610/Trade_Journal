@@ -41,6 +41,8 @@ export function AuthProvider({ children }) {
     // Store subscription data immediately to avoid loading delay
     if (subscription) {
       localStorage.setItem('subscription__data', JSON.stringify(subscription));
+      // Notify SubscriptionContext to pick up the new data without an API call
+      window.dispatchEvent(new CustomEvent('subscription:refresh'));
     }
     
     axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
@@ -63,6 +65,8 @@ export function AuthProvider({ children }) {
     // Store subscription data immediately for new registrations
     if (subscription) {
       localStorage.setItem('subscription__data', JSON.stringify(subscription));
+      // Notify SubscriptionContext to pick up the new data without an API call
+      window.dispatchEvent(new CustomEvent('subscription:refresh'));
     }
     
     axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
