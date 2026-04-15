@@ -437,12 +437,13 @@ function AIInsights() {
       setPlayKey(k => k + 1); // force TTS to play every time
       toast.success('Insights generated successfully');
     } catch (error) {
+      const detail = error.response?.data?.detail;
       if (error.response?.status === 503) {
-        toast.error('AI service is not configured');
+        toast.error(detail || 'AI service is not configured');
       } else if (error.response?.status === 500) {
-        toast.error('Failed to generate insights. Please try again.');
+        toast.error(detail ? `Error: ${detail.substring(0, 120)}` : 'Failed to generate insights. Please try again.');
       } else {
-        toast.error(error.response?.data?.detail || 'Failed to get insights');
+        toast.error(detail || 'Failed to get insights');
       }
       console.error(error);
     } finally {

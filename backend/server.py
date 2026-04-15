@@ -95,8 +95,9 @@ QUOTES_CACHE_TTL = 5  # 5 seconds (market data needs frequent updates)
 async def generate_ai_insights_with_xai_grok(prompt: str, system_prompt: str):
     """Use xAI Grok API for AI insights generation. Returns text response.
     
-    Tries /v1/chat/completions first (OpenAI-compatible, most reliable).
-    Falls back to /v1/responses if chat completions fails.
+    Tries grok-4 via /v1/chat/completions first.
+    Falls back to grok-3 (stable) if grok-4 fails.
+    Falls back to /v1/responses as final attempt.
     """
     if not XAI_API_KEY:
         logging.error("❌ XAI_API_KEY not configured")
@@ -108,76 +109,92 @@ async def generate_ai_insights_with_xai_grok(prompt: str, system_prompt: str):
     }
     
     grok_start = time.time()
-    
-    # ---- Attempt 1: /v1/chat/completions (OpenAI-compatible, standard format) ----
-    try:
+    last_error = None
+
+    async def try_chat_completions(model_name: str, extra_params: dict = None) -> str:
+        """Try /v1/chat/completions with given model. Returns text or raises."""
         url = "https://api.x.ai/v1/chat/completions"
         payload = {
-            "model": "grok-4",  # grok-4 is an alias to latest stable Grok 4 (reasoning model)
+            "model": model_name,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt}
             ],
             "max_tokens": 4096,
-            # NOTE: No temperature, presence_penalty, frequency_penalty or stop - Grok 4 reasoning model doesn't support them
             "stream": False
         }
+        if extra_params:
+            payload.update(extra_params)
         
-        logging.info("📡 Attempt 1: xAI /v1/chat/completions with grok-4-0709...")
+        logging.info(f"📡 Trying xAI /v1/chat/completions with {model_name}...")
         logging.info(f"   Prompt length: {len(prompt)} chars")
         
-        async with httpx.AsyncClient(timeout=180) as client:
-            res = await client.post(url, headers=headers, json=payload)
+        async with httpx.AsyncClient(timeout=180) as http_client:
+            res = await http_client.post(url, headers=headers, json=payload)
         
-        logging.info(f"📨 chat/completions response status: {res.status_code}")
+        logging.info(f"📨 {model_name} response status: {res.status_code}")
         logging.info(f"📦 Response body (first 500): {res.text[:500]}")
         
         if res.status_code == 200:
             data = res.json()
-            insight_text = None
             if 'choices' in data and len(data['choices']) > 0:
-                insight_text = data['choices'][0].get('message', {}).get('content')
-            if insight_text:
-                elapsed = time.time() - grok_start
-                logging.info(f"✅ xAI chat/completions success! {elapsed:.2f}s, {len(insight_text)} chars")
-                return insight_text
-            else:
-                logging.error(f"❌ chat/completions: no content in choices. Keys: {list(data.keys())}")
-                logging.error(f"Full response: {json.dumps(data, indent=2)[:1000]}")
+                text = data['choices'][0].get('message', {}).get('content')
+                if text:
+                    elapsed = time.time() - grok_start
+                    logging.info(f"✅ {model_name} success! {elapsed:.2f}s, {len(text)} chars")
+                    return text
+            logging.error(f"❌ {model_name}: no content in choices. Keys: {list(data.keys())}")
+            logging.error(f"Full response: {json.dumps(data, indent=2)[:1000]}")
+            raise Exception(f"{model_name}: empty choices in response")
         else:
-            logging.error(f"❌ chat/completions failed ({res.status_code}): {res.text[:500]}")
-    except Exception as e1:
-        logging.error(f"❌ chat/completions exception: {str(e1)}")
-    
-    # ---- Attempt 2: /v1/responses endpoint (xAI native format) ----
+            try:
+                err_data = res.json()
+                err_msg = err_data.get('error', {}).get('message', res.text)
+            except Exception:
+                err_msg = res.text
+            raise Exception(f"{model_name} error ({res.status_code}): {err_msg[:300]}")
+
+    # ---- Attempt 1: grok-4 via /v1/chat/completions (reasoning model, no temperature) ----
     try:
-        url2 = "https://api.x.ai/v1/responses"
+        return await try_chat_completions("grok-4")
+    except Exception as e1:
+        last_error = str(e1)
+        logging.error(f"❌ grok-4 failed: {last_error}")
+    
+    # ---- Attempt 2: grok-3 via /v1/chat/completions (stable model) ----
+    try:
+        return await try_chat_completions("grok-3", {"temperature": 0.7})
+    except Exception as e2:
+        last_error = str(e2)
+        logging.error(f"❌ grok-3 failed: {last_error}")
+    
+    # ---- Attempt 3: /v1/responses endpoint with grok-3 (xAI native format) ----
+    try:
+        url3 = "https://api.x.ai/v1/responses"
         full_input = f"{system_prompt}\n\n{prompt}"
-        payload2 = {
-            "model": "grok-4",
+        payload3 = {
+            "model": "grok-3",
             "max_output_tokens": 4096,
             "stream": False,
             "input": full_input
         }
         
-        logging.info("📡 Attempt 2: xAI /v1/responses with grok-4-0709...")
+        logging.info("📡 Attempt 3: xAI /v1/responses with grok-3...")
         
-        async with httpx.AsyncClient(timeout=180) as client:
-            res2 = await client.post(url2, headers=headers, json=payload2)
+        async with httpx.AsyncClient(timeout=180) as http_client:
+            res3 = await http_client.post(url3, headers=headers, json=payload3)
         
-        logging.info(f"📨 /v1/responses status: {res2.status_code}")
-        logging.info(f"📦 Response body (first 500): {res2.text[:500]}")
+        logging.info(f"📨 /v1/responses status: {res3.status_code}")
+        logging.info(f"📦 Response body (first 500): {res3.text[:500]}")
         
-        if res2.status_code == 200:
-            data2 = res2.json()
+        if res3.status_code == 200:
+            data3 = res3.json()
             insight_text = None
             
-            # /v1/responses returns output as array of message objects
-            output = data2.get('output', [])
+            output = data3.get('output', [])
             if isinstance(output, list):
                 for item in output:
                     if isinstance(item, dict):
-                        # Each item has type and content
                         content = item.get('content', [])
                         if isinstance(content, list):
                             for c in content:
@@ -191,10 +208,9 @@ async def generate_ai_insights_with_xai_grok(prompt: str, system_prompt: str):
             elif isinstance(output, str):
                 insight_text = output
             
-            # Also check top-level text fields
             if not insight_text:
                 for field in ['response', 'text', 'content', 'message']:
-                    val = data2.get(field)
+                    val = data3.get(field)
                     if val and isinstance(val, str):
                         insight_text = val
                         break
@@ -204,19 +220,19 @@ async def generate_ai_insights_with_xai_grok(prompt: str, system_prompt: str):
                 logging.info(f"✅ xAI /v1/responses success! {elapsed:.2f}s, {len(insight_text)} chars")
                 return insight_text
             else:
-                logging.error(f"❌ /v1/responses: could not extract text. Keys: {list(data2.keys())}")
-                logging.error(f"Full response: {json.dumps(data2, indent=2)[:1000]}")
-                raise Exception(f"No text in xAI response. Keys: {list(data2.keys())}")
+                raise Exception(f"No text in /v1/responses. Keys: {list(data3.keys())}")
         else:
             try:
-                err_data = res2.json()
-                err_msg = err_data.get('error', {}).get('message', res2.text)
+                err_data3 = res3.json()
+                err_msg3 = err_data3.get('error', {}).get('message', res3.text)
             except Exception:
-                err_msg = res2.text
-            raise Exception(f"xAI /v1/responses error ({res2.status_code}): {err_msg[:300]}")
-    except Exception as e2:
-        logging.error(f"❌ /v1/responses exception: {str(e2)}")
-        raise Exception(f"Both xAI endpoints failed. Last error: {str(e2)[:300]}")
+                err_msg3 = res3.text
+            raise Exception(f"/v1/responses error ({res3.status_code}): {err_msg3[:300]}")
+    except Exception as e3:
+        last_error = str(e3)
+        logging.error(f"❌ /v1/responses exception: {last_error}")
+    
+    raise Exception(f"All xAI endpoints failed. Last error: {last_error[:300]}")
 
 async def generate_tts(text):
     """Convert text to speech using xAI TTS API. Returns mp3 bytes or None."""
@@ -238,7 +254,7 @@ async def generate_tts(text):
         }
         payload = {
             "text": tts_text,
-            "voice": "Rex",
+            "voice_id": "rex",
             "language": "en"
         }
         
@@ -2685,6 +2701,8 @@ Answer this question thoroughly: {user_question}"""
             oldest_key = min(ai_insights_cache, key=lambda k: ai_insights_cache[k]['timestamp'])
             del ai_insights_cache[oldest_key]
         return response_data
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions as-is (preserves status code and detail)
     except Exception as e:
         logging.error(f"AI insights error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to generate insights: {str(e)}")
