@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Copy, Check, Users, Award, TrendingUp, Gift } from 'lucide-react';
+import { Copy, Check, Users, Award, TrendingUp, Gift, Target, Share2, MessageCircle, Mail, Zap } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
@@ -70,6 +70,46 @@ const Referral = () => {
     }
   };
 
+  const shareViaWhatsApp = () => {
+    if (referralData?.code) {
+      const link = `${window.location.origin}/register?ref=${referralData.code}`;
+      const text = `Join me on Trade Ledger and start tracking your trades professionally! Use my referral link and get 15 extra days free: ${link}`;
+      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+    }
+  };
+
+  const shareViaEmail = () => {
+    if (referralData?.code) {
+      const link = `${window.location.origin}/register?ref=${referralData.code}`;
+      const subject = 'Join Trade Ledger with my referral!';
+      const body = `Hi!\n\nI've been using Trade Ledger to track my trades and it's been amazing. You should check it out!\n\nUse my referral link to get 15 extra days free:\n${link}\n\nHappy Trading!`;
+      window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    }
+  };
+
+  const getMilestones = () => {
+    const paid = referralData?.stats?.successful_referrals || 0;
+    return [
+      { count: 1, reward: '100 XP', achieved: paid >= 1 },
+      { count: 5, reward: '500 XP + Badge', achieved: paid >= 5 },
+      { count: 10, reward: '1,200 XP + Special Badge', achieved: paid >= 10 },
+      { count: 25, reward: '3,500 XP + Elite Badge', achieved: paid >= 25 }
+    ];
+  };
+
+  const getNextMilestone = () => {
+    const paid = referralData?.stats?.successful_referrals || 0;
+    const milestones = getMilestones();
+    return milestones.find(m => !m.achieved) || milestones[milestones.length - 1];
+  };
+
+  const getConversionRate = () => {
+    const signups = referralData?.stats?.total_signups || 0;
+    const paid = referralData?.stats?.successful_referrals || 0;
+    if (signups === 0) return 0;
+    return Math.round((paid / signups) * 100);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -77,6 +117,10 @@ const Referral = () => {
       </div>
     );
   }
+
+  const nextMilestone = getNextMilestone();
+  const conversionRate = getConversionRate();
+  const paidReferrals = referralData?.stats?.successful_referrals || 0;
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
@@ -92,8 +136,8 @@ const Referral = () => {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className="border-accent/20 bg-card/50 backdrop-blur">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card className="border-accent/20 bg-gradient-to-br from-accent/10 to-accent/5 backdrop-blur">
             <CardContent className="pt-6">
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-accent/20 rounded-xl">
@@ -101,13 +145,14 @@ const Referral = () => {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">XP Balance</p>
-                  <p className="text-3xl font-bold">{xpBalance}</p>
+                  <p className="text-3xl font-bold bg-gradient-to-r from-accent to-purple-500 bg-clip-text text-transparent">{xpBalance}</p>
+                  <p className="text-xs text-muted-foreground mt-1">≈ ₹{xpBalance}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-blue-500/20 bg-card/50 backdrop-blur">
+          <Card className="border-blue-500/20 bg-gradient-to-br from-blue-500/10 to-blue-500/5 backdrop-blur">
             <CardContent className="pt-6">
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-blue-500/20 rounded-xl">
@@ -115,13 +160,14 @@ const Referral = () => {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Total Sign-ups</p>
-                  <p className="text-3xl font-bold">{referralData?.stats?.total_signups || 0}</p>
+                  <p className="text-3xl font-bold text-white">{referralData?.stats?.total_signups || 0}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Friends joined</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-green-500/20 bg-card/50 backdrop-blur">
+          <Card className="border-green-500/20 bg-gradient-to-br from-green-500/10 to-green-500/5 backdrop-blur">
             <CardContent className="pt-6">
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-green-500/20 rounded-xl">
@@ -129,13 +175,16 @@ const Referral = () => {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Paid Subscribers</p>
-                  <p className="text-3xl font-bold">{referralData?.stats?.successful_referrals || 0}</p>
+                  <p className="text-3xl font-bold text-white">{paidReferrals}</p>
+                  <p className="text-xs text-green-400 mt-1">
+                    {conversionRate}% conversion rate
+                  </p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-purple-500/20 bg-card/50 backdrop-blur">
+          <Card className="border-purple-500/20 bg-gradient-to-br from-purple-500/10 to-purple-500/5 backdrop-blur">
             <CardContent className="pt-6">
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-purple-500/20 rounded-xl">
@@ -143,12 +192,57 @@ const Referral = () => {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Total XP Earned</p>
-                  <p className="text-3xl font-bold">{referralData?.stats?.total_xp_earned || 0}</p>
+                  <p className="text-3xl font-bold text-white">{referralData?.stats?.total_xp_earned || 0}</p>
+                  <p className="text-xs text-purple-400 mt-1">Lifetime earnings</p>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
+
+        {/* Milestone Progress */}
+        {paidReferrals < 25 && (
+          <Card className="border-orange-500/20 bg-gradient-to-br from-orange-500/10 to-yellow-500/10 backdrop-blur overflow-hidden">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Target className="w-5 h-5 text-orange-400" />
+                    Next Milestone
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {nextMilestone.count - paidReferrals} more subscriber{nextMilestone.count - paidReferrals !== 1 ? 's' : ''} to unlock {nextMilestone.reward}!
+                  </p>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm font-medium text-orange-400">{paidReferrals} / {nextMilestone.count}</div>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="w-full h-3 bg-background/50 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-orange-500 to-yellow-500 transition-all duration-500"
+                  style={{ width: `${Math.min((paidReferrals / nextMilestone.count) * 100, 100)}%` }}
+                />
+              </div>
+              <div className="grid grid-cols-4 gap-2 mt-4">
+                {getMilestones().map((milestone, index) => (
+                  <div key={index} className="text-center">
+                    <div className={`w-10 h-10 mx-auto rounded-full flex items-center justify-center mb-1 ${
+                      milestone.achieved 
+                        ? 'bg-gradient-to-br from-green-500 to-emerald-500 text-white' 
+                        : 'bg-background/50 text-muted-foreground'
+                    }`}>
+                      {milestone.achieved ? <Zap className="w-5 h-5" /> : milestone.count}
+                    </div>
+                    <p className="text-xs text-muted-foreground">{milestone.count} subs</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Referral Link Card */}
         <Card className="border-accent/20 bg-gradient-to-br from-accent/10 to-purple-500/10 backdrop-blur">
@@ -158,7 +252,7 @@ const Referral = () => {
               Share this link with your friends. When they sign up and purchase a subscription, you'll earn 100 XP!
             </p>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <div className="flex flex-col md:flex-row items-center gap-4">
               <div className="flex-1 w-full">
                 <code className="block bg-background/50 border border-accent/30 rounded-lg px-4 py-3 text-sm font-mono break-all">
@@ -181,6 +275,37 @@ const Referral = () => {
                     Copy Link
                   </>
                 )}
+              </Button>
+            </div>
+            
+            {/* Quick Share Buttons */}
+            <div className="flex flex-wrap gap-3">
+              <Button
+                onClick={shareViaWhatsApp}
+                variant="outline"
+                className="bg-green-500/10 border-green-500/30 hover:bg-green-500/20 text-green-400"
+                disabled={!referralData?.code}
+              >
+                <MessageCircle className="w-4 h-4 mr-2" />
+                Share via WhatsApp
+              </Button>
+              <Button
+                onClick={shareViaEmail}
+                variant="outline"
+                className="bg-blue-500/10 border-blue-500/30 hover:bg-blue-500/20 text-blue-400"
+                disabled={!referralData?.code}
+              >
+                <Mail className="w-4 h-4 mr-2" />
+                Share via Email
+              </Button>
+              <Button
+                onClick={copyReferralLink}
+                variant="outline"
+                className="bg-purple-500/10 border-purple-500/30 hover:bg-purple-500/20 text-purple-400"
+                disabled={!referralData?.code}
+              >
+                <Share2 className="w-4 h-4 mr-2" />
+                Share
               </Button>
             </div>
           </CardContent>

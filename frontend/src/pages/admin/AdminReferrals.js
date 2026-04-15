@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
-import { Users, TrendingUp, Award, DollarSign, Search, Filter, Download } from 'lucide-react';
+import { Users, TrendingUp, Award, DollarSign, Search, Filter, Download, Activity, Target, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 
 const API_URL = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -100,26 +100,37 @@ const AdminReferrals = () => {
     a.click();
   };
 
+  const getAverageConversionRate = () => {
+    if (!referrals.length) return 0;
+    const totalSignups = referrals.reduce((sum, r) => sum + (r.total_signups || 0), 0);
+    const totalPaid = referrals.reduce((sum, r) => sum + (r.successful_referrals || 0), 0);
+    return totalSignups > 0 ? Math.round((totalPaid / totalSignups) * 100) : 0;
+  };
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent"></div>
       </div>
     );
   }
 
+  const avgConversionRate = getAverageConversionRate();
+
   return (
-    <div className="p-6 bg-[#0a0a0a] min-h-screen">
+    <div className="p-6 bg-background min-h-screen">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-white">Referral System</h1>
-            <p className="text-gray-400 mt-1">Manage referrals and XP wallet</p>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-accent via-purple-500 to-pink-500 bg-clip-text text-transparent">
+              Referral System
+            </h1>
+            <p className="text-muted-foreground mt-1">Manage referrals and XP wallet</p>
           </div>
           <Button
             onClick={exportToCSV}
-            className="bg-purple-600 hover:bg-purple-700 text-white"
+            className="bg-accent hover:bg-accent/90 text-accent-foreground"
           >
             <Download className="w-4 h-4 mr-2" />
             Export CSV
@@ -128,67 +139,127 @@ const AdminReferrals = () => {
 
         {/* Overview Stats */}
         {overview && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card className="bg-[#111] border-gray-800">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card className="border-accent/20 bg-gradient-to-br from-accent/10 to-accent/5 backdrop-blur">
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-gray-400">Total Referrers</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">Total Referrers</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-accent/20 rounded-lg">
+                    <Users className="w-5 h-5 text-accent" />
+                  </div>
+                  <div>
+                    <div className="text-3xl font-bold bg-gradient-to-r from-accent to-purple-500 bg-clip-text text-transparent">
+                      {overview.total_referrers}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">Active users</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-blue-500/20 bg-gradient-to-br from-blue-500/10 to-blue-500/5 backdrop-blur">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Total Signups</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-blue-500/20 rounded-lg">
-                    <Users className="w-5 h-5 text-blue-400" />
+                    <TrendingUp className="w-5 h-5 text-blue-400" />
                   </div>
-                  <div className="text-3xl font-bold text-white">{overview.total_referrers}</div>
+                  <div>
+                    <div className="text-3xl font-bold text-white">{overview.total_signups}</div>
+                    <p className="text-xs text-blue-400 mt-1">Referred registrations</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-[#111] border-gray-800">
+            <Card className="border-green-500/20 bg-gradient-to-br from-green-500/10 to-green-500/5 backdrop-blur">
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-gray-400">Total Signups</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">Paid Conversions</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-green-500/20 rounded-lg">
-                    <TrendingUp className="w-5 h-5 text-green-400" />
+                    <DollarSign className="w-5 h-5 text-green-400" />
                   </div>
-                  <div className="text-3xl font-bold text-white">{overview.total_signups}</div>
+                  <div>
+                    <div className="text-3xl font-bold text-white">{overview.successful_conversions}</div>
+                    <p className="text-xs text-green-400 mt-1">{avgConversionRate}% conversion</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-[#111] border-gray-800">
+            <Card className="border-orange-500/20 bg-gradient-to-br from-orange-500/10 to-orange-500/5 backdrop-blur">
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-gray-400">Paid Conversions</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-purple-500/20 rounded-lg">
-                    <DollarSign className="w-5 h-5 text-purple-400" />
-                  </div>
-                  <div className="text-3xl font-bold text-white">{overview.successful_conversions}</div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-[#111] border-gray-800">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-gray-400">Total XP Distributed</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">Total XP Distributed</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-orange-500/20 rounded-lg">
                     <Award className="w-5 h-5 text-orange-400" />
                   </div>
-                  <div className="text-3xl font-bold text-white">{overview.total_xp_distributed}</div>
+                  <div>
+                    <div className="text-3xl font-bold text-white">{overview.total_xp_distributed}</div>
+                    <p className="text-xs text-orange-400 mt-1">≈ ₹{overview.total_xp_distributed}</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
           </div>
         )}
 
+        {/* Performance Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card className="border-purple-500/20 bg-gradient-to-br from-purple-500/10 to-purple-500/5 backdrop-blur">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Avg Conversion Rate</p>
+                  <p className="text-2xl font-bold text-white mt-1">{avgConversionRate}%</p>
+                </div>
+                <Activity className="w-8 h-8 text-purple-400" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-cyan-500/20 bg-gradient-to-br from-cyan-500/10 to-cyan-500/5 backdrop-blur">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Avg XP per Referrer</p>
+                  <p className="text-2xl font-bold text-white mt-1">
+                    {overview && overview.total_referrers > 0 
+                      ? Math.round(overview.total_xp_distributed / overview.total_referrers)
+                      : 0
+                    }
+                  </p>
+                </div>
+                <Target className="w-8 h-8 text-cyan-400" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-yellow-500/20 bg-gradient-to-br from-yellow-500/10 to-yellow-500/5 backdrop-blur">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Active Referrers</p>
+                  <p className="text-2xl font-bold text-white mt-1">
+                    {referrals.filter(r => r.successful_referrals > 0).length}
+                  </p>
+                </div>
+                <Zap className="w-8 h-8 text-yellow-400" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Filters */}
-        <Card className="bg-[#111] border-gray-800">
+        <Card className="border-border/50 bg-card/50 backdrop-blur">
           <CardContent className="pt-6">
             <div className="flex flex-col md:flex-row gap-4">
               <div className="flex-1 relative">
