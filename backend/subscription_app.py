@@ -37,7 +37,7 @@ def validate_razorpay_credentials() -> tuple[Optional[tuple[str, str]], str]:
     return (key_id, key_secret), ""
 
 
-async def create_razorpay_order(key_id: str, key_secret: str, amount_paise: int, user_id: str, plan_id: str) -> dict:
+async def create_razorpay_order(key_id: str, key_secret: str, amount_paise: int, user_id: str, plan_id: str, xp_used: int = 0, base_price: int = 0) -> dict:
     # Razorpay receipt must be <= 40 chars. Keep it deterministic and compact.
     compact_user = hashlib.sha1(user_id.encode("utf-8")).hexdigest()[:8]
     compact_plan = (plan_id or "p")[:1]
@@ -55,6 +55,8 @@ async def create_razorpay_order(key_id: str, key_secret: str, amount_paise: int,
                 "notes": {
                     "user_id": user_id,
                     "plan": plan_id,
+                    "xp_used": str(xp_used),  # Store XP amount used
+                    "base_price": str(base_price),  # Store base price before discount
                 },
             },
         )
@@ -233,13 +235,16 @@ async def create_subscription_order(order_data: CreateOrderRequest, current_user
     key_id, key_secret = credentials
 
     try:
-        order = await create_razorpay_order(key_id, key_secret, amount_paise, current_user["id"], order_data.plan)
-        
-        # Add XP info to order notes
-        if xp_used > 0:
-            order['notes'] = order.get('notes', {})
-            order['notes']['xp_used'] = xp_used
-            order['notes']['base_price'] = base_price
+        # Pass XP info to Razorpay order creation so it's stored in order notes
+        order = await create_razorpay_order(
+            key_id, 
+            key_secret, 
+            amount_paise, 
+            current_user["id"], 
+            order_data.plan,
+            xp_used=xp_used,
+            base_price=base_price
+        )
             
     except HTTPException:
         raise
