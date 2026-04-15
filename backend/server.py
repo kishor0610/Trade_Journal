@@ -95,8 +95,8 @@ QUOTES_CACHE_TTL = 5  # 5 seconds (market data needs frequent updates)
 async def generate_ai_insights_with_xai_grok(prompt: str, system_prompt: str):
     """Use xAI Grok API for AI insights generation. Returns text response.
     
-    Tries grok-4 via /v1/chat/completions first.
-    Falls back to grok-3 (stable) if grok-4 fails.
+    Tries grok-3-mini first (fast, low-token, good quality).
+    Falls back to grok-3 (stable) if mini fails.
     Falls back to /v1/responses as final attempt.
     """
     if not XAI_API_KEY:
@@ -120,7 +120,7 @@ async def generate_ai_insights_with_xai_grok(prompt: str, system_prompt: str):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt}
             ],
-            "max_tokens": 4096,
+            "max_tokens": 1500,
             "stream": False
         }
         if extra_params:
@@ -129,7 +129,7 @@ async def generate_ai_insights_with_xai_grok(prompt: str, system_prompt: str):
         logging.info(f"📡 Trying xAI /v1/chat/completions with {model_name}...")
         logging.info(f"   Prompt length: {len(prompt)} chars")
         
-        async with httpx.AsyncClient(timeout=180) as http_client:
+        async with httpx.AsyncClient(timeout=30) as http_client:
             res = await http_client.post(url, headers=headers, json=payload)
         
         logging.info(f"📨 {model_name} response status: {res.status_code}")
@@ -154,14 +154,14 @@ async def generate_ai_insights_with_xai_grok(prompt: str, system_prompt: str):
                 err_msg = res.text
             raise Exception(f"{model_name} error ({res.status_code}): {err_msg[:300]}")
 
-    # ---- Attempt 1: grok-4 via /v1/chat/completions (reasoning model, no temperature) ----
+    # ---- Attempt 1: grok-3-mini via /v1/chat/completions (fast, low-token model) ----
     try:
-        return await try_chat_completions("grok-4")
+        return await try_chat_completions("grok-3-mini", {"temperature": 0.7})
     except Exception as e1:
         last_error = str(e1)
-        logging.error(f"❌ grok-4 failed: {last_error}")
+        logging.error(f"❌ grok-3-mini failed: {last_error}")
     
-    # ---- Attempt 2: grok-3 via /v1/chat/completions (stable model) ----
+    # ---- Attempt 2: grok-3 via /v1/chat/completions (stable fallback) ----
     try:
         return await try_chat_completions("grok-3", {"temperature": 0.7})
     except Exception as e2:
@@ -2587,9 +2587,9 @@ CONTENT RULES:
         full_prompt = f"""{summary_text}
 
 All instruments breakdown:
-{chr(10).join([f'  {inst}: ${stats["pnl"]:.2f} ({stats["wins"]}/{stats["trades"]} wins, {(stats["wins"]/stats["trades"]*100):.1f}% win rate)' for inst, stats in sorted_instruments])}
+{chr(10).join([f'  {inst}: ${stats["pnl"]:.2f} ({stats["wins"]}/{stats["trades"]} wins, {(stats["wins"]/stats["trades"]*100):.1f}% win rate)' for inst, stats in sorted_instruments[:5]])}
 
-Answer this question thoroughly: {user_question}"""
+Answer this question concisely (3-4 sections max): {user_question}"""
         
         # Use xAI Grok (Premium Reasoning Model)
         insight_text = None

@@ -425,7 +425,8 @@ function AIInsights() {
       const response = await axios.post(`${API_URL}/ai/insights`, { question: q }, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+        },
+        timeout: 20000
       });
       console.log('AI Insights response:', response.data);
       if (response.data.audio) {

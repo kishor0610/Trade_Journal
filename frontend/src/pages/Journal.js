@@ -336,9 +336,9 @@ const TradeForm = ({ trade, onSubmit, onClose, currency = 'USD' }) => {
     exit_price: trade?.exit_price || '',
     quantity: trade?.quantity || '',
     entry_date: trade?.entry_date?.slice(0, 10) || new Date().toISOString().split('T')[0],
-    exit_date: trade?.exit_date?.slice(0, 10) || '',
+    exit_date: trade?.exit_date?.slice(0, 10) || new Date().toISOString().split('T')[0],
     notes: trade?.notes || '',
-    status: trade?.status || 'open',
+    status: trade?.status || 'closed',
     stop_loss: trade?.stop_loss || '',
     take_profit: trade?.take_profit || '',
     commission: trade?.commission || '',
@@ -627,20 +627,6 @@ const TradeForm = ({ trade, onSubmit, onClose, currency = 'USD' }) => {
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Status</Label>
-                <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v })}>
-                  <SelectTrigger className="bg-secondary border-white/10">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {STATUSES.map((s) => (
-                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
               <div className="space-y-2">
                 <Label>Risk / Reward</Label>
                 <Select value={formData.risk_reward?.toString() || ''} onValueChange={(v) => setFormData({ ...formData, risk_reward: v ? parseInt(v) : null })}>
