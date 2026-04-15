@@ -119,18 +119,18 @@ async def generate_ai_insights_with_xai_grok(prompt: str, system_prompt: str):
         full_input = f"{system_prompt}\n\n{prompt}"
         
         payload = {
-            "model": "grok-beta",  # Using stable grok-beta model
-            "max_output_tokens": 4096,
-            "stream": False,  # Non-streaming mode
+            "model": "grok-4.20-0309-reasoning",  # Premium reasoning model
+            "max_output_tokens": 2000000,  # Premium tier allows up to 2M tokens
+            "stream": False,  # Non-streaming for easier handling
             "input": full_input  # xAI uses "input" field, not "messages"
         }
         
         logging.info("Calling xAI Grok API for insights...")
         logging.debug(f"xAI API URL: {url}")
-        logging.debug(f"xAI Model: {payload['model']}")
+        logging.debug(f"xAI Model: {payload['model']} (Premium Reasoning)")
         logging.debug(f"Input length: {len(full_input)} chars")
         
-        async with httpx.AsyncClient(timeout=120) as client:
+        async with httpx.AsyncClient(timeout=180) as client:  # Reasoning model may take longer
             res = await client.post(url, headers=headers, json=payload)
         
         logging.info(f"xAI Grok API response status: {res.status_code}")
