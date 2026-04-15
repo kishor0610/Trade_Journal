@@ -107,33 +107,40 @@ async def generate_ai_insights_with_xai_grok(prompt: str, system_prompt: str):
     try:
         grok_start = time.time()
         
-        url = "https://api.x.ai/v1/chat/completions"
+        # xAI uses /responses endpoint, not /chat/completions
+        url = "https://api.x.ai/v1/responses"
         headers = {
             "Authorization": f"Bearer {XAI_API_KEY}",
             "Content-Type": "application/json",
         }
+        
+        # Combine system prompt and user prompt into single input
+        full_input = f"{system_prompt}\n\n{prompt}"
+        
         payload = {
-            "model": "grok-beta",
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt}
-            ],
-            "temperature": 0.7,
-            "max_tokens": 4096
+            "model": "grok-4.20-0309-reasoning",  # Correct model name
+            "input": full_input,  # xAI uses "input" not "messages"
+            "max_output_tokens": 4096,
+            "stream": False  # Non-streaming for easier handling
         }
         
         logging.info("Calling xAI Grok API for insights...")
         logging.debug(f"xAI API URL: {url}")
         logging.debug(f"xAI API Key present: {bool(XAI_API_KEY)}, Length: {len(XAI_API_KEY) if XAI_API_KEY else 0}")
         
-        async with httpx.AsyncClient(timeout=60) as client:
+        async with httpx.AsyncClient(timeout=90) as client:
             res = await client.post(url, headers=headers, json=payload)
         
         logging.info(f"xAI Grok API response status: {res.status_code}")
         
         if res.status_code == 200:
             data = res.json()
-            insight_text = data['choices'][0]['message']['content']
+            # xAI response format: data['output'] contains the text
+            insight_text = data.get('output', '')
+            if not insight_text:
+                logging.error(f"Empty output from xAI. Full response: {data}")
+                raise Exception("Empty response from xAI Grok")
+            
             grok_elapsed = time.time() - grok_start
             logging.info(f"xAI Grok latency: {grok_elapsed:.2f}s, Response length: {len(insight_text)} chars")
             return insight_text
