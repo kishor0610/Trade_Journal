@@ -597,7 +597,7 @@ function AIInsights() {
               </div>
               <div>
                 <h3 className="text-lg font-heading font-bold text-white">AI Analysis</h3>
-                <p className="text-xs text-gray-500">Powered by Groq · Hinglish Analysis</p>
+                <p className="text-xs text-gray-500">Powered by xAI Grok · Hinglish Analysis</p>
               </div>
             </div>
             <div className="prose prose-invert max-w-none">

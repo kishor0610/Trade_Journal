@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
-import { Users, TrendingUp, Award, DollarSign, Search, Filter, Download, Activity, Target, Zap } from 'lucide-react';
+import { Users, TrendingUp, Award, DollarSign, Search, Filter, Download, Activity, Target, Zap, RefreshCw, Trophy } from 'lucide-react';
 import { toast } from 'sonner';
 
 const API_URL = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -12,6 +12,7 @@ const AdminReferrals = () => {
   const [overview, setOverview] = useState(null);
   const [referrals, setReferrals] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
@@ -22,6 +23,13 @@ const AdminReferrals = () => {
   const fetchData = async () => {
     try {
       const token = localStorage.getItem('admin_token');
+      
+      if (!token) {
+        toast.error('Please login as admin');
+        setLoading(false);
+        return;
+      }
+      
       const headers = { Authorization: `Bearer ${token}` };
 
       const [overviewRes, referralsRes] = await Promise.all([
@@ -30,13 +38,21 @@ const AdminReferrals = () => {
       ]);
 
       setOverview(overviewRes.data);
-      setReferrals(referralsRes.data.referrals);
+      setReferrals(referralsRes.data.referrals || []);
       setLoading(false);
+      setRefreshing(false);
     } catch (error) {
       console.error('Error fetching referral data:', error);
-      toast.error('Failed to load referral data');
+      const errorMsg = error.response?.data?.detail || error.message || 'Failed to load referral data';
+      toast.error(errorMsg);
       setLoading(false);
+      setRefreshing(false);
     }
+  };
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    fetchData();
   };
 
   const handleCreditXP = async (userId, amount) => {
@@ -128,13 +144,24 @@ const AdminReferrals = () => {
             </h1>
             <p className="text-muted-foreground mt-1">Manage referrals and XP wallet</p>
           </div>
-          <Button
-            onClick={exportToCSV}
-            className="bg-accent hover:bg-accent/90 text-accent-foreground"
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Export CSV
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              variant="outline"
+              className="border-accent/30 hover:bg-accent/10"
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+            <Button
+              onClick={exportToCSV}
+              className="bg-accent hover:bg-accent/90 text-accent-foreground"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Export CSV
+            </Button>
+          </div>
         </div>
 
         {/* Overview Stats */}
@@ -258,6 +285,50 @@ const AdminReferrals = () => {
           </Card>
         </div>
 
+        {/* Top Performers */}
+        <Card className="border-border/50 bg-card/50 backdrop-blur">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Trophy className="w-5 h-5 text-yellow-400" />
+              Top Performers
+            </CardTitle>
+            <CardDescription>Referrers with the most successful conversions</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {referrals
+                .sort((a, b) => b.successful_referrals - a.successful_referrals)
+                .slice(0, 3)
+                .map((ref, index) => (
+                  <div key={index} className="relative p-4 rounded-lg bg-gradient-to-br from-accent/10 to-purple-500/10 border border-accent/20">
+                    <div className="absolute -top-2 -left-2 w-8 h-8 bg-gradient-to-br from-yellow-500 to-orange-500 rounded-full flex items-center justify-center font-bold text-sm">
+                      {index + 1}
+                    </div>
+                    <div className="ml-4">
+                      <p className="text-sm font-semibold text-white truncate">{ref.referrer_email}</p>
+                      <p className="text-xs text-muted-foreground mt-1">Code: {ref.referral_code}</p>
+                      <div className="mt-3 flex items-center justify-between">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Conversions</p>
+                          <p className="text-2xl font-bold text-green-400">{ref.successful_referrals}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">XP Earned</p>
+                          <p className="text-2xl font-bold text-purple-400">{ref.total_xp_earned}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              {referrals.length === 0 && (
+                <div className="col-span-3 text-center py-8 text-muted-foreground">
+                  No referrers yet
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Filters */}
         <Card className="border-border/50 bg-card/50 backdrop-blur">
           <CardContent className="pt-6">
@@ -289,45 +360,45 @@ const AdminReferrals = () => {
         </Card>
 
         {/* Referrals Table */}
-        <Card className="bg-[#111] border-gray-800">
+        <Card className="border-border/50 bg-card/50 backdrop-blur">
           <CardHeader>
-            <CardTitle className="text-white">All Referrers</CardTitle>
-            <CardDescription className="text-gray-400">
+            <CardTitle>All Referrers</CardTitle>
+            <CardDescription>
               {filteredReferrals.length} referrers found
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="border-b border-gray-800">
+                <thead className="border-b border-border">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase">Referrer</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase">Code</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase">Signups</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase">Paid</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase">XP Earned</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase">XP Balance</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase">Actions</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase">Referrer</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase">Code</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase">Signups</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase">Paid</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase">XP Earned</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase">XP Balance</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-800">
+                <tbody className="divide-y divide-border/50">
                   {filteredReferrals.length > 0 ? (
                     filteredReferrals.map((ref, index) => (
-                      <tr key={index} className="hover:bg-[#0a0a0a] transition-colors">
+                      <tr key={index} className="hover:bg-accent/5 transition-colors">
                         <td className="px-4 py-4">
-                          <div className="text-sm font-medium text-white">{ref.referrer_email || 'Unknown'}</div>
-                          <div className="text-xs text-gray-500">{ref.referrer_id}</div>
+                          <div className="text-sm font-medium">{ref.referrer_email || 'Unknown'}</div>
+                          <div className="text-xs text-muted-foreground">{ref.referrer_id}</div>
                         </td>
                         <td className="px-4 py-4">
-                          <code className="text-xs bg-[#0a0a0a] px-2 py-1 rounded text-purple-400">
+                          <code className="text-xs bg-accent/10 px-2 py-1 rounded text-accent border border-accent/30">
                             {ref.referral_code}
                           </code>
                         </td>
-                        <td className="px-4 py-4 text-sm text-gray-300">{ref.total_signups}</td>
+                        <td className="px-4 py-4 text-sm">{ref.total_signups}</td>
                         <td className="px-4 py-4">
                           <Badge
                             variant="outline"
-                            className={ref.successful_referrals > 0 ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-gray-700/20 text-gray-400 border-gray-700/30'}
+                            className={ref.successful_referrals > 0 ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-muted/50 text-muted-foreground border-border'}
                           >
                             {ref.successful_referrals}
                           </Badge>
@@ -350,7 +421,7 @@ const AdminReferrals = () => {
                               const amount = prompt('Enter XP amount to credit:');
                               if (amount) handleCreditXP(ref.referrer_id, amount);
                             }}
-                            className="text-xs border-purple-500/30 hover:bg-purple-500/20"
+                            className="text-xs border-accent/30 hover:bg-accent/10"
                           >
                             Credit XP
                           </Button>
@@ -361,9 +432,9 @@ const AdminReferrals = () => {
                     <tr>
                       <td colSpan="7" className="px-4 py-12 text-center">
                         <div className="flex flex-col items-center">
-                          <Users className="w-12 h-12 text-gray-700 mb-3" />
-                          <p className="text-gray-500 font-medium">No referrers found</p>
-                          <p className="text-sm text-gray-600 mt-1">
+                          <Users className="w-12 h-12 text-muted-foreground/50 mb-3" />
+                          <p className="text-muted-foreground font-medium">No referrers found</p>
+                          <p className="text-sm text-muted-foreground/70 mt-1">
                             Referrers will appear here when users start sharing their links
                           </p>
                         </div>

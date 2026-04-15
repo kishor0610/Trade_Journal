@@ -65,12 +65,13 @@ FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
 if RESEND_API_KEY:
     resend.api_key = RESEND_API_KEY
 
-# Initialize Groq
+# Initialize Groq (keeping for fallback, but will use xAI Grok primarily)
 GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')
 groq_client = None
 
-# Initialize xAI TTS
+# Initialize xAI for both TTS and Grok LLM
 XAI_API_KEY = os.environ.get('XAI_API_KEY', '')
+xai_grok_enabled = bool(XAI_API_KEY)
 
 # AI Insights cache: hash(trade_data+question) -> {text, audio_base64, timestamp}
 ai_insights_cache = {}
@@ -96,6 +97,49 @@ quotes_cache = {
 QUOTES_CACHE_TTL = 5  # 5 seconds (market data needs frequent updates)
 if GROQ_API_KEY:
     groq_client = Groq(api_key=GROQ_API_KEY)
+
+async def generate_ai_insights_with_xai_grok(prompt: str, system_prompt: str):
+    """Use xAI Grok API for AI insights generation. Returns text response."""
+    if not XAI_API_KEY:
+        logging.error("XAI_API_KEY not configured")
+        raise Exception("xAI Grok API not configured")
+    
+    try:
+        grok_start = time.time()
+        
+        url = "https://api.x.ai/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {XAI_API_KEY}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": "grok-beta",
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.7,
+            "max_tokens": 4096
+        }
+        
+        logging.info("Calling xAI Grok API for insights...")
+        async with httpx.AsyncClient(timeout=60) as client:
+            res = await client.post(url, headers=headers, json=payload)
+        
+        if res.status_code == 200:
+            data = res.json()
+            insight_text = data['choices'][0]['message']['content']
+            grok_elapsed = time.time() - grok_start
+            logging.info(f"xAI Grok latency: {grok_elapsed:.2f}s")
+            return insight_text
+        else:
+            error_msg = f"Grok API failed ({res.status_code}): {res.text[:300]}"
+            logging.error(error_msg)
+            raise Exception(error_msg)
+            
+    except Exception as e:
+        logging.error(f"xAI Grok exception: {str(e)}", exc_info=True)
+        raise
 
 async def generate_tts(text):
     """Convert text to speech using xAI TTS API. Returns mp3 bytes or None."""
@@ -617,14 +661,22 @@ async def register(user_data: UserRegister):
     
     user_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
+    trial_end = datetime.now(timezone.utc) + timedelta(days=TRIAL_DURATION_DAYS)
     
+    # Create user with trial already included
     user_doc = {
         "id": user_id,
         "email": user_data.email,
         "name": user_data.name,
         "password": hash_password(user_data.password),
-        "xp_balance": 0,  # Initialize XP wallet
+        "xp_balance": 0,
         "xp_updated_at": now,
+        "subscription_status": "trial",
+        "subscription_plan": None,
+        "subscription_start_date": now,
+        "subscription_end_date": trial_end.isoformat(),
+        "role": "user",
+        "status": "active",
         "created_at": now
     }
     
@@ -642,8 +694,6 @@ async def register(user_data: UserRegister):
             logging.error(f"Failed to track referral: {str(e)}")
             # Don't fail registration if referral tracking fails
     
-    # Assign 14-day trial on registration
-    await assign_trial(user_id)
     token = create_access_token(user_id, user_data.email)
     
     return TokenResponse(
@@ -2237,8 +2287,9 @@ async def market_live_candles_ws(
 
 @api_router.post("/ai/insights")
 async def get_ai_insights(request: AIInsightRequest, current_user: dict = Depends(get_current_user)):
-    """Get AI-powered trading insights using Groq."""
-    if not groq_client:
+    """Get AI-powered trading insights using xAI Grok (fallback to Groq if needed)."""
+    # Primary: Use xAI Grok, Fallback: Use Groq
+    if not xai_grok_enabled and not groq_client:
         raise HTTPException(status_code=503, detail="AI service is not configured")
     
     try:
@@ -2341,16 +2392,8 @@ Recent 10 trades P&L: ${sum(t.get('pnl', 0) or 0 for t in closed_trades[:10]):.2
 User question: {user_question}
 """
         
-        # Call Groq API
-        groq_start = time.time()
-        message = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            max_tokens=4096,
-            temperature=0.7,
-            messages=[
-                {
-                    "role": "system",
-                    "content": """You are an expert trading coach and performance analyst. You MUST respond in Hinglish (Hindi + English mix), like a trader casually explaining to a friend. Keep it natural, not robotic translation. Use trading terms in English but explain in Hinglish.
+        # System prompt for Hinglish responses
+        system_prompt = """You are an expert trading coach and performance analyst. You MUST respond in Hinglish (Hindi + English mix), like a trader casually explaining to a friend. Keep it natural, not robotic translation. Use trading terms in English but explain in Hinglish.
 
 Rules:
 1. ALWAYS answer the user's EXACT question — do NOT give a generic overview unless asked for one.
@@ -2362,22 +2405,45 @@ Rules:
 7. If the user sends a casual message like 'hi' or 'hello', respond naturally but still share one interesting insight from their data.
 8. IMPORTANT: Write the ENTIRE response in Hinglish. Mix Hindi and English naturally. Example: "Bhai tera win rate **67.5%** hai jo decent hai, lekin tera risk-reward ratio improve karna padega."
 9. Keep instrument names, numbers, and trading terms (stop-loss, take-profit, risk-reward etc.) in English."""
-                },
-                {
-                    "role": "user",
-                    "content": f"""{summary_text}
+
+        full_prompt = f"""{summary_text}
 
 All instruments breakdown:
 {chr(10).join([f'  {inst}: ${stats["pnl"]:.2f} ({stats["wins"]}/{stats["trades"]} wins, {(stats["wins"]/stats["trades"]*100):.1f}% win rate)' for inst, stats in sorted_instruments])}
 
 Answer this question thoroughly: {user_question}"""
-                }
-            ]
-        )
         
-        insight_text = message.choices[0].message.content
-        groq_elapsed = time.time() - groq_start
-        logging.info(f"Groq latency: {groq_elapsed:.2f}s")
+        # Try xAI Grok first, fallback to Groq if needed
+        insight_text = None
+        ai_source = "xai-grok"
+        
+        try:
+            if xai_grok_enabled:
+                insight_text = await generate_ai_insights_with_xai_grok(full_prompt, system_prompt)
+            elif groq_client:
+                # Fallback to Groq
+                ai_source = "groq"
+                groq_start = time.time()
+                message = groq_client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    max_tokens=4096,
+                    temperature=0.7,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": full_prompt}
+                    ]
+                )
+                insight_text = message.choices[0].message.content
+                groq_elapsed = time.time() - groq_start
+                logging.info(f"Groq latency (fallback): {groq_elapsed:.2f}s")
+            else:
+                raise Exception("No AI service available")
+        except Exception as ai_error:
+            logging.error(f"AI generation error: {str(ai_error)}")
+            raise HTTPException(status_code=500, detail=f"AI service error: {str(ai_error)}")
+        
+        if not insight_text:
+            raise HTTPException(status_code=500, detail="Failed to generate insights")
         
         # Generate TTS audio from Hinglish text
         audio_base64 = None
@@ -2455,7 +2521,7 @@ Answer this question thoroughly: {user_question}"""
                     "instrument": worst_trade.get('instrument', 'N/A'),
                 },
             },
-            "source": "groq"
+            "source": ai_source
         }
         # Cache the response
         ai_insights_cache[cache_key] = {'response': response_data, 'timestamp': time.time()}
