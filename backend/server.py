@@ -1088,6 +1088,21 @@ async def get_all_trades_data(admin: dict = Depends(get_admin_user), limit: int 
 # ============ ADMIN REFERRAL ENDPOINTS ============
 create_admin_referral_endpoints(admin_router, referral_service, db, get_admin_user)
 
+# ============ HEALTH & DEBUG ENDPOINTS ============
+
+@api_router.get("/health/ai-config")
+async def check_ai_config():
+    """Check AI service configuration status"""
+    return {
+        "xai_configured": bool(XAI_API_KEY),
+        "xai_key_length": len(XAI_API_KEY) if XAI_API_KEY else 0,
+        "xai_key_prefix": XAI_API_KEY[:10] + "..." if XAI_API_KEY and len(XAI_API_KEY) > 10 else "NOT_SET",
+        "groq_configured": bool(GROQ_API_KEY),
+        "groq_key_length": len(GROQ_API_KEY) if GROQ_API_KEY else 0,
+        "xai_grok_enabled": xai_grok_enabled,
+        "groq_client_available": groq_client is not None
+    }
+
 # ============ MT5 ACCOUNT ROUTES ============
 
 @api_router.post("/mt5/metaapi-token")
