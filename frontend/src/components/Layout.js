@@ -7,6 +7,7 @@ import {
   BookOpen, 
   BarChart3, 
   Sparkles,
+  Activity,
   LogOut, 
   User,
   Wallet,
@@ -27,6 +28,7 @@ const navItems = [
   { path: '/accounts', icon: Wallet, label: 'Accounts' },
   { path: '/analytics', icon: BarChart3, label: 'Analytics' },
   { path: '/insights', icon: Sparkles, label: 'AI Insights' },
+  { path: '/price-action', icon: Activity, label: 'Price Action' },
   { path: '/subscription', icon: CreditCard, label: 'Subscription' },
   { path: '/referral', icon: Gift, label: 'Refer & Earn' },
 ];

@@ -13,6 +13,7 @@ import Dashboard from './pages/Dashboard';
 import Journal from './pages/Journal';
 import Analytics from './pages/Analytics';
 import AIInsights from './pages/AIInsights';
+import PriceActionInsights from './pages/PriceActionInsights';
 import Accounts from './pages/Accounts';
 import Subscription from './pages/Subscription';
 import Referral from './pages/Referral';
@@ -135,6 +136,11 @@ function AppRoutes() {
       <Route path="/leaderboard" element={
         <ProtectedRoute>
           <Leaderboard />
+        </ProtectedRoute>
+      } />
+      <Route path="/price-action" element={
+        <ProtectedRoute>
+          <PriceActionInsights />
         </ProtectedRoute>
       } />
       <Route path="/insights" element={

@@ -3582,6 +3582,385 @@ async def get_market_quotes():
         return []
 
 
+# ============ PRICE ACTION SIGNALS ============
+
+def _ema(values: list, period: int) -> list:
+    """Calculate EMA for a list of float values. Returns list same length (first period-1 are None)."""
+    result = [None] * len(values)
+    if len(values) < period:
+        return result
+    k = 2.0 / (period + 1)
+    # seed with SMA
+    sma = sum(values[:period]) / period
+    result[period - 1] = sma
+    for i in range(period, len(values)):
+        result[i] = values[i] * k + result[i - 1] * (1 - k)
+    return result
+
+
+def _detect_patterns(candles: list) -> list:
+    """
+    Detect candlestick patterns on the last few candles.
+    `candles` is a list of dicts with keys: open, high, low, close, volume.
+    Returns list of detected pattern dicts with keys:
+      name, display_name, bias (bullish/bearish/neutral), base_score
+    """
+    if len(candles) < 3:
+        return []
+
+    c0 = candles[-1]   # current
+    c1 = candles[-2]   # previous
+    c2 = candles[-3]   # two back
+
+    o0, h0, l0, cl0 = c0['open'], c0['high'], c0['low'], c0['close']
+    o1, h1, l1, cl1 = c1['open'], c1['high'], c1['low'], c1['close']
+    o2, h2, l2, cl2 = c2['open'], c2['high'], c2['low'], c2['close']
+
+    body0 = abs(cl0 - o0)
+    body1 = abs(cl1 - o1)
+    body2 = abs(cl2 - o2)
+    range0 = h0 - l0 if h0 != l0 else 0.0001
+    range1 = h1 - l1 if h1 != l1 else 0.0001
+    upper_wick0 = h0 - max(o0, cl0)
+    lower_wick0 = min(o0, cl0) - l0
+    upper_wick1 = h1 - max(o1, cl1)
+    lower_wick1 = min(o1, cl1) - l1
+
+    bullish0 = cl0 > o0
+    bearish0 = cl0 < o0
+    bullish1 = cl1 > o1
+    bearish1 = cl1 < o1
+
+    detected = []
+
+    # Bullish Engulfing
+    if bearish1 and bullish0 and o0 <= cl1 and cl0 >= o1 and body0 > body1 * 1.1:
+        detected.append({"name": "BULLISH_ENGULFING", "display_name": "Bullish Engulfing", "bias": "bullish", "base_score": 60})
+
+    # Bearish Engulfing
+    elif bullish1 and bearish0 and o0 >= cl1 and cl0 <= o1 and body0 > body1 * 1.1:
+        detected.append({"name": "BEARISH_ENGULFING", "display_name": "Bearish Engulfing", "bias": "bearish", "base_score": 60})
+
+    # Hammer (at low, bullish reversal)
+    if (lower_wick0 >= body0 * 2 and upper_wick0 <= body0 * 0.5 and body0 > 0):
+        detected.append({"name": "HAMMER", "display_name": "Hammer", "bias": "bullish", "base_score": 50})
+
+    # Shooting Star (at high, bearish reversal)
+    if (upper_wick0 >= body0 * 2 and lower_wick0 <= body0 * 0.5 and body0 > 0):
+        detected.append({"name": "SHOOTING_STAR", "display_name": "Shooting Star", "bias": "bearish", "base_score": 50})
+
+    # Doji
+    if body0 <= range0 * 0.1:
+        detected.append({"name": "DOJI", "display_name": "Doji", "bias": "neutral", "base_score": 30})
+
+    # Bullish Pin Bar (long lower wick, small body near top third)
+    if lower_wick0 >= range0 * 0.6 and body0 <= range0 * 0.25 and min(o0, cl0) >= l0 + range0 * 0.6:
+        detected.append({"name": "BULLISH_PIN_BAR", "display_name": "Bullish Pin Bar", "bias": "bullish", "base_score": 55})
+
+    # Bearish Pin Bar (long upper wick, small body near bottom third)
+    if upper_wick0 >= range0 * 0.6 and body0 <= range0 * 0.25 and max(o0, cl0) <= h0 - range0 * 0.6:
+        detected.append({"name": "BEARISH_PIN_BAR", "display_name": "Bearish Pin Bar", "bias": "bearish", "base_score": 55})
+
+    # Morning Star (3-candle bullish reversal)
+    if bearish1 and body1 > range1 * 0.4 and body2 <= range0 * 0.3 and bullish0 and cl0 > (o1 + cl1) / 2:
+        detected.append({"name": "MORNING_STAR", "display_name": "Morning Star", "bias": "bullish", "base_score": 70})
+
+    # Evening Star (3-candle bearish reversal)
+    if bullish1 and body1 > range1 * 0.4 and body2 <= range0 * 0.3 and bearish0 and cl0 < (o1 + cl1) / 2:
+        detected.append({"name": "EVENING_STAR", "display_name": "Evening Star", "bias": "bearish", "base_score": 70})
+
+    # Inside Bar (consolidation / breakout setup)
+    if h0 <= h1 and l0 >= l1:
+        detected.append({"name": "INSIDE_BAR", "display_name": "Inside Bar", "bias": "neutral", "base_score": 35})
+
+    # Tweezer Bottom (bullish)
+    if bearish1 and bullish0 and abs(l0 - l1) <= range0 * 0.05:
+        detected.append({"name": "TWEEZER_BOTTOM", "display_name": "Tweezer Bottom", "bias": "bullish", "base_score": 45})
+
+    # Tweezer Top (bearish)
+    if bullish1 and bearish0 and abs(h0 - h1) <= range0 * 0.05:
+        detected.append({"name": "TWEEZER_TOP", "display_name": "Tweezer Top", "bias": "bearish", "base_score": 45})
+
+    return detected
+
+
+def _score_signal(pattern: dict, trend: str, high_volume: bool, at_key_level: bool) -> int:
+    score = pattern['base_score']
+    bias = pattern['bias']
+
+    # Trend alignment
+    if bias == 'bullish' and trend == 'up':
+        score += 20
+    elif bias == 'bearish' and trend == 'down':
+        score += 20
+    elif bias == 'neutral':
+        pass
+    else:
+        score -= 15
+
+    # Volume confirmation
+    if high_volume:
+        score += 15
+
+    # Key level proximity
+    if at_key_level:
+        score += 10
+
+    return min(score, 100)
+
+
+def _calc_trend(closes: list) -> str:
+    """Return 'up', 'down', or 'sideways' based on EMA50 vs EMA200."""
+    ema50 = _ema(closes, 50)
+    ema200 = _ema(closes, 200)
+    # Find last valid values
+    ema50_last = next((v for v in reversed(ema50) if v is not None), None)
+    ema200_last = next((v for v in reversed(ema200) if v is not None), None)
+
+    if ema50_last is None or ema200_last is None:
+        # fallback: compare first vs last close
+        if len(closes) >= 10:
+            if closes[-1] > closes[-10] * 1.002:
+                return 'up'
+            elif closes[-1] < closes[-10] * 0.998:
+                return 'down'
+        return 'sideways'
+
+    diff_pct = (ema50_last - ema200_last) / ema200_last * 100
+    if diff_pct > 0.05:
+        return 'up'
+    elif diff_pct < -0.05:
+        return 'down'
+    return 'sideways'
+
+
+def _is_high_volume(candles: list) -> bool:
+    if len(candles) < 20:
+        return False
+    volumes = [c['volume'] for c in candles]
+    avg_vol = sum(volumes[-20:]) / 20
+    return volumes[-1] > avg_vol * 1.5 if avg_vol > 0 else False
+
+
+def _is_at_key_level(candles: list) -> bool:
+    """Check if current price is near a recent swing high/low (support/resistance)."""
+    if len(candles) < 20:
+        return False
+    recent = candles[-20:-1]
+    highs = [c['high'] for c in recent]
+    lows = [c['low'] for c in recent]
+    current_close = candles[-1]['close']
+    swing_high = max(highs)
+    swing_low = min(lows)
+    rng = swing_high - swing_low if swing_high != swing_low else 1
+    # Within 1.5% of swing high or swing low
+    near_high = abs(current_close - swing_high) / rng < 0.015
+    near_low = abs(current_close - swing_low) / rng < 0.015
+    return near_high or near_low
+
+
+def _calc_entry_sl_tp(candles: list, bias: str) -> dict:
+    """Suggest entry, stop loss, take profit based on ATR."""
+    if len(candles) < 14:
+        c = candles[-1]
+        rng = c['high'] - c['low']
+        if bias == 'bullish':
+            return {"entry": round(c['close'], 5), "stop_loss": round(c['close'] - rng, 5), "take_profit": round(c['close'] + rng * 2, 5)}
+        else:
+            return {"entry": round(c['close'], 5), "stop_loss": round(c['close'] + rng, 5), "take_profit": round(c['close'] - rng * 2, 5)}
+
+    # ATR (14)
+    tr_list = []
+    for i in range(1, len(candles)):
+        high = candles[i]['high']
+        low = candles[i]['low']
+        prev_close = candles[i - 1]['close']
+        tr = max(high - low, abs(high - prev_close), abs(low - prev_close))
+        tr_list.append(tr)
+    atr = sum(tr_list[-14:]) / 14
+    close = candles[-1]['close']
+
+    if bias == 'bullish':
+        entry = round(close, 5)
+        sl = round(close - atr * 1.5, 5)
+        tp = round(close + atr * 3.0, 5)
+    elif bias == 'bearish':
+        entry = round(close, 5)
+        sl = round(close + atr * 1.5, 5)
+        tp = round(close - atr * 3.0, 5)
+    else:
+        entry = round(close, 5)
+        sl = round(close - atr * 1.5, 5)
+        tp = round(close + atr * 1.5, 5)
+
+    return {"entry": entry, "stop_loss": sl, "take_profit": tp}
+
+
+PRICE_ACTION_SYMBOLS = [
+    {"symbol": "XAUUSD",  "display": "XAU/USD", "type": "Commodity"},
+    {"symbol": "XAGUSD",  "display": "XAG/USD", "type": "Commodity"},
+    {"symbol": "EURUSD",  "display": "EUR/USD",  "type": "Forex"},
+    {"symbol": "GBPUSD",  "display": "GBP/USD",  "type": "Forex"},
+    {"symbol": "USDJPY",  "display": "USD/JPY",  "type": "Forex"},
+    {"symbol": "AUDUSD",  "display": "AUD/USD",  "type": "Forex"},
+    {"symbol": "NZDUSD",  "display": "NZD/USD",  "type": "Forex"},
+    {"symbol": "USDCAD",  "display": "USD/CAD",  "type": "Forex"},
+    {"symbol": "USDCHF",  "display": "USD/CHF",  "type": "Forex"},
+]
+
+TWELVE_DATA_INTERVAL_MAP = {
+    "5m": "5min", "15m": "15min", "1h": "1h", "4h": "4h", "1d": "1day"
+}
+
+
+async def _fetch_candles_twelve(symbol: str, interval: str, limit: int = 200) -> list:
+    """Fetch candles from Twelve Data for a forex symbol. Returns list of OHLCV dicts."""
+    if not TWELVE_DATA_API_KEY:
+        return []
+
+    td_interval = TWELVE_DATA_INTERVAL_MAP.get(interval, "1h")
+
+    # Symbol candidates for Twelve Data
+    symbol_map = {
+        "XAUUSD": ["XAU/USD"],
+        "XAGUSD": ["XAG/USD"],
+        "EURUSD": ["EUR/USD"],
+        "GBPUSD": ["GBP/USD"],
+        "USDJPY": ["USD/JPY"],
+        "AUDUSD": ["AUD/USD"],
+        "NZDUSD": ["NZD/USD"],
+        "USDCAD": ["USD/CAD"],
+        "USDCHF": ["USD/CHF"],
+    }
+    candidates = symbol_map.get(symbol, [symbol])
+
+    url = "https://api.twelvedata.com/time_series"
+    async with httpx.AsyncClient(timeout=20.0) as cli:
+        for sym in candidates:
+            params = {
+                "symbol": sym,
+                "interval": td_interval,
+                "outputsize": limit,
+                "apikey": TWELVE_DATA_API_KEY,
+                "timezone": "UTC",
+            }
+            try:
+                resp = await cli.get(url, params=params)
+                if resp.status_code != 200:
+                    continue
+                data = resp.json()
+                values = data.get("values")
+                if not isinstance(values, list) or not values:
+                    continue
+                candles = []
+                for item in reversed(values):
+                    try:
+                        candles.append({
+                            "time": item["datetime"],
+                            "open": float(item["open"]),
+                            "high": float(item["high"]),
+                            "low": float(item["low"]),
+                            "close": float(item["close"]),
+                            "volume": float(item.get("volume") or 0),
+                        })
+                    except (KeyError, ValueError):
+                        continue
+                if candles:
+                    return candles
+            except Exception:
+                continue
+    return []
+
+
+@api_router.get("/market/price-action-signals")
+async def get_price_action_signals(
+    interval: str = Query(default="1h", regex="^(5m|15m|1h|4h|1d)$"),
+    min_score: int = Query(default=40, ge=0, le=100),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Scan forex/commodity instruments for candlestick patterns and return
+    scored signals with trend context, entry/SL/TP suggestions.
+    """
+    if not TWELVE_DATA_API_KEY:
+        raise HTTPException(status_code=503, detail="TWELVE_DATA_API_KEY is not configured on the server.")
+
+    # Fetch all symbols in parallel
+    tasks = [
+        _fetch_candles_twelve(sym["symbol"], interval, 220)
+        for sym in PRICE_ACTION_SYMBOLS
+    ]
+    results = await asyncio.gather(*tasks)
+
+    signals = []
+    for sym_info, candles in zip(PRICE_ACTION_SYMBOLS, results):
+        if len(candles) < 5:
+            continue
+
+        closes = [c['close'] for c in candles]
+        trend = _calc_trend(closes)
+        high_vol = _is_high_volume(candles)
+        at_level = _is_at_key_level(candles)
+
+        patterns = _detect_patterns(candles)
+        if not patterns:
+            continue
+
+        # Pick the highest-scored pattern for this symbol
+        best = None
+        best_score = -1
+        for pat in patterns:
+            s = _score_signal(pat, trend, high_vol, at_level)
+            if s > best_score:
+                best_score = s
+                best = pat
+
+        if best_score < min_score:
+            continue
+
+        confidence = round(min(best_score / 100, 1.0), 2)
+        tags = []
+        if at_level:
+            tags.append("At Key Level")
+        if high_vol:
+            tags.append("High Volume")
+        if trend == 'up':
+            tags.append("Uptrend")
+        elif trend == 'down':
+            tags.append("Downtrend")
+        else:
+            tags.append("Ranging")
+
+        levels = _calc_entry_sl_tp(candles, best['bias'])
+        current_close = candles[-1]['close']
+
+        signals.append({
+            "symbol": sym_info["display"],
+            "symbol_key": sym_info["symbol"],
+            "type": sym_info["type"],
+            "pattern": best["display_name"],
+            "pattern_key": best["name"],
+            "score": best_score,
+            "confidence": confidence,
+            "bias": best["bias"],
+            "trend": trend,
+            "high_volume": high_vol,
+            "at_key_level": at_level,
+            "tags": tags,
+            "entry": levels["entry"],
+            "stop_loss": levels["stop_loss"],
+            "take_profit": levels["take_profit"],
+            "current_price": round(current_close, 5),
+            "last_candle_time": candles[-1]["time"],
+            "interval": interval,
+            "all_patterns": [p["display_name"] for p in patterns],
+        })
+
+    # Sort by score descending
+    signals.sort(key=lambda x: x["score"], reverse=True)
+    return {"signals": signals, "total": len(signals), "interval": interval, "scanned": len(PRICE_ACTION_SYMBOLS)}
+
+
 # Include routers
 app.include_router(api_router)
 app.include_router(admin_router)
