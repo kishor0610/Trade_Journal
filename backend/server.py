@@ -3981,8 +3981,12 @@ async def _fetch_candles_twelve(symbol: str, interval: str, limit: int = 200) ->
             try:
                 resp = await cli.get(url, params=params)
                 if resp.status_code != 200:
+                    logger.warning("[PriceAction] %s HTTP %s", sym, resp.status_code)
                     continue
                 data = resp.json()
+                if data.get("status") == "error":
+                    logger.warning("[PriceAction] %s API error: %s", sym, data.get("message", ""))
+                    continue
                 values = data.get("values")
                 if not isinstance(values, list) or not values:
                     continue
@@ -4001,7 +4005,8 @@ async def _fetch_candles_twelve(symbol: str, interval: str, limit: int = 200) ->
                         continue
                 if candles:
                     return candles
-            except Exception:
+            except Exception as exc:
+                logger.error("[PriceAction] fetch %s failed: %s", sym, exc)
                 continue
     return []
 
