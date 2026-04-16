@@ -49,13 +49,13 @@ const BIAS_STYLE = {
 };
 
 const STATUS_STYLE = {
-  'Strong Setup': { dot: '\U0001F7E2', text: 'text-emerald-400', bg: 'bg-emerald-500/15 border-emerald-500/30' },
-  'Watch':        { dot: '\U0001F7E1', text: 'text-yellow-400',  bg: 'bg-yellow-500/15 border-yellow-500/30'  },
-  'Weak':         { dot: '\u26AA',     text: 'text-gray-400',    bg: 'bg-white/5 border-white/10'              },
-  'Avoid':        { dot: '\U0001F534', text: 'text-red-400',     bg: 'bg-red-500/10 border-red-500/20'         },
+  'Strong Setup': { dot: '🟢', text: 'text-emerald-400', bg: 'bg-emerald-500/15 border-emerald-500/30' },
+  'Watch':        { dot: '🟡', text: 'text-yellow-400',  bg: 'bg-yellow-500/15 border-yellow-500/30'  },
+  'Weak':         { dot: '⚪',     text: 'text-gray-400',    bg: 'bg-white/5 border-white/10'              },
+  'Avoid':        { dot: '🔴', text: 'text-red-400',     bg: 'bg-red-500/10 border-red-500/20'         },
 };
 
-const TREND_LABEL = { up: '\u2191 Uptrend', down: '\u2193 Downtrend', sideways: '\u2192 Ranging' };
+const TREND_LABEL = { up: '↑ Uptrend', down: '↓ Downtrend', sideways: '→ Ranging' };
 const TREND_COLOR = { up: 'text-emerald-400', down: 'text-red-400', sideways: 'text-yellow-400' };
 
 const INTERVALS = [
@@ -178,14 +178,14 @@ function SignalCard({ signal, isExpanded, onToggle, rank }) {
                         <BarChart2 className="w-4 h-4 text-blue-400 shrink-0" />
                         <span className="text-gray-300">Volume:</span>
                         <span className={`font-semibold ${signal.high_volume ? 'text-emerald-400' : 'text-gray-400'}`}>
-                          {signal.high_volume ? 'Above Average \u2713' : 'Normal'}
+                          {signal.high_volume ? 'Above Average ✓' : 'Normal'}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 text-sm">
                         <Target className="w-4 h-4 text-amber-400 shrink-0" />
                         <span className="text-gray-300">Location:</span>
                         <span className={`font-semibold ${signal.at_key_level ? 'text-amber-400' : 'text-gray-400'}`}>
-                          {signal.at_key_level ? 'At Key Level \u2713' : 'Mid-Range'}
+                          {signal.at_key_level ? 'At Key Level ✓' : 'Mid-Range'}
                         </span>
                       </div>
                       {signal.all_patterns && signal.all_patterns.length > 1 && (
@@ -281,17 +281,17 @@ function PriceActionInsights() {
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-2xl md:text-3xl font-heading font-bold text-white flex items-center gap-3">
-              <span className="text-2xl">\U0001F4CA</span>
+              <span className="text-2xl">📊</span>
               Price Action Insights
             </h1>
             <p className="text-gray-400 text-sm mt-1">
-              Live pattern scanner \u00B7 9 Forex &amp; Commodity pairs \u00B7 Powered by Twelve Data
+              Live pattern scanner · 9 Forex &amp; Commodity pairs · Powered by Twelve Data
             </p>
           </div>
           <Button onClick={fetchSignals} disabled={loading}
             className="flex items-center gap-2 bg-accent hover:bg-accent/80 text-black font-semibold">
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            {loading ? 'Scanning\u2026' : 'Refresh'}
+            {loading ? 'Scanning…' : 'Refresh'}
           </Button>
         </div>
       </motion.div>
@@ -321,7 +321,7 @@ function PriceActionInsights() {
           <span className="text-sm font-semibold text-white">Filters</span>
           {lastFetched && (
             <span className="ml-auto text-xs text-gray-500">
-              Last scan: {lastFetched.toLocaleTimeString()} \u00B7 {allSignals.length} pairs
+              Last scan: {lastFetched.toLocaleTimeString()} · {allSignals.length} pairs
             </span>
           )}
         </div>
@@ -347,7 +347,7 @@ function PriceActionInsights() {
               onChange={e => setMinScore(Number(e.target.value))}
               className="w-full accent-accent cursor-pointer" />
             <div className="flex justify-between text-xs text-gray-600 mt-0.5">
-              <span>0 \u2013 All</span><span>40 \u2013 Weak+</span><span>60 \u2013 Watch+</span><span>80 \u2013 Strong</span>
+              <span>0 – All</span><span>40 – Weak+</span><span>60 – Watch+</span><span>80 – Strong</span>
             </div>
           </div>
 
@@ -368,7 +368,7 @@ function PriceActionInsights() {
         {loading && (
           <div className="text-center py-14">
             <RefreshCw className="w-8 h-8 text-accent animate-spin mx-auto mb-3" />
-            <p className="text-gray-400">Scanning 9 instruments for patterns\u2026</p>
+            <p className="text-gray-400">Scanning 9 instruments for patterns…</p>
           </div>
         )}
 
@@ -392,7 +392,7 @@ function PriceActionInsights() {
 
       {!loading && allSignals.length > 0 && (
         <p className="text-xs text-gray-600 text-center pb-4">
-          \u26A0\uFE0F For informational purposes only. Always manage your risk before trading.
+          ⚠️ For informational purposes only. Always manage your risk before trading.
         </p>
       )}
     </div>
