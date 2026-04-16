@@ -3819,14 +3819,14 @@ def _calculate_score(ind: dict, pattern: dict | None) -> int:
     # 1. Pattern score
     if pattern:
         PATTERN_SCORES = {
-            "bullish_engulfing": 50, "bearish_engulfing": 50,
-            "hammer": 40, "shooting_star": 40,
-            "morning_star": 60, "evening_star": 60,
-            "bullish_pin_bar": 55, "bearish_pin_bar": 55,
-            "tweezer_bottom": 45, "tweezer_top": 45,
-            "doji": 30, "inside_bar": 35,
+            "BULLISH_ENGULFING": 50, "BEARISH_ENGULFING": 50,
+            "HAMMER": 40, "SHOOTING_STAR": 40,
+            "MORNING_STAR": 60, "EVENING_STAR": 60,
+            "BULLISH_PIN_BAR": 55, "BEARISH_PIN_BAR": 55,
+            "TWEEZER_BOTTOM": 45, "TWEEZER_TOP": 45,
+            "DOJI": 30, "INSIDE_BAR": 35,
         }
-        score += PATTERN_SCORES.get(pattern.get("name", ""), 25)
+        score += PATTERN_SCORES.get(pattern.get("name", "").upper(), 25)
     else:
         score -= 10  # penalty for no pattern
 
@@ -4029,6 +4029,8 @@ async def get_price_action_signals(
     if not TWELVE_DATA_API_KEY:
         raise HTTPException(status_code=503, detail="TWELVE_DATA_API_KEY is not configured on the server.")
 
+    logger.info("[PriceAction] v2 multi-factor — scanning %d symbols, interval=%s", len(PRICE_ACTION_SYMBOLS), interval)
+
     # Fetch all symbols in parallel
     tasks = [
         _fetch_candles_twelve(sym["symbol"], interval, 220)
@@ -4038,6 +4040,8 @@ async def get_price_action_signals(
 
     signals = []
     for sym_info, candles in zip(PRICE_ACTION_SYMBOLS, results):
+      try:
+        logger.info("[PriceAction] %s → %d candles", sym_info["symbol"], len(candles))
         # Default "no data" entry so the pair always appears
         if len(candles) < 5:
             signals.append({
@@ -4141,6 +4145,32 @@ async def get_price_action_signals(
             "all_patterns": [p["display_name"] for p in patterns],
             "rsi": ind.get("rsi"),
             "above_vwap": ind.get("above_vwap"),
+        })
+      except Exception as exc:
+        logger.error("Price-action error for %s: %s", sym_info.get("symbol"), exc, exc_info=True)
+        signals.append({
+            "symbol": sym_info["display"],
+            "symbol_key": sym_info["symbol"],
+            "type": sym_info["type"],
+            "pattern": "Error",
+            "pattern_key": None,
+            "score": 0,
+            "status": "Avoid",
+            "confidence": 0.0,
+            "bias": "neutral",
+            "trend": "sideways",
+            "high_volume": False,
+            "at_key_level": False,
+            "tags": [],
+            "entry": None,
+            "stop_loss": None,
+            "take_profit": None,
+            "current_price": None,
+            "last_candle_time": None,
+            "interval": interval,
+            "all_patterns": [],
+            "rsi": None,
+            "above_vwap": None,
         })
 
     # Sort by score descending — best setup first
