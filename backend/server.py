@@ -3684,62 +3684,116 @@ def _detect_patterns(candles: list) -> list:
     return detected
 
 
-def _score_signal(pattern: dict, trend: str, high_volume: bool, at_key_level: bool) -> int:
-    score = pattern['base_score']
-    bias = pattern['bias']
+def _compute_indicators(candles: list) -> dict:
+    """
+    Compute EMA20/50/200, RSI(14), ATR(14), VWAP from raw candles.
+    Pure Python — no TA-Lib required.
+    Returns dict with latest values + full arrays for rolling calcs.
+    """
+    import numpy as np
+    n = len(candles)
+    closes = np.array([c['close'] for c in candles], dtype=np.float64)
+    highs = np.array([c['high'] for c in candles], dtype=np.float64)
+    lows = np.array([c['low'] for c in candles], dtype=np.float64)
+    volumes = np.array([c['volume'] for c in candles], dtype=np.float64)
 
-    # Trend alignment
-    if bias == 'bullish' and trend == 'up':
-        score += 20
-    elif bias == 'bearish' and trend == 'down':
-        score += 20
-    elif bias == 'neutral':
-        pass
-    else:
-        score -= 15
+    def ema_np(arr, period):
+        if len(arr) < period:
+            return np.full(len(arr), np.nan)
+        k = 2.0 / (period + 1)
+        out = np.full(len(arr), np.nan)
+        out[period - 1] = np.mean(arr[:period])
+        for i in range(period, len(arr)):
+            out[i] = arr[i] * k + out[i - 1] * (1 - k)
+        return out
 
-    # Volume confirmation
-    if high_volume:
-        score += 15
+    ema20  = ema_np(closes, 20)
+    ema50  = ema_np(closes, 50)
+    ema200 = ema_np(closes, 200)
 
-    # Key level proximity
-    if at_key_level:
-        score += 10
+    # RSI(14)
+    rsi_val = np.nan
+    if n >= 15:
+        deltas = np.diff(closes)
+        gains = np.where(deltas > 0, deltas, 0.0)
+        losses = np.where(deltas < 0, -deltas, 0.0)
+        avg_gain = np.mean(gains[:14])
+        avg_loss = np.mean(losses[:14])
+        for i in range(14, len(deltas)):
+            avg_gain = (avg_gain * 13 + gains[i]) / 14
+            avg_loss = (avg_loss * 13 + losses[i]) / 14
+        if avg_loss == 0:
+            rsi_val = 100.0
+        else:
+            rs = avg_gain / avg_loss
+            rsi_val = 100.0 - (100.0 / (1.0 + rs))
 
-    return min(score, 100)
+    # ATR(14)
+    atr_vals = np.full(n, np.nan)
+    if n >= 2:
+        tr = np.maximum(
+            highs[1:] - lows[1:],
+            np.maximum(
+                np.abs(highs[1:] - closes[:-1]),
+                np.abs(lows[1:] - closes[:-1])
+            )
+        )
+        if len(tr) >= 14:
+            atr_vals[14] = np.mean(tr[:14])
+            for i in range(15, n):
+                atr_vals[i] = (atr_vals[i - 1] * 13 + tr[i - 1]) / 14
+
+    # VWAP (cumulative)
+    cum_pv = np.cumsum(closes * volumes)
+    cum_vol = np.cumsum(volumes)
+    vwap = np.where(cum_vol > 0, cum_pv / cum_vol, closes)
+
+    # 20-period volume average
+    vol_avg20 = np.nan
+    if n >= 20:
+        vol_avg20 = np.mean(volumes[-20:])
+
+    latest_atr = atr_vals[-1] if not np.isnan(atr_vals[-1]) else None
+    atr_mean = float(np.nanmean(atr_vals)) if np.any(~np.isnan(atr_vals)) else None
+
+    return {
+        "ema20": float(ema20[-1]) if not np.isnan(ema20[-1]) else None,
+        "ema50": float(ema50[-1]) if not np.isnan(ema50[-1]) else None,
+        "ema200": float(ema200[-1]) if not np.isnan(ema200[-1]) else None,
+        "rsi": round(float(rsi_val), 1) if not np.isnan(rsi_val) else None,
+        "atr": round(float(latest_atr), 6) if latest_atr is not None else None,
+        "atr_mean": round(float(atr_mean), 6) if atr_mean is not None else None,
+        "vwap": round(float(vwap[-1]), 5),
+        "above_vwap": bool(closes[-1] > vwap[-1]),
+        "vol_avg20": float(vol_avg20) if not np.isnan(vol_avg20) else None,
+        "close": float(closes[-1]),
+        "volume": float(volumes[-1]),
+    }
 
 
-def _calc_trend(closes: list) -> str:
-    """Return 'up', 'down', or 'sideways' based on EMA50 vs EMA200."""
-    ema50 = _ema(closes, 50)
-    ema200 = _ema(closes, 200)
-    # Find last valid values
-    ema50_last = next((v for v in reversed(ema50) if v is not None), None)
-    ema200_last = next((v for v in reversed(ema200) if v is not None), None)
-
-    if ema50_last is None or ema200_last is None:
-        # fallback: compare first vs last close
-        if len(closes) >= 10:
-            if closes[-1] > closes[-10] * 1.002:
-                return 'up'
-            elif closes[-1] < closes[-10] * 0.998:
-                return 'down'
-        return 'sideways'
-
-    diff_pct = (ema50_last - ema200_last) / ema200_last * 100
-    if diff_pct > 0.05:
-        return 'up'
-    elif diff_pct < -0.05:
-        return 'down'
+def _calc_trend_from_indicators(ind: dict) -> str:
+    """Determine trend from EMA structure."""
+    ema20, ema50, ema200 = ind.get("ema20"), ind.get("ema50"), ind.get("ema200")
+    if ema20 is not None and ema50 is not None and ema200 is not None:
+        if ema20 > ema50 > ema200:
+            return 'up'
+        elif ema20 < ema50 < ema200:
+            return 'down'
+    elif ema50 is not None and ema200 is not None:
+        diff_pct = (ema50 - ema200) / ema200 * 100
+        if diff_pct > 0.05:
+            return 'up'
+        elif diff_pct < -0.05:
+            return 'down'
     return 'sideways'
 
 
-def _is_high_volume(candles: list) -> bool:
-    if len(candles) < 20:
-        return False
-    volumes = [c['volume'] for c in candles]
-    avg_vol = sum(volumes[-20:]) / 20
-    return volumes[-1] > avg_vol * 1.5 if avg_vol > 0 else False
+def _is_high_volume(ind: dict) -> bool:
+    vol = ind.get("volume", 0)
+    avg = ind.get("vol_avg20")
+    if avg and avg > 0:
+        return vol > avg * 1.5
+    return False
 
 
 def _is_at_key_level(candles: list) -> bool:
@@ -3753,10 +3807,75 @@ def _is_at_key_level(candles: list) -> bool:
     swing_high = max(highs)
     swing_low = min(lows)
     rng = swing_high - swing_low if swing_high != swing_low else 1
-    # Within 1.5% of swing high or swing low
     near_high = abs(current_close - swing_high) / rng < 0.015
     near_low = abs(current_close - swing_low) / rng < 0.015
     return near_high or near_low
+
+
+def _calculate_score(ind: dict, pattern: dict | None) -> int:
+    """Multi-factor scoring: pattern + EMA structure + RSI + VWAP + ATR + volume."""
+    score = 0
+
+    # 1. Pattern score
+    if pattern:
+        PATTERN_SCORES = {
+            "bullish_engulfing": 50, "bearish_engulfing": 50,
+            "hammer": 40, "shooting_star": 40,
+            "morning_star": 60, "evening_star": 60,
+            "bullish_pin_bar": 55, "bearish_pin_bar": 55,
+            "tweezer_bottom": 45, "tweezer_top": 45,
+            "doji": 30, "inside_bar": 35,
+        }
+        score += PATTERN_SCORES.get(pattern.get("name", ""), 25)
+    else:
+        score -= 10  # penalty for no pattern
+
+    # 2. EMA Structure
+    ema20, ema50, ema200 = ind.get("ema20"), ind.get("ema50"), ind.get("ema200")
+    if ema20 is not None and ema50 is not None and ema200 is not None:
+        if ema20 > ema50 > ema200:
+            score += 20
+        elif ema20 < ema50 < ema200:
+            score -= 20
+        else:
+            score -= 5
+
+    # 3. RSI (Momentum)
+    rsi = ind.get("rsi")
+    if rsi is not None:
+        if rsi < 30:
+            score += 15
+        elif rsi > 70:
+            score -= 15
+
+    # 4. VWAP (Bias)
+    if ind.get("above_vwap"):
+        score += 15
+    else:
+        score -= 15
+
+    # 5. ATR (Volatility)
+    atr = ind.get("atr")
+    atr_mean = ind.get("atr_mean")
+    if atr is not None and atr_mean is not None and atr_mean > 0:
+        if atr > atr_mean:
+            score += 5
+        else:
+            score -= 10
+
+    # 6. Volume
+    if _is_high_volume(ind):
+        score += 10
+    else:
+        score -= 5
+
+    return score
+
+
+def _normalize_score(raw_score: int) -> int:
+    """Clamp raw score [-100,100] then scale to 0–100."""
+    clamped = max(min(raw_score, 100), -100)
+    return int((clamped + 100) / 2)
 
 
 def _calc_entry_sl_tp(candles: list, bias: str) -> dict:
@@ -3942,22 +4061,24 @@ async def get_price_action_signals(
                 "last_candle_time": None,
                 "interval": interval,
                 "all_patterns": [],
+                "rsi": None,
+                "above_vwap": None,
             })
             continue
 
-        closes = [c['close'] for c in candles]
-        trend = _calc_trend(closes)
-        high_vol = _is_high_volume(candles)
+        # ── Compute indicators FIRST ──
+        ind = _compute_indicators(candles)
+        trend = _calc_trend_from_indicators(ind)
+        high_vol = _is_high_volume(ind)
         at_level = _is_at_key_level(candles)
-        current_close = candles[-1]['close']
+        current_close = ind["close"]
 
         patterns = _detect_patterns(candles)
 
         if not patterns:
-            # No pattern detected → score penalty, show as Avoid
-            score = 20
-            score -= 10  # penalty for no pattern
-            score = max(score, 0)
+            # No pattern → multi-factor score with no pattern
+            raw_score = _calculate_score(ind, None)
+            score = _normalize_score(raw_score)
             signals.append({
                 "symbol": sym_info["display"],
                 "symbol_key": sym_info["symbol"],
@@ -3979,19 +4100,22 @@ async def get_price_action_signals(
                 "last_candle_time": candles[-1]["time"],
                 "interval": interval,
                 "all_patterns": [],
+                "rsi": ind.get("rsi"),
+                "above_vwap": ind.get("above_vwap"),
             })
             continue
 
-        # Pick the highest-scored pattern for this symbol
+        # Pick the best pattern, then multi-factor score
         best = None
-        best_score = -1
+        best_score = -999
         for pat in patterns:
-            s = _score_signal(pat, trend, high_vol, at_level)
-            if s > best_score:
-                best_score = s
+            raw = _calculate_score(ind, pat)
+            if raw > best_score:
+                best_score = raw
                 best = pat
 
-        confidence = round(min(best_score / 100, 1.0), 2)
+        score = _normalize_score(best_score)
+        confidence = round(min(score / 100, 1.0), 2)
         levels = _calc_entry_sl_tp(candles, best['bias'])
 
         signals.append({
@@ -4000,8 +4124,8 @@ async def get_price_action_signals(
             "type": sym_info["type"],
             "pattern": best["display_name"],
             "pattern_key": best["name"],
-            "score": best_score,
-            "status": _get_status(best_score),
+            "score": score,
+            "status": _get_status(score),
             "confidence": confidence,
             "bias": best["bias"],
             "trend": trend,
@@ -4015,6 +4139,8 @@ async def get_price_action_signals(
             "last_candle_time": candles[-1]["time"],
             "interval": interval,
             "all_patterns": [p["display_name"] for p in patterns],
+            "rsi": ind.get("rsi"),
+            "above_vwap": ind.get("above_vwap"),
         })
 
     # Sort by score descending — best setup first

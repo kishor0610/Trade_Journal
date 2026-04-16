@@ -18,11 +18,12 @@ import {
   CheckCircle2,
   Info,
   Flame,
+  Gauge,
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
 
-const API_URL = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const API_URL = `${'${process.env.REACT_APP_BACKEND_URL}'}/api`;
 
 const BIAS_STYLE = {
   bullish: {
@@ -66,6 +67,13 @@ const INTERVALS = [
   { value: '1d',  label: 'Daily'  },
 ];
 
+function rsiLabel(rsi) {
+  if (rsi == null) return null;
+  if (rsi < 30) return { text: 'Oversold', color: 'text-emerald-400' };
+  if (rsi > 70) return { text: 'Overbought', color: 'text-red-400' };
+  return { text: 'Neutral', color: 'text-gray-400' };
+}
+
 function ScoreRing({ score }) {
   const r = 22;
   const circ = 2 * Math.PI * r;
@@ -78,7 +86,7 @@ function ScoreRing({ score }) {
     <svg width="60" height="60" className="rotate-[-90deg]">
       <circle cx="30" cy="30" r={r} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="5" />
       <circle cx="30" cy="30" r={r} fill="none" stroke={color} strokeWidth="5"
-        strokeDasharray={`${fill} ${circ - fill}`} strokeLinecap="round" />
+        strokeDasharray={`${'${fill}'} ${'${circ - fill}'}`} strokeLinecap="round" />
       <text x="30" y="35" textAnchor="middle" fill="white" fontSize="13" fontWeight="700"
         style={{ transform: 'rotate(90deg)', transformOrigin: '30px 30px' }}>{score}</text>
     </svg>
@@ -95,11 +103,12 @@ function SignalCard({ signal, isExpanded, onToggle, rank }) {
     ? Math.abs(signal.take_profit - signal.entry) / Math.abs(signal.stop_loss - signal.entry)
     : null;
   const noPattern = !signal.pattern_key;
+  const rsiInfo = rsiLabel(signal.rsi);
 
   return (
     <motion.div layout initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}
       transition={{ delay: rank * 0.04 }}
-      className={`glass-card border ${b.border} overflow-hidden cursor-pointer relative`}
+      className={`glass-card border ${'${b.border}'} overflow-hidden cursor-pointer relative`}
       onClick={onToggle}
     >
       {isBest && <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-emerald-500 via-yellow-400 to-emerald-500" />}
@@ -110,29 +119,39 @@ function SignalCard({ signal, isExpanded, onToggle, rank }) {
         </div>
       )}
 
-      <div className={`p-4 flex items-center gap-4 ${isBest ? 'pt-2' : ''}`}>
+      <div className={`p-4 flex items-center gap-4 ${'${isBest ? "pt-2" : ""}'}`}>
         <div className="shrink-0"><ScoreRing score={signal.score} /></div>
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className="font-heading font-bold text-white text-base">{signal.symbol}</span>
             <span className="text-xs text-gray-500 bg-white/5 px-2 py-0.5 rounded-full">{signal.type}</span>
-            <span className={`text-xs px-2 py-0.5 rounded-full font-semibold border ${st.bg} ${st.text}`}>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-semibold border ${'${st.bg}'} ${'${st.text}'}`}>
               {st.dot} {signal.status}
             </span>
             {!noPattern && (
-              <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${b.badge}`}>
+              <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${'${b.badge}'}`}>
                 <BiasIcon className="inline w-3 h-3 mr-1" />{b.label}
               </span>
             )}
           </div>
-          <p className={`text-sm font-semibold truncate ${noPattern ? 'text-gray-500 italic' : 'text-white/90'}`}>
+          <p className={`text-sm font-semibold truncate ${'${noPattern ? "text-gray-500 italic" : "text-white/90"}'}`}>
             {signal.pattern}
           </p>
           <div className="flex items-center gap-2 mt-1 flex-wrap">
-            <span className={`text-xs font-medium ${TREND_COLOR[signal.trend] || 'text-gray-400'}`}>
+            <span className={`text-xs font-medium ${'${TREND_COLOR[signal.trend] || "text-gray-400"}'}`}>
               {TREND_LABEL[signal.trend] || signal.trend}
             </span>
+            {signal.rsi != null && (
+              <span className={`text-xs font-medium ${'${rsiInfo?.color || "text-gray-400"}'}`}>
+                RSI: {signal.rsi} {rsiInfo?.text && `· ${'${rsiInfo.text}'}`}
+              </span>
+            )}
+            {signal.above_vwap != null && (
+              <span className={`text-xs font-medium ${'${signal.above_vwap ? "text-emerald-400" : "text-red-400"}'}`}>
+                {signal.above_vwap ? '↑ Above VWAP' : '↓ Below VWAP'}
+              </span>
+            )}
             {(signal.tags || []).map(tag => (
               <span key={tag} className="text-xs bg-white/5 text-gray-400 px-2 py-0.5 rounded-full">{tag}</span>
             ))}
@@ -150,8 +169,8 @@ function SignalCard({ signal, isExpanded, onToggle, rank }) {
       </div>
 
       <div className="h-1 bg-white/5">
-        <motion.div initial={{ width: 0 }} animate={{ width: `${signal.confidence * 100}%` }}
-          transition={{ duration: 0.7, delay: 0.1 }} className={`h-full ${b.bar}`} />
+        <motion.div initial={{ width: 0 }} animate={{ width: `${'${signal.confidence * 100}'}%` }}
+          transition={{ duration: 0.7, delay: 0.1 }} className={`h-full ${'${b.bar}'}`} />
       </div>
 
       <AnimatePresence>
@@ -172,19 +191,37 @@ function SignalCard({ signal, isExpanded, onToggle, rank }) {
                       <div className="flex items-center gap-2 text-sm">
                         <Activity className="w-4 h-4 text-violet-400 shrink-0" />
                         <span className="text-gray-300">Trend:</span>
-                        <span className={`font-semibold ${TREND_COLOR[signal.trend] || 'text-gray-300'}`}>{TREND_LABEL[signal.trend] || signal.trend}</span>
+                        <span className={`font-semibold ${'${TREND_COLOR[signal.trend] || "text-gray-300"}'}`}>{TREND_LABEL[signal.trend] || signal.trend}</span>
                       </div>
+                      {signal.rsi != null && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <Gauge className="w-4 h-4 text-cyan-400 shrink-0" />
+                          <span className="text-gray-300">RSI(14):</span>
+                          <span className={`font-semibold ${'${rsiInfo?.color || "text-gray-300"}'}`}>
+                            {signal.rsi} {rsiInfo?.text && `— ${'${rsiInfo.text}'}`}
+                          </span>
+                        </div>
+                      )}
+                      {signal.above_vwap != null && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <BarChart2 className="w-4 h-4 text-blue-400 shrink-0" />
+                          <span className="text-gray-300">VWAP:</span>
+                          <span className={`font-semibold ${'${signal.above_vwap ? "text-emerald-400" : "text-red-400"}'}`}>
+                            {signal.above_vwap ? 'Above VWAP ✓' : 'Below VWAP'}
+                          </span>
+                        </div>
+                      )}
                       <div className="flex items-center gap-2 text-sm">
                         <BarChart2 className="w-4 h-4 text-blue-400 shrink-0" />
                         <span className="text-gray-300">Volume:</span>
-                        <span className={`font-semibold ${signal.high_volume ? 'text-emerald-400' : 'text-gray-400'}`}>
+                        <span className={`font-semibold ${'${signal.high_volume ? "text-emerald-400" : "text-gray-400"}'}`}>
                           {signal.high_volume ? 'Above Average ✓' : 'Normal'}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 text-sm">
                         <Target className="w-4 h-4 text-amber-400 shrink-0" />
                         <span className="text-gray-300">Location:</span>
-                        <span className={`font-semibold ${signal.at_key_level ? 'text-amber-400' : 'text-gray-400'}`}>
+                        <span className={`font-semibold ${'${signal.at_key_level ? "text-amber-400" : "text-gray-400"}'}`}>
                           {signal.at_key_level ? 'At Key Level ✓' : 'Mid-Range'}
                         </span>
                       </div>
@@ -253,8 +290,8 @@ function PriceActionInsights() {
     setExpandedId(null);
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get(`${API_URL}/market/price-action-signals`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const res = await axios.get(`${'${API_URL}'}/market/price-action-signals`, {
+        headers: { Authorization: `Bearer ${'${token}'}` },
         params: { interval: intervalVal },
       });
       setAllSignals(res.data.signals || []);
@@ -285,12 +322,12 @@ function PriceActionInsights() {
               Price Action Insights
             </h1>
             <p className="text-gray-400 text-sm mt-1">
-              Live pattern scanner · 9 Forex &amp; Commodity pairs · Powered by Twelve Data
+              Multi-factor scoring engine · RSI + VWAP + EMA + ATR · 9 Forex & Commodity pairs
             </p>
           </div>
           <Button onClick={fetchSignals} disabled={loading}
             className="flex items-center gap-2 bg-accent hover:bg-accent/80 text-black font-semibold">
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${'${loading ? "animate-spin" : ""}'}`} />
             {loading ? 'Scanning…' : 'Refresh'}
           </Button>
         </div>
@@ -306,10 +343,10 @@ function PriceActionInsights() {
         ].map(({ label, value, color, icon: Icon }) => (
           <div key={label} className="glass-card p-4 border border-white/5">
             <div className="flex items-center gap-2 mb-1">
-              <Icon className={`w-4 h-4 ${color}`} />
+              <Icon className={`w-4 h-4 ${'${color}'}`} />
               <span className="text-xs text-gray-400">{label}</span>
             </div>
-            <span className={`text-2xl font-bold font-heading ${color}`}>{value}</span>
+            <span className={`text-2xl font-bold font-heading ${'${color}'}`}>{value}</span>
           </div>
         ))}
       </motion.div>
@@ -331,9 +368,7 @@ function PriceActionInsights() {
             <div className="flex gap-1.5 flex-wrap">
               {INTERVALS.map(iv => (
                 <button key={iv.value} onClick={() => setIntervalVal(iv.value)}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                    intervalVal === iv.value ? 'bg-accent text-black font-bold' : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
-                  }`}>{iv.label}</button>
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${'${intervalVal === iv.value ? "bg-accent text-black font-bold" : "bg-white/5 text-gray-400 hover:text-white hover:bg-white/10"}'}`}>{iv.label}</button>
               ))}
             </div>
           </div>
@@ -355,7 +390,7 @@ function PriceActionInsights() {
             <label className="block text-xs text-gray-400 mb-1.5">Legend</label>
             <div className="flex gap-2 flex-wrap">
               {Object.entries(STATUS_STYLE).map(([label, s]) => (
-                <span key={label} className={`text-xs px-2 py-1 rounded-full border ${s.bg} ${s.text} font-medium`}>
+                <span key={label} className={`text-xs px-2 py-1 rounded-full border ${'${s.bg}'} ${'${s.text}'} font-medium`}>
                   {s.dot} {label}
                 </span>
               ))}
@@ -375,7 +410,7 @@ function PriceActionInsights() {
         {!loading && (
           <AnimatePresence>
             {signals.map((signal, idx) => (
-              <SignalCard key={`${signal.symbol_key}-${idx}`} signal={signal} rank={idx}
+              <SignalCard key={`${'${signal.symbol_key}'}-${'${idx}'}`} signal={signal} rank={idx}
                 isExpanded={expandedId === idx}
                 onToggle={() => setExpandedId(expandedId === idx ? null : idx)} />
             ))}
