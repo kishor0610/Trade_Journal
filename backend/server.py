@@ -3931,14 +3931,10 @@ def _build_tags(trend: str, high_vol: bool, at_level: bool) -> list:
 
 
 PRICE_ACTION_SYMBOLS = [
+    {"symbol": "BTCUSD",   "display": "BTC/USD",  "type": "Crypto"},
     {"symbol": "XAUUSD",  "display": "XAU/USD", "type": "Commodity"},
     {"symbol": "EURUSD",  "display": "EUR/USD",  "type": "Forex"},
     {"symbol": "GBPUSD",  "display": "GBP/USD",  "type": "Forex"},
-    {"symbol": "USDJPY",  "display": "USD/JPY",  "type": "Forex"},
-    {"symbol": "AUDUSD",  "display": "AUD/USD",  "type": "Forex"},
-    {"symbol": "NZDUSD",  "display": "NZD/USD",  "type": "Forex"},
-    {"symbol": "USDCAD",  "display": "USD/CAD",  "type": "Forex"},
-    {"symbol": "USDCHF",  "display": "USD/CHF",  "type": "Forex"},
 ]
 
 TWELVE_DATA_INTERVAL_MAP = {
@@ -3955,15 +3951,10 @@ async def _fetch_candles_twelve(symbol: str, interval: str, limit: int = 200) ->
 
     # Symbol candidates for Twelve Data
     symbol_map = {
+        "BTCUSD": ["BTC/USD"],
         "XAUUSD": ["XAU/USD"],
-        "XAGUSD": ["XAG/USD"],
         "EURUSD": ["EUR/USD"],
         "GBPUSD": ["GBP/USD"],
-        "USDJPY": ["USD/JPY"],
-        "AUDUSD": ["AUD/USD"],
-        "NZDUSD": ["NZD/USD"],
-        "USDCAD": ["USD/CAD"],
-        "USDCHF": ["USD/CHF"],
     }
     candidates = symbol_map.get(symbol, [symbol])
 
@@ -4039,7 +4030,7 @@ async def get_price_action_signals(
     results = []
     for i, sym in enumerate(PRICE_ACTION_SYMBOLS):
         if i > 0:
-            await asyncio.sleep(8)  # ~8s between calls → 8 calls in ~56s, stays under 8/min
+            await asyncio.sleep(4)  # ~4s between calls → 4 calls in ~12s, stays under 8/min
         results.append(await _fetch_candles_twelve(sym["symbol"], interval, 220))
 
     signals = []
