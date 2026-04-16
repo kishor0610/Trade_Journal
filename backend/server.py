@@ -3796,6 +3796,21 @@ def _calc_entry_sl_tp(candles: list, bias: str) -> dict:
     return {"entry": entry, "stop_loss": sl, "take_profit": tp}
 
 
+def _build_tags(trend: str, high_vol: bool, at_level: bool) -> list:
+    tags = []
+    if at_level:
+        tags.append("At Key Level")
+    if high_vol:
+        tags.append("High Volume")
+    if trend == 'up':
+        tags.append("Uptrend")
+    elif trend == 'down':
+        tags.append("Downtrend")
+    else:
+        tags.append("Ranging")
+    return tags
+
+
 PRICE_ACTION_SYMBOLS = [
     {"symbol": "XAUUSD",  "display": "XAU/USD", "type": "Commodity"},
     {"symbol": "XAGUSD",  "display": "XAG/USD", "type": "Commodity"},
@@ -3872,15 +3887,25 @@ async def _fetch_candles_twelve(symbol: str, interval: str, limit: int = 200) ->
     return []
 
 
+def _get_status(score: int) -> str:
+    if score >= 80:
+        return "Strong Setup"
+    elif score >= 60:
+        return "Watch"
+    elif score >= 40:
+        return "Weak"
+    else:
+        return "Avoid"
+
+
 @api_router.get("/market/price-action-signals")
 async def get_price_action_signals(
     interval: str = Query(default="1h", regex="^(5m|15m|1h|4h|1d)$"),
-    min_score: int = Query(default=40, ge=0, le=100),
     current_user: dict = Depends(get_current_user),
 ):
     """
-    Scan forex/commodity instruments for candlestick patterns and return
-    scored signals with trend context, entry/SL/TP suggestions.
+    Scan ALL forex/commodity instruments and always return every pair,
+    sorted by score descending. No server-side filtering.
     """
     if not TWELVE_DATA_API_KEY:
         raise HTTPException(status_code=503, detail="TWELVE_DATA_API_KEY is not configured on the server.")
@@ -3894,16 +3919,67 @@ async def get_price_action_signals(
 
     signals = []
     for sym_info, candles in zip(PRICE_ACTION_SYMBOLS, results):
+        # Default "no data" entry so the pair always appears
         if len(candles) < 5:
+            signals.append({
+                "symbol": sym_info["display"],
+                "symbol_key": sym_info["symbol"],
+                "type": sym_info["type"],
+                "pattern": "No data",
+                "pattern_key": None,
+                "score": 0,
+                "status": "Avoid",
+                "confidence": 0.0,
+                "bias": "neutral",
+                "trend": "sideways",
+                "high_volume": False,
+                "at_key_level": False,
+                "tags": [],
+                "entry": None,
+                "stop_loss": None,
+                "take_profit": None,
+                "current_price": None,
+                "last_candle_time": None,
+                "interval": interval,
+                "all_patterns": [],
+            })
             continue
 
         closes = [c['close'] for c in candles]
         trend = _calc_trend(closes)
         high_vol = _is_high_volume(candles)
         at_level = _is_at_key_level(candles)
+        current_close = candles[-1]['close']
 
         patterns = _detect_patterns(candles)
+
         if not patterns:
+            # No pattern detected → score penalty, show as Avoid
+            score = 20
+            score -= 10  # penalty for no pattern
+            score = max(score, 0)
+            signals.append({
+                "symbol": sym_info["display"],
+                "symbol_key": sym_info["symbol"],
+                "type": sym_info["type"],
+                "pattern": "No clear pattern",
+                "pattern_key": None,
+                "score": score,
+                "status": _get_status(score),
+                "confidence": round(score / 100, 2),
+                "bias": "neutral",
+                "trend": trend,
+                "high_volume": high_vol,
+                "at_key_level": at_level,
+                "tags": _build_tags(trend, high_vol, at_level),
+                "entry": round(current_close, 5),
+                "stop_loss": None,
+                "take_profit": None,
+                "current_price": round(current_close, 5),
+                "last_candle_time": candles[-1]["time"],
+                "interval": interval,
+                "all_patterns": [],
+            })
             continue
 
         # Pick the highest-scored pattern for this symbol
@@ -3915,24 +3991,8 @@ async def get_price_action_signals(
                 best_score = s
                 best = pat
 
-        if best_score < min_score:
-            continue
-
         confidence = round(min(best_score / 100, 1.0), 2)
-        tags = []
-        if at_level:
-            tags.append("At Key Level")
-        if high_vol:
-            tags.append("High Volume")
-        if trend == 'up':
-            tags.append("Uptrend")
-        elif trend == 'down':
-            tags.append("Downtrend")
-        else:
-            tags.append("Ranging")
-
         levels = _calc_entry_sl_tp(candles, best['bias'])
-        current_close = candles[-1]['close']
 
         signals.append({
             "symbol": sym_info["display"],
@@ -3941,12 +4001,13 @@ async def get_price_action_signals(
             "pattern": best["display_name"],
             "pattern_key": best["name"],
             "score": best_score,
+            "status": _get_status(best_score),
             "confidence": confidence,
             "bias": best["bias"],
             "trend": trend,
             "high_volume": high_vol,
             "at_key_level": at_level,
-            "tags": tags,
+            "tags": _build_tags(trend, high_vol, at_level),
             "entry": levels["entry"],
             "stop_loss": levels["stop_loss"],
             "take_profit": levels["take_profit"],
@@ -3956,8 +4017,13 @@ async def get_price_action_signals(
             "all_patterns": [p["display_name"] for p in patterns],
         })
 
-    # Sort by score descending
+    # Sort by score descending — best setup first
     signals.sort(key=lambda x: x["score"], reverse=True)
+
+    # Mark top card
+    if signals:
+        signals[0]["is_best"] = True
+
     return {"signals": signals, "total": len(signals), "interval": interval, "scanned": len(PRICE_ACTION_SYMBOLS)}
 
 
