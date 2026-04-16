@@ -323,7 +323,7 @@ function PriceActionInsights() {
               Price Action Insights
             </h1>
             <p className="text-gray-400 text-sm mt-1">
-              Multi-factor scoring engine · RSI + VWAP + EMA + ATR · 9 Forex & Commodity pairs
+              Multi-factor scoring engine · RSI + VWAP + EMA + ATR · 8 Forex & Commodity pairs
             </p>
           </div>
           <Button onClick={fetchSignals} disabled={loading}
@@ -404,7 +404,7 @@ function PriceActionInsights() {
         {loading && (
           <div className="text-center py-14">
             <RefreshCw className="w-8 h-8 text-accent animate-spin mx-auto mb-3" />
-            <p className="text-gray-400">Scanning 9 instruments for patterns…</p>
+            <p className="text-gray-400">Scanning 8 instruments for patterns…</p>
           </div>
         )}
 

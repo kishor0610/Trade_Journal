@@ -3932,7 +3932,6 @@ def _build_tags(trend: str, high_vol: bool, at_level: bool) -> list:
 
 PRICE_ACTION_SYMBOLS = [
     {"symbol": "XAUUSD",  "display": "XAU/USD", "type": "Commodity"},
-    {"symbol": "XAGUSD",  "display": "XAG/USD", "type": "Commodity"},
     {"symbol": "EURUSD",  "display": "EUR/USD",  "type": "Forex"},
     {"symbol": "GBPUSD",  "display": "GBP/USD",  "type": "Forex"},
     {"symbol": "USDJPY",  "display": "USD/JPY",  "type": "Forex"},
@@ -4036,12 +4035,12 @@ async def get_price_action_signals(
 
     logger.info("[PriceAction] v2 multi-factor — scanning %d symbols, interval=%s", len(PRICE_ACTION_SYMBOLS), interval)
 
-    # Fetch all symbols in parallel
-    tasks = [
-        _fetch_candles_twelve(sym["symbol"], interval, 220)
-        for sym in PRICE_ACTION_SYMBOLS
-    ]
-    results = await asyncio.gather(*tasks)
+    # Fetch symbols sequentially with delay to respect Twelve Data rate limit (8 credits/min)
+    results = []
+    for i, sym in enumerate(PRICE_ACTION_SYMBOLS):
+        if i > 0:
+            await asyncio.sleep(8)  # ~8s between calls → 8 calls in ~56s, stays under 8/min
+        results.append(await _fetch_candles_twelve(sym["symbol"], interval, 220))
 
     signals = []
     for sym_info, candles in zip(PRICE_ACTION_SYMBOLS, results):
