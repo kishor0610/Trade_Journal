@@ -3967,7 +3967,7 @@ PRICE_ACTION_SYMBOLS = [
 ]
 
 TWELVE_DATA_INTERVAL_MAP = {
-    "5m": "5min", "15m": "15min", "1h": "1h", "4h": "4h", "1d": "1day"
+    "5m": "5min", "15m": "15min", "30m": "30min", "1h": "1h", "4h": "4h", "1d": "1day"
 }
 
 
