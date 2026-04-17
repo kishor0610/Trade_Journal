@@ -304,7 +304,7 @@ function PriceActionInsights() {
     }
   }, [intervalVal]);
 
-  useEffect(() => { fetchSignals(); }, [fetchSignals]);
+  // No auto-fetch on mount — user clicks Refresh to save API credits
 
   const signals = minScore > 0 ? allSignals.filter(s => s.score >= minScore) : allSignals;
   const strongCount  = allSignals.filter(s => s.status === 'Strong Setup').length;
@@ -418,7 +418,15 @@ function PriceActionInsights() {
           </AnimatePresence>
         )}
 
-        {!loading && minScore > 0 && signals.length === 0 && (
+        {!loading && allSignals.length === 0 && (
+          <div className="glass-card border border-white/5 p-10 text-center">
+            <RefreshCw className="w-10 h-10 text-accent mx-auto mb-3" />
+            <p className="text-white font-semibold mb-1">Click Refresh to scan</p>
+            <p className="text-gray-400 text-sm">Press the Refresh button above to fetch the latest signals.</p>
+          </div>
+        )}
+
+        {!loading && minScore > 0 && allSignals.length > 0 && signals.length === 0 && (
           <div className="glass-card border border-white/5 p-8 text-center">
             <p className="text-white font-semibold mb-1">No pairs meet the filter</p>
             <p className="text-gray-400 text-sm">Lower the Min Score or click Reset to show all pairs.</p>
