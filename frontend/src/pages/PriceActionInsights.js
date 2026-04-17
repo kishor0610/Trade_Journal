@@ -161,8 +161,8 @@ function SignalCard({ signal, isExpanded, onToggle, rank }) {
 
         <div className="shrink-0 text-right">
           {signal.current_price && <p className="text-xs font-mono text-gray-400 mb-0.5">{signal.current_price}</p>}
-          <p className="text-lg font-mono font-bold text-white">{Math.round(signal.confidence * 100)}%</p>
-          <p className="text-xs text-gray-500">confidence</p>
+          <p className="text-lg font-mono font-bold text-white">{Math.round(signal.setup_quality)}%</p>
+          <p className="text-xs text-gray-500">Setup Quality</p>
           <div className="flex justify-end mt-1">
             {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
           </div>
@@ -170,7 +170,7 @@ function SignalCard({ signal, isExpanded, onToggle, rank }) {
       </div>
 
       <div className="h-1 bg-white/5">
-        <motion.div initial={{ width: 0 }} animate={{ width: `${signal.confidence * 100}%` }}
+        <motion.div initial={{ width: 0 }} animate={{ width: `${signal.setup_quality}%` }}
           transition={{ duration: 0.7, delay: 0.1 }} className={`h-full ${b.bar}`} />
       </div>
 
@@ -222,8 +222,8 @@ function SignalCard({ signal, isExpanded, onToggle, rank }) {
                       <div className="flex items-center gap-2 text-sm">
                         <Target className="w-4 h-4 text-amber-400 shrink-0" />
                         <span className="text-gray-300">Location:</span>
-                        <span className={`font-semibold ${signal.at_key_level ? "text-amber-400" : "text-gray-400"}`}>
-                          {signal.at_key_level ? 'At Key Level ✓' : 'Mid-Range'}
+                        <span className={`font-semibold ${signal.location !== "Range" ? "text-amber-400" : "text-gray-400"}`}>
+                          {signal.location || 'Range'}
                         </span>
                       </div>
                       {signal.all_patterns && signal.all_patterns.length > 1 && (

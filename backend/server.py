@@ -3796,10 +3796,10 @@ def _is_high_volume(ind: dict) -> bool:
     return False
 
 
-def _is_at_key_level(candles: list) -> bool:
-    """Check if current price is near a recent swing high/low (support/resistance)."""
+def _get_location(candles: list) -> str:
+    """Return price location: At Support, At Resistance, Near Breakout, or Range."""
     if len(candles) < 20:
-        return False
+        return "Range"
     recent = candles[-20:-1]
     highs = [c['high'] for c in recent]
     lows = [c['low'] for c in recent]
@@ -3807,16 +3807,43 @@ def _is_at_key_level(candles: list) -> bool:
     swing_high = max(highs)
     swing_low = min(lows)
     rng = swing_high - swing_low if swing_high != swing_low else 1
-    near_high = abs(current_close - swing_high) / rng < 0.015
-    near_low = abs(current_close - swing_low) / rng < 0.015
-    return near_high or near_low
+    near_high = abs(current_close - swing_high) / rng < 0.02
+    near_low = abs(current_close - swing_low) / rng < 0.02
+    # Breakout: price exceeds recent range
+    if current_close > swing_high:
+        return "Near Breakout"
+    if current_close < swing_low:
+        return "Near Breakout"
+    if near_low:
+        return "At Support"
+    if near_high:
+        return "At Resistance"
+    return "Range"
 
 
-def _calculate_score(ind: dict, pattern: dict | None) -> int:
-    """Multi-factor scoring: pattern + EMA structure + RSI + VWAP + ATR + volume."""
+def _detect_liquidity_sweep(candles: list) -> dict | None:
+    """Detect stop-hunt / liquidity sweep on the last few candles."""
+    if len(candles) < 10:
+        return None
+    recent = candles[-10:-1]
+    c = candles[-1]
+    prev_high = max(r['high'] for r in recent)
+    prev_low = min(r['low'] for r in recent)
+    # Bearish sweep: wick above prev high but close below it
+    if c['high'] > prev_high and c['close'] < prev_high:
+        return {"name": "LIQUIDITY_SWEEP_BEAR", "display_name": "Liquidity Sweep (Bearish)", "bias": "bearish", "base_score": 55}
+    # Bullish sweep: wick below prev low but close above it
+    if c['low'] < prev_low and c['close'] > prev_low:
+        return {"name": "LIQUIDITY_SWEEP_BULL", "display_name": "Liquidity Sweep (Bullish)", "bias": "bullish", "base_score": 55}
+    return None
+
+
+def _calculate_score(ind: dict, pattern: dict | None, trend: str = "sideways") -> int:
+    """Multi-factor scoring: pattern + EMA + RSI + VWAP + ATR + volume + conflict + liquidity."""
     score = 0
 
     # 1. Pattern score
+    pat_bias = None
     if pattern:
         PATTERN_SCORES = {
             "BULLISH_ENGULFING": 50, "BEARISH_ENGULFING": 50,
@@ -3825,8 +3852,10 @@ def _calculate_score(ind: dict, pattern: dict | None) -> int:
             "BULLISH_PIN_BAR": 55, "BEARISH_PIN_BAR": 55,
             "TWEEZER_BOTTOM": 45, "TWEEZER_TOP": 45,
             "DOJI": 30, "INSIDE_BAR": 35,
+            "LIQUIDITY_SWEEP_BULL": 55, "LIQUIDITY_SWEEP_BEAR": 55,
         }
         score += PATTERN_SCORES.get(pattern.get("name", "").upper(), 25)
+        pat_bias = pattern.get("bias")
     else:
         score -= 10  # penalty for no pattern
 
@@ -3869,6 +3898,17 @@ def _calculate_score(ind: dict, pattern: dict | None) -> int:
     else:
         score -= 5
 
+    # 7. Conflict penalty — trend vs pattern bias mismatch
+    if pat_bias and trend != "sideways":
+        if trend == "up" and pat_bias == "bearish":
+            score -= 15
+        elif trend == "down" and pat_bias == "bullish":
+            score -= 15
+
+    # 8. Liquidity sweep bonus (already in pattern score, extra confluence)
+    if pattern and "LIQUIDITY_SWEEP" in pattern.get("name", ""):
+        score += 10
+
     return score
 
 
@@ -3879,46 +3919,35 @@ def _normalize_score(raw_score: int) -> int:
 
 
 def _calc_entry_sl_tp(candles: list, bias: str) -> dict:
-    """Suggest entry, stop loss, take profit based on ATR."""
-    if len(candles) < 14:
-        c = candles[-1]
-        rng = c['high'] - c['low']
-        if bias == 'bullish':
-            return {"entry": round(c['close'], 5), "stop_loss": round(c['close'] - rng, 5), "take_profit": round(c['close'] + rng * 2, 5)}
-        else:
-            return {"entry": round(c['close'], 5), "stop_loss": round(c['close'] + rng, 5), "take_profit": round(c['close'] - rng * 2, 5)}
-
-    # ATR (14)
-    tr_list = []
-    for i in range(1, len(candles)):
-        high = candles[i]['high']
-        low = candles[i]['low']
-        prev_close = candles[i - 1]['close']
-        tr = max(high - low, abs(high - prev_close), abs(low - prev_close))
-        tr_list.append(tr)
-    atr = sum(tr_list[-14:]) / 14
+    """Structure-based entry/SL/TP using swing highs/lows (not random %)."""
     close = candles[-1]['close']
+    lookback = candles[-10:] if len(candles) >= 10 else candles[-5:]
+    swing_low = min(c['low'] for c in lookback)
+    swing_high = max(c['high'] for c in lookback)
 
     if bias == 'bullish':
         entry = round(close, 5)
-        sl = round(close - atr * 1.5, 5)
-        tp = round(close + atr * 3.0, 5)
+        sl = round(swing_low, 5)  # SL below recent swing low
+        risk = entry - sl if entry > sl else close * 0.005
+        tp = round(entry + risk * 2, 5)  # TP at 1:2 RR
     elif bias == 'bearish':
         entry = round(close, 5)
-        sl = round(close + atr * 1.5, 5)
-        tp = round(close - atr * 3.0, 5)
+        sl = round(swing_high, 5)  # SL above recent swing high
+        risk = sl - entry if sl > entry else close * 0.005
+        tp = round(entry - risk * 2, 5)  # TP at 1:2 RR
     else:
         entry = round(close, 5)
-        sl = round(close - atr * 1.5, 5)
-        tp = round(close + atr * 1.5, 5)
+        sl = round(swing_low, 5)
+        risk = entry - sl if entry > sl else close * 0.005
+        tp = round(entry + risk * 1.5, 5)
 
     return {"entry": entry, "stop_loss": sl, "take_profit": tp}
 
 
-def _build_tags(trend: str, high_vol: bool, at_level: bool) -> list:
+def _build_tags(trend: str, high_vol: bool, location: str) -> list:
     tags = []
-    if at_level:
-        tags.append("At Key Level")
+    if location != "Range":
+        tags.append(location)
     if high_vol:
         tags.append("High Volume")
     if trend == 'up':
@@ -4047,11 +4076,11 @@ async def get_price_action_signals(
                 "pattern_key": None,
                 "score": 0,
                 "status": "Avoid",
-                "confidence": 0.0,
+                "setup_quality": 0,
                 "bias": "neutral",
                 "trend": "sideways",
                 "high_volume": False,
-                "at_key_level": False,
+                "location": "Range",
                 "tags": [],
                 "entry": None,
                 "stop_loss": None,
@@ -4069,14 +4098,18 @@ async def get_price_action_signals(
         ind = _compute_indicators(candles)
         trend = _calc_trend_from_indicators(ind)
         high_vol = _is_high_volume(ind)
-        at_level = _is_at_key_level(candles)
+        location = _get_location(candles)
         current_close = ind["close"]
 
         patterns = _detect_patterns(candles)
+        # Add liquidity sweep if detected
+        sweep = _detect_liquidity_sweep(candles)
+        if sweep:
+            patterns.append(sweep)
 
         if not patterns:
             # No pattern → multi-factor score with no pattern
-            raw_score = _calculate_score(ind, None)
+            raw_score = _calculate_score(ind, None, trend)
             score = _normalize_score(raw_score)
             signals.append({
                 "symbol": sym_info["display"],
@@ -4086,12 +4119,12 @@ async def get_price_action_signals(
                 "pattern_key": None,
                 "score": score,
                 "status": _get_status(score),
-                "confidence": round(score / 100, 2),
+                "setup_quality": score,
                 "bias": "neutral",
                 "trend": trend,
                 "high_volume": high_vol,
-                "at_key_level": at_level,
-                "tags": _build_tags(trend, high_vol, at_level),
+                "location": location,
+                "tags": _build_tags(trend, high_vol, location),
                 "entry": round(current_close, 5),
                 "stop_loss": None,
                 "take_profit": None,
@@ -4108,13 +4141,12 @@ async def get_price_action_signals(
         best = None
         best_score = -999
         for pat in patterns:
-            raw = _calculate_score(ind, pat)
+            raw = _calculate_score(ind, pat, trend)
             if raw > best_score:
                 best_score = raw
                 best = pat
 
         score = _normalize_score(best_score)
-        confidence = round(min(score / 100, 1.0), 2)
         levels = _calc_entry_sl_tp(candles, best['bias'])
 
         signals.append({
@@ -4125,12 +4157,12 @@ async def get_price_action_signals(
             "pattern_key": best["name"],
             "score": score,
             "status": _get_status(score),
-            "confidence": confidence,
+            "setup_quality": score,
             "bias": best["bias"],
             "trend": trend,
             "high_volume": high_vol,
-            "at_key_level": at_level,
-            "tags": _build_tags(trend, high_vol, at_level),
+            "location": location,
+            "tags": _build_tags(trend, high_vol, location),
             "entry": levels["entry"],
             "stop_loss": levels["stop_loss"],
             "take_profit": levels["take_profit"],
@@ -4151,11 +4183,11 @@ async def get_price_action_signals(
             "pattern_key": None,
             "score": 0,
             "status": "Avoid",
-            "confidence": 0.0,
+            "setup_quality": 0,
             "bias": "neutral",
             "trend": "sideways",
             "high_volume": False,
-            "at_key_level": False,
+            "location": "Range",
             "tags": [],
             "entry": None,
             "stop_loss": None,
