@@ -63,6 +63,7 @@ const TREND_COLOR = { up: 'text-emerald-400', down: 'text-red-400', sideways: 't
 const INTERVALS = [
   { value: '5m',  label: '5 Min'  },
   { value: '15m', label: '15 Min' },
+  { value: '30m', label: '30 Min' },
   { value: '1h',  label: '1 Hour' },
   { value: '4h',  label: '4 Hour' },
   { value: '1d',  label: 'Daily'  },
@@ -132,7 +133,7 @@ function SignalCard({ signal, isExpanded, onToggle, rank }) {
             </span>
             {!noPattern && (
               <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${b.badge}`}>
-                <BiasIcon className="inline w-3 h-3 mr-1" />{b.label}
+                <BiasIcon className="inline w-3 h-3 mr-1" />{signal.bias === "bullish" ? "BUY" : signal.bias === "bearish" ? "SELL" : "NEUTRAL"}
               </span>
             )}
           </div>
@@ -236,11 +237,16 @@ function SignalCard({ signal, isExpanded, onToggle, rank }) {
                   </div>
 
                   <div>
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Suggested Levels</p>
+                    <div className="flex items-center gap-2 mb-2">
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Suggested Levels</p>
+                      <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${signal.bias === "bullish" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : signal.bias === "bearish" ? "bg-red-500/20 text-red-400 border border-red-500/30" : "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30"}`}>
+                        {signal.bias === "bullish" ? "⬆ BUY" : signal.bias === "bearish" ? "⬇ SELL" : "⏸ WAIT"}
+                      </span>
+                    </div>
                     {hasLevels ? (
                       <div className="space-y-2">
                         <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
-                          <div className="flex items-center gap-2"><Zap className="w-4 h-4 text-white" /><span className="text-sm text-gray-300">Entry</span></div>
+                          <div className="flex items-center gap-2"><Zap className="w-4 h-4 text-white" /><span className="text-sm text-gray-300">{signal.bias === "bullish" ? "Buy Entry" : signal.bias === "bearish" ? "Sell Entry" : "Entry"}</span></div>
                           <span className="text-sm font-mono font-bold text-white">{signal.entry}</span>
                         </div>
                         <div className="flex items-center justify-between p-2 rounded-lg bg-red-500/10">
