@@ -4043,7 +4043,7 @@ def _get_status(score: int) -> str:
 
 @api_router.get("/market/price-action-signals")
 async def get_price_action_signals(
-    interval: str = Query(default="1h", regex="^(5m|15m|1h|4h|1d)$"),
+    interval: str = Query(default="1h", regex="^(5m|15m|30m|1h|4h|1d)$"),
     current_user: dict = Depends(get_current_user),
 ):
     """
