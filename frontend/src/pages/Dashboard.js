@@ -1404,22 +1404,6 @@ export default function Dashboard() {
                     animationEasing="ease-out"
                   />
 
-                  {/* Equity outer glow layer */}
-                  <Area
-                    yAxisId="eq"
-                    type="monotone"
-                    dataKey="balance"
-                    stroke="#4ade80"
-                    strokeWidth={8}
-                    fill="url(#equityGlow3)"
-                    dot={false}
-                    legendType="none"
-                    isAnimationActive={false}
-                    style={{ opacity: 0.15, filter: 'blur(5px)' }}
-                    tooltipType="none"
-                    name="_outer"
-                  />
-
                   {/* EMA line — dim, regime context */}
                   <Line
                     yAxisId="eq"
