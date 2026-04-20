@@ -54,8 +54,13 @@ html {
 }
 
 /* Remove Recharts default white background surface */
-.recharts-wrapper > svg > rect:first-child {
+.recharts-wrapper > svg > rect:first-child,
+.recharts-surface > rect:first-child,
+.recharts-wrapper rect[fill="white"],
+.recharts-wrapper rect[fill="#fff"],
+.recharts-bg {
     fill: transparent !important;
+    stroke: none !important;
 }
 
 /* Loading spinner animation */
