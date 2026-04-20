@@ -53,6 +53,11 @@ html {
     z-index: 100 !important;
 }
 
+/* Remove Recharts default white background surface */
+.recharts-wrapper > svg > rect:first-child {
+    fill: transparent !important;
+}
+
 /* Loading spinner animation */
 @keyframes spin {
     from {

@@ -1250,7 +1250,7 @@ export default function Dashboard() {
             <div>
               {/* ── Main Chart ── */}
               <ResponsiveContainer width="100%" height={330}>
-                <ComposedChart data={visibleData} margin={{ top: 18, right: 14, left: 0, bottom: 0 }}>
+                <ComposedChart data={visibleData} margin={{ top: 18, right: 14, left: 0, bottom: 0 }} style={{ background: 'transparent' }}>
                   <defs>
                     {/* Volumetric 3-layer equity fill */}
                     <linearGradient id="equityFill3" x1="0" y1="0" x2="0" y2="1">
@@ -1402,6 +1402,22 @@ export default function Dashboard() {
                     isAnimationActive
                     animationDuration={1100}
                     animationEasing="ease-out"
+                  />
+
+                  {/* Equity outer glow layer */}
+                  <Area
+                    yAxisId="eq"
+                    type="monotone"
+                    dataKey="balance"
+                    stroke="#4ade80"
+                    strokeWidth={8}
+                    fill="url(#equityGlow3)"
+                    dot={false}
+                    legendType="none"
+                    isAnimationActive={false}
+                    style={{ opacity: 0.15, filter: 'blur(5px)' }}
+                    tooltipType="none"
+                    name="_outer"
                   />
 
                   {/* EMA line — dim, regime context */}
