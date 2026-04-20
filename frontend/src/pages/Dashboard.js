@@ -1087,17 +1087,72 @@ export default function Dashboard() {
           transition={{ duration: 0.3 }}
           className="glass-card p-5 border border-blue-500/15"
         >
-          <h3 className="text-lg font-heading font-bold mb-1">Performance Radar</h3>
-          <p className="text-xs text-muted-foreground mb-4">Risk Control, Discipline, Winrate, RR, Consistency</p>
+          <h3 className="text-lg font-heading font-bold mb-1 flex items-center gap-2">
+            Performance Radar
+            <motion.span
+              className="inline-block w-2 h-2 rounded-full bg-blue-400"
+              animate={{ opacity: [0.4, 1, 0.4], scale: [0.8, 1.2, 0.8] }}
+              transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+            />
+          </h3>
+          <p className="text-xs text-muted-foreground mb-3">Your trading DNA — scored 0–100</p>
 
-          <ResponsiveContainer width="100%" height={320}>
+          {/* Score badges row */}
+          <div className="flex flex-wrap gap-1.5 mb-4">
+            {radarData.map((d) => {
+              const color = d.value >= 70 ? '#22c55e' : d.value >= 45 ? '#3b82f6' : '#ef4444';
+              return (
+                <motion.span
+                  key={d.metric}
+                  initial={{ opacity: 0, scale: 0.85 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.35 }}
+                  className="px-2 py-0.5 rounded-full text-[11px] font-mono font-bold border"
+                  style={{ borderColor: color + '55', backgroundColor: color + '18', color }}
+                >
+                  {d.metric.split(' ')[0]} {d.value}
+                </motion.span>
+              );
+            })}
+          </div>
+
+          <ResponsiveContainer width="100%" height={290}>
             <RadarChart data={radarData}>
-              <PolarGrid stroke="rgba(255,255,255,0.2)" />
-              <PolarAngleAxis dataKey="metric" tick={{ fill: '#d4d4d8', fontSize: 12 }} />
-              <Radar dataKey="value" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.35} isAnimationActive animationDuration={900} animationEasing="ease-out" />
+              <defs>
+                <radialGradient id="radarFill" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stopColor="#60a5fa" stopOpacity={0.55} />
+                  <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.12} />
+                </radialGradient>
+              </defs>
+              <PolarGrid stroke="rgba(99,179,255,0.15)" />
+              <PolarAngleAxis
+                dataKey="metric"
+                tick={({ payload, x, y, cx, cy, ...rest }) => {
+                  const val = radarData.find((r) => r.metric === payload.value)?.value ?? 0;
+                  const col = val >= 70 ? '#86efac' : val >= 45 ? '#93c5fd' : '#fca5a5';
+                  return (
+                    <text {...rest} x={x} y={y} fill={col} fontSize={11} textAnchor="middle" dominantBaseline="central" fontWeight="600">
+                      {payload.value}
+                    </text>
+                  );
+                }}
+              />
+              <Radar
+                dataKey="value"
+                stroke="#60a5fa"
+                strokeWidth={2.2}
+                fill="url(#radarFill)"
+                fillOpacity={1}
+                isAnimationActive
+                animationDuration={900}
+                animationEasing="ease-out"
+              />
               <Tooltip
-                contentStyle={{ backgroundColor: '#121212', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' }}
-                formatter={(v) => [`${v}/100`, 'Score']}
+                contentStyle={{ backgroundColor: '#0f172a', border: '1px solid rgba(96,165,250,0.3)', borderRadius: '10px', color: '#fff', fontSize: 12 }}
+                formatter={(v) => {
+                  const col = v >= 70 ? '#86efac' : v >= 45 ? '#93c5fd' : '#fca5a5';
+                  return [<span style={{ color: col, fontWeight: 700 }}>{v}/100</span>, 'Score'];
+                }}
               />
             </RadarChart>
           </ResponsiveContainer>
@@ -1107,35 +1162,133 @@ export default function Dashboard() {
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
-          className="glass-card p-5 border border-purple-500/15"
+          className="glass-card p-5 border border-purple-500/25 relative overflow-hidden"
         >
-          <h3 className="text-lg font-heading font-bold mb-1">Risk Metrics</h3>
+          {/* Background ambient glow */}
+          <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-purple-500/10 blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-10 -left-10 w-32 h-32 rounded-full bg-blue-500/8 blur-3xl pointer-events-none" />
+
+          <h3 className="text-lg font-heading font-bold mb-1 flex items-center gap-2">
+            Risk Metrics
+            <motion.span
+              className="inline-block w-2 h-2 rounded-full bg-purple-400"
+              animate={{ opacity: [0.4, 1, 0.4], scale: [0.8, 1.2, 0.8] }}
+              transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut' }}
+            />
+          </h3>
           <p className="text-xs text-muted-foreground mb-4">Professional risk diagnostics</p>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-lg border border-white/10 p-3 bg-secondary/20">
-              <p className="text-xs text-muted-foreground">Max Drawdown</p>
-              <p className="text-lg font-mono font-bold text-red-400"><AnimatedNumber value={riskMetrics.maxDrawdown} decimals={2} suffix="%" /></p>
+          <div className="space-y-3">
+            {/* Row 1: Max Drawdown + Avg RR */}
+            <div className="grid grid-cols-2 gap-3">
+              <motion.div
+                whileHover={{ scale: 1.02, y: -2 }}
+                transition={{ duration: 0.18 }}
+                className="rounded-xl border border-red-500/25 bg-red-500/8 p-3 relative overflow-hidden"
+              >
+                <div className="absolute top-0 left-0 right-0 h-0.5 rounded-t-xl bg-gradient-to-r from-red-500/0 via-red-400/70 to-red-500/0" />
+                <p className="text-[11px] uppercase tracking-wide text-red-300/70 mb-1">Max Drawdown</p>
+                <p className="text-xl font-mono font-black text-red-400">
+                  <AnimatedNumber value={riskMetrics.maxDrawdown} decimals={2} suffix="%" />
+                </p>
+                <div className="mt-2 h-1 rounded-full bg-white/8 overflow-hidden">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.min(100, riskMetrics.maxDrawdown)}%` }}
+                    transition={{ duration: 1.1, ease: 'easeOut' }}
+                    className="h-full bg-gradient-to-r from-red-600 to-rose-400"
+                  />
+                </div>
+              </motion.div>
+
+              <motion.div
+                whileHover={{ scale: 1.02, y: -2 }}
+                transition={{ duration: 0.18 }}
+                className="rounded-xl border border-blue-500/25 bg-blue-500/8 p-3 relative overflow-hidden"
+              >
+                <div className="absolute top-0 left-0 right-0 h-0.5 rounded-t-xl bg-gradient-to-r from-blue-500/0 via-blue-400/70 to-blue-500/0" />
+                <p className="text-[11px] uppercase tracking-wide text-blue-300/70 mb-1">Average RR</p>
+                <p className="text-xl font-mono font-black text-blue-300">
+                  <AnimatedNumber value={riskMetrics.avgRR} decimals={2} />
+                </p>
+                <p className="text-[11px] text-blue-400/60 mt-1">{riskMetrics.avgRR >= 1.5 ? '🔥 Excellent' : riskMetrics.avgRR >= 1 ? '✅ Positive' : '⚠️ Below 1:1'}</p>
+              </motion.div>
             </div>
-            <div className="rounded-lg border border-white/10 p-3 bg-secondary/20">
-              <p className="text-xs text-muted-foreground">Average RR</p>
-              <p className="text-lg font-mono font-bold text-blue-300"><AnimatedNumber value={riskMetrics.avgRR} decimals={2} /></p>
+
+            {/* Row 2: Profit Factor + Expectancy */}
+            <div className="grid grid-cols-2 gap-3">
+              <motion.div
+                whileHover={{ scale: 1.02, y: -2 }}
+                transition={{ duration: 0.18 }}
+                className="rounded-xl border border-emerald-500/25 bg-emerald-500/8 p-3 relative overflow-hidden"
+              >
+                <div className="absolute top-0 left-0 right-0 h-0.5 rounded-t-xl bg-gradient-to-r from-emerald-500/0 via-emerald-400/70 to-emerald-500/0" />
+                <p className="text-[11px] uppercase tracking-wide text-emerald-300/70 mb-1">Profit Factor</p>
+                <p className="text-xl font-mono font-black text-emerald-400">
+                  <AnimatedNumber value={riskMetrics.profitFactor} decimals={2} />
+                </p>
+                <p className="text-[11px] text-emerald-400/60 mt-1">{riskMetrics.profitFactor >= 2 ? '🔥 Elite' : riskMetrics.profitFactor >= 1.5 ? '✅ Strong' : riskMetrics.profitFactor >= 1 ? '📈 Profitable' : '❌ Losing'}</p>
+              </motion.div>
+
+              <motion.div
+                whileHover={{ scale: 1.02, y: -2 }}
+                transition={{ duration: 0.18 }}
+                className={`rounded-xl border p-3 relative overflow-hidden ${riskMetrics.expectancy >= 0 ? 'border-emerald-500/25 bg-emerald-500/8' : 'border-red-500/25 bg-red-500/8'}`}
+              >
+                <div className={`absolute top-0 left-0 right-0 h-0.5 rounded-t-xl bg-gradient-to-r from-transparent ${riskMetrics.expectancy >= 0 ? 'via-emerald-400/70' : 'via-red-400/70'} to-transparent`} />
+                <p className={`text-[11px] uppercase tracking-wide mb-1 ${riskMetrics.expectancy >= 0 ? 'text-emerald-300/70' : 'text-red-300/70'}`}>Expectancy</p>
+                <p className={`text-xl font-mono font-black ${riskMetrics.expectancy >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {formatCurrency(riskMetrics.expectancy, currency)}
+                </p>
+                <p className="text-[11px] text-slate-400/70 mt-1">per trade avg</p>
+              </motion.div>
             </div>
-            <div className="rounded-lg border border-white/10 p-3 bg-secondary/20">
-              <p className="text-xs text-muted-foreground">Profit Factor</p>
-              <p className="text-lg font-mono font-bold text-emerald-400"><AnimatedNumber value={riskMetrics.profitFactor} decimals={2} /></p>
-            </div>
-            <div className="rounded-lg border border-white/10 p-3 bg-secondary/20">
-              <p className="text-xs text-muted-foreground">Expectancy</p>
-              <p className={`text-lg font-mono font-bold ${riskMetrics.expectancy >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{formatCurrency(riskMetrics.expectancy, currency)}</p>
-            </div>
-            <div className="rounded-lg border border-white/10 p-3 bg-secondary/20 col-span-2">
-              <p className="text-xs text-muted-foreground mb-1">Sharpe Ratio</p>
+
+            {/* Row 3: Sharpe Ratio — full width highlight */}
+            <motion.div
+              whileHover={{ scale: 1.01, y: -2 }}
+              transition={{ duration: 0.18 }}
+              className="rounded-xl border border-purple-500/30 bg-purple-500/8 p-3 relative overflow-hidden"
+              animate={{
+                boxShadow: ['0 0 0px rgba(168,85,247,0)', '0 0 18px rgba(168,85,247,0.18)', '0 0 0px rgba(168,85,247,0)'],
+              }}
+              // @ts-ignore
+              transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
+            >
+              <div className="absolute top-0 left-0 right-0 h-0.5 rounded-t-xl bg-gradient-to-r from-purple-500/0 via-purple-400/80 to-purple-500/0" />
               <div className="flex items-center justify-between">
-                <p className="text-xl font-mono font-bold text-purple-300"><AnimatedNumber value={riskMetrics.sharpe} decimals={2} /></p>
-                <span className="text-xs text-muted-foreground flex items-center gap-1"><Activity className="w-3 h-3" /> Risk adjusted return score</span>
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-purple-300/70 mb-1">Sharpe Ratio</p>
+                  <p className="text-2xl font-mono font-black text-purple-300">
+                    <AnimatedNumber value={riskMetrics.sharpe} decimals={2} />
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground flex items-center gap-1 justify-end mb-1">
+                    <Activity className="w-3 h-3" /> Risk-adjusted
+                  </p>
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
+                    riskMetrics.sharpe >= 2 ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300' :
+                    riskMetrics.sharpe >= 1 ? 'border-blue-500/40 bg-blue-500/15 text-blue-300' :
+                    'border-red-500/40 bg-red-500/15 text-red-300'
+                  }`}>
+                    {riskMetrics.sharpe >= 2 ? 'Excellent' : riskMetrics.sharpe >= 1 ? 'Acceptable' : 'Needs Work'}
+                  </span>
+                </div>
               </div>
-            </div>
+              {/* Sharpe visual bar */}
+              <div className="mt-3 h-1.5 rounded-full bg-white/8 overflow-hidden">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.min(100, Math.max(0, (riskMetrics.sharpe / 3) * 100))}%` }}
+                  transition={{ duration: 1.3, ease: 'easeOut' }}
+                  className="h-full rounded-full bg-gradient-to-r from-purple-600 via-violet-400 to-purple-300"
+                />
+              </div>
+              <div className="flex justify-between text-[10px] text-slate-500 mt-1">
+                <span>0</span><span>1 (good)</span><span>3+</span>
+              </div>
+            </motion.div>
           </div>
         </motion.div>
       </div>
