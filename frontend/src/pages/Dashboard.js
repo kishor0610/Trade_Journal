@@ -1020,62 +1020,186 @@ export default function Dashboard() {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="glass-card p-5 border border-emerald-500/15"
+        className="glass-card p-5 border border-emerald-500/20 relative overflow-hidden"
       >
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        {/* Ambient bg glows */}
+        <div className="absolute -top-12 -left-12 w-48 h-48 rounded-full bg-emerald-500/8 blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-10 -right-10 w-36 h-36 rounded-full bg-blue-500/8 blur-3xl pointer-events-none" />
+
+        {/* Header */}
+        <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
           <div>
-            <h3 className="text-lg font-heading font-bold">Equity Curve</h3>
-            <p className="text-xs text-muted-foreground">Account growth, drawdown, and recovery</p>
+            <h3 className="text-lg font-heading font-bold flex items-center gap-2">
+              Equity Curve
+              <motion.span
+                className="inline-block w-2 h-2 rounded-full bg-emerald-400"
+                animate={{ opacity: [0.4, 1, 0.4], scale: [0.8, 1.3, 0.8] }}
+                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+              />
+            </h3>
+            <p className="text-xs text-muted-foreground mt-0.5">Account growth, drawdown & recovery</p>
           </div>
-          <div className="flex items-center gap-2 text-xs">
-            <span className="px-2 py-1 rounded bg-emerald-500/10 border border-emerald-500/25 text-emerald-300">Peak {formatCurrency(riskMetrics.peakBalance, currency)}</span>
-            <span className="px-2 py-1 rounded bg-blue-500/10 border border-blue-500/25 text-blue-300">Current {formatCurrency(riskMetrics.currentBalance, currency)}</span>
+          {/* Stat pills */}
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <motion.div
+              whileHover={{ scale: 1.04 }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/12 border border-emerald-500/30 text-emerald-300"
+            >
+              <TrendingUp className="w-3 h-3" />
+              <span className="text-[11px] text-emerald-300/60">Peak</span>
+              <span className="font-mono font-bold">{formatCurrency(riskMetrics.peakBalance, currency)}</span>
+            </motion.div>
+            <motion.div
+              whileHover={{ scale: 1.04 }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/12 border border-blue-500/30 text-blue-300"
+            >
+              <Activity className="w-3 h-3" />
+              <span className="text-[11px] text-blue-300/60">Current</span>
+              <span className="font-mono font-bold">{formatCurrency(riskMetrics.currentBalance, currency)}</span>
+            </motion.div>
+            <motion.div
+              whileHover={{ scale: 1.04 }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-mono font-bold ${
+                riskMetrics.maxDrawdown > 15
+                  ? 'bg-red-500/12 border-red-500/30 text-red-300'
+                  : 'bg-yellow-500/12 border-yellow-500/30 text-yellow-300'
+              }`}
+            >
+              <TrendingDown className="w-3 h-3" />
+              <span className={`text-[11px] font-normal ${riskMetrics.maxDrawdown > 15 ? 'text-red-300/60' : 'text-yellow-300/60'}`}>Max DD</span>
+              -{formatNumber(riskMetrics.maxDrawdown, 1)}%
+            </motion.div>
           </div>
         </div>
 
         {equitySeries.length > 0 ? (
-          <div className="space-y-4">
-            <ResponsiveContainer width="100%" height={320}>
-              <AreaChart data={equitySeries}>
+          <div>
+            {/* Main equity chart */}
+            <ResponsiveContainer width="100%" height={300}>
+              <AreaChart data={equitySeries} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.35} />
-                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                    <stop offset="0%" stopColor="#22c55e" stopOpacity={0.45} />
+                    <stop offset="60%" stopColor="#22c55e" stopOpacity={0.08} />
+                    <stop offset="100%" stopColor="#22c55e" stopOpacity={0} />
                   </linearGradient>
-                  <linearGradient id="ddFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                  <linearGradient id="ddAreaFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#ef4444" stopOpacity={0.5} />
+                    <stop offset="100%" stopColor="#ef4444" stopOpacity={0.05} />
                   </linearGradient>
+                  <filter id="equityGlow">
+                    <feGaussianBlur stdDeviation="2.5" result="blur" />
+                    <feMerge>
+                      <feMergeNode in="blur" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
                 </defs>
-                <XAxis dataKey="date" stroke="#A1A1AA" fontSize={11} />
-                <YAxis yAxisId="left" stroke="#A1A1AA" fontSize={11} tickFormatter={(v) => `${currencySymbol}${Math.round(v)}`} />
-                <YAxis yAxisId="right" orientation="right" stroke="#A1A1AA" fontSize={11} tickFormatter={(v) => `${Math.round(v)}%`} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#121212', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' }}
+                <XAxis
+                  dataKey="date"
+                  stroke="rgba(161,161,170,0.3)"
+                  tick={{ fill: '#71717a', fontSize: 10 }}
+                  axisLine={false}
+                  tickLine={false}
                 />
-                <Area yAxisId="left" type="monotone" dataKey="balance" stroke="#22c55e" strokeWidth={2} fill="url(#equityFill)" name="Equity" />
-                <Area yAxisId="right" type="monotone" dataKey="drawdown" stroke="#ef4444" strokeWidth={1.5} fill="url(#ddFill)" name="Drawdown %" />
+                <YAxis
+                  yAxisId="left"
+                  stroke="rgba(161,161,170,0.3)"
+                  tick={{ fill: '#71717a', fontSize: 10 }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(v) => `${currencySymbol}${Math.round(v)}`}
+                  width={60}
+                />
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  stroke="rgba(161,161,170,0.3)"
+                  tick={{ fill: '#71717a', fontSize: 10 }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(v) => `${Math.round(v)}%`}
+                  width={36}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#0f172a',
+                    border: '1px solid rgba(34,197,94,0.25)',
+                    borderRadius: '10px',
+                    color: '#fff',
+                    fontSize: 12,
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                  }}
+                  formatter={(value, name) => {
+                    if (name === 'Equity') return [<span style={{ color: '#4ade80', fontWeight: 700 }}>{formatCurrency(value, currency)}</span>, 'Equity'];
+                    if (name === 'Drawdown %') return [<span style={{ color: '#f87171', fontWeight: 700 }}>{formatNumber(value, 2)}%</span>, 'Drawdown'];
+                    return [value, name];
+                  }}
+                  labelStyle={{ color: '#94a3b8', marginBottom: 4 }}
+                />
+                {/* Drawdown area behind equity */}
+                <Area
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="drawdown"
+                  stroke="#ef4444"
+                  strokeWidth={1.5}
+                  strokeDasharray="4 3"
+                  fill="url(#ddAreaFill)"
+                  name="Drawdown %"
+                  isAnimationActive
+                  animationDuration={1200}
+                />
+                {/* Equity line — on top */}
+                <Area
+                  yAxisId="left"
+                  type="monotone"
+                  dataKey="balance"
+                  stroke="#22c55e"
+                  strokeWidth={2.5}
+                  fill="url(#equityFill)"
+                  name="Equity"
+                  dot={false}
+                  isAnimationActive
+                  animationDuration={1400}
+                  animationEasing="ease-out"
+                  style={{ filter: 'url(#equityGlow)' }}
+                />
               </AreaChart>
             </ResponsiveContainer>
 
-            <div>
-              <h4 className="text-sm text-muted-foreground mb-2">Drawdown Overlay</h4>
-              <ResponsiveContainer width="100%" height={120}>
-                <BarChart data={equitySeries}>
-                  <XAxis dataKey="date" stroke="#A1A1AA" fontSize={10} />
-                  <YAxis stroke="#A1A1AA" fontSize={10} />
+            {/* Drawdown bar mini — redesigned */}
+            <div className="mt-5 rounded-xl border border-red-500/15 bg-red-500/5 p-3">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold text-red-300/80 flex items-center gap-1.5">
+                  <TrendingDown className="w-3 h-3" /> Drawdown Timeline
+                </p>
+                <span className="text-[11px] font-mono text-red-300">Max {formatNumber(riskMetrics.maxDrawdown, 1)}%</span>
+              </div>
+              <ResponsiveContainer width="100%" height={80}>
+                <BarChart data={equitySeries} margin={{ top: 0, right: 8, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="ddBarFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#f87171" stopOpacity={0.9} />
+                      <stop offset="100%" stopColor="#ef4444" stopOpacity={0.4} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="date" stroke="rgba(161,161,170,0.2)" tick={{ fill: '#52525b', fontSize: 9 }} axisLine={false} tickLine={false} />
+                  <YAxis hide />
                   <Tooltip
-                    contentStyle={{ backgroundColor: '#121212', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' }}
+                    contentStyle={{ backgroundColor: '#0f172a', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '8px', color: '#fff', fontSize: 11 }}
                     formatter={(v) => [`${formatNumber(v, 2)}%`, 'Drawdown']}
+                    cursor={{ fill: 'rgba(239,68,68,0.08)' }}
                   />
-                  <Bar dataKey="drawdown" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="drawdown" fill="url(#ddBarFill)" radius={[3, 3, 0, 0]} maxBarSize={20} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
         ) : (
-          <div className="h-64 flex items-center justify-center text-muted-foreground">
-            No balance data yet. Start closing trades to build your equity curve.
+          <div className="h-64 flex flex-col items-center justify-center gap-3 text-muted-foreground">
+            <TrendingUp className="w-10 h-10 opacity-20" />
+            <p>No balance data yet. Start closing trades to build your equity curve.</p>
           </div>
         )}
       </motion.div>
