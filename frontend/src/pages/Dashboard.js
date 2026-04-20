@@ -6,10 +6,12 @@ import {
   AreaChart,
   Bar,
   BarChart,
+  CartesianGrid,
   PolarAngleAxis,
   PolarGrid,
   Radar,
   RadarChart,
+  ReferenceArea,
   ReferenceDot,
   ResponsiveContainer,
   Tooltip,
@@ -1039,32 +1041,18 @@ export default function Dashboard() {
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5">Account growth, drawdown & recovery</p>
           </div>
-          {/* Stat pills */}
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            <motion.div
-              whileHover={{ scale: 1.04 }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/12 border border-emerald-500/30 text-emerald-300"
-            >
+            <motion.div whileHover={{ scale: 1.04 }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/12 border border-emerald-500/30 text-emerald-300">
               <TrendingUp className="w-3 h-3" />
               <span className="text-[11px] text-emerald-300/60">Peak</span>
               <span className="font-mono font-bold">{formatCurrency(riskMetrics.peakBalance, currency)}</span>
             </motion.div>
-            <motion.div
-              whileHover={{ scale: 1.04 }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/12 border border-blue-500/30 text-blue-300"
-            >
+            <motion.div whileHover={{ scale: 1.04 }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/12 border border-blue-500/30 text-blue-300">
               <Activity className="w-3 h-3" />
               <span className="text-[11px] text-blue-300/60">Current</span>
               <span className="font-mono font-bold">{formatCurrency(riskMetrics.currentBalance, currency)}</span>
             </motion.div>
-            <motion.div
-              whileHover={{ scale: 1.04 }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-mono font-bold ${
-                riskMetrics.maxDrawdown > 15
-                  ? 'bg-red-500/12 border-red-500/30 text-red-300'
-                  : 'bg-yellow-500/12 border-yellow-500/30 text-yellow-300'
-              }`}
-            >
+            <motion.div whileHover={{ scale: 1.04 }} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-mono font-bold ${riskMetrics.maxDrawdown > 15 ? 'bg-red-500/12 border-red-500/30 text-red-300' : 'bg-yellow-500/12 border-yellow-500/30 text-yellow-300'}`}>
               <TrendingDown className="w-3 h-3" />
               <span className={`text-[11px] font-normal ${riskMetrics.maxDrawdown > 15 ? 'text-red-300/60' : 'text-yellow-300/60'}`}>Max DD</span>
               -{formatNumber(riskMetrics.maxDrawdown, 1)}%
@@ -1072,131 +1060,225 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {equitySeries.length > 0 ? (
-          <div>
-            {/* Main equity chart */}
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={equitySeries} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#22c55e" stopOpacity={0.45} />
-                    <stop offset="60%" stopColor="#22c55e" stopOpacity={0.08} />
-                    <stop offset="100%" stopColor="#22c55e" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="ddAreaFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#ef4444" stopOpacity={0.5} />
-                    <stop offset="100%" stopColor="#ef4444" stopOpacity={0.05} />
-                  </linearGradient>
-                  <filter id="equityGlow">
-                    <feGaussianBlur stdDeviation="2.5" result="blur" />
-                    <feMerge>
-                      <feMergeNode in="blur" />
-                      <feMergeNode in="SourceGraphic" />
-                    </feMerge>
-                  </filter>
-                </defs>
-                <XAxis
-                  dataKey="date"
-                  stroke="rgba(161,161,170,0.3)"
-                  tick={{ fill: '#71717a', fontSize: 10 }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  yAxisId="left"
-                  stroke="rgba(161,161,170,0.3)"
-                  tick={{ fill: '#71717a', fontSize: 10 }}
-                  axisLine={false}
-                  tickLine={false}
-                  tickFormatter={(v) => `${currencySymbol}${Math.round(v)}`}
-                  width={60}
-                />
-                <YAxis
-                  yAxisId="right"
-                  orientation="right"
-                  stroke="rgba(161,161,170,0.3)"
-                  tick={{ fill: '#71717a', fontSize: 10 }}
-                  axisLine={false}
-                  tickLine={false}
-                  tickFormatter={(v) => `${Math.round(v)}%`}
-                  width={36}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#0f172a',
-                    border: '1px solid rgba(34,197,94,0.25)',
-                    borderRadius: '10px',
-                    color: '#fff',
-                    fontSize: 12,
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-                  }}
-                  formatter={(value, name) => {
-                    if (name === 'Equity') return [<span style={{ color: '#4ade80', fontWeight: 700 }}>{formatCurrency(value, currency)}</span>, 'Equity'];
-                    if (name === 'Drawdown %') return [<span style={{ color: '#f87171', fontWeight: 700 }}>{formatNumber(value, 2)}%</span>, 'Drawdown'];
-                    return [value, name];
-                  }}
-                  labelStyle={{ color: '#94a3b8', marginBottom: 4 }}
-                />
-                {/* Drawdown area behind equity */}
-                <Area
-                  yAxisId="right"
-                  type="monotone"
-                  dataKey="drawdown"
-                  stroke="#ef4444"
-                  strokeWidth={1.5}
-                  strokeDasharray="4 3"
-                  fill="url(#ddAreaFill)"
-                  name="Drawdown %"
-                  isAnimationActive
-                  animationDuration={1200}
-                />
-                {/* Equity line — on top */}
-                <Area
-                  yAxisId="left"
-                  type="monotone"
-                  dataKey="balance"
-                  stroke="#22c55e"
-                  strokeWidth={2.5}
-                  fill="url(#equityFill)"
-                  name="Equity"
-                  dot={false}
-                  isAnimationActive
-                  animationDuration={1400}
-                  animationEasing="ease-out"
-                  style={{ filter: 'url(#equityGlow)' }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+        {equitySeries.length > 0 ? (() => {
+          // find peak index for marker
+          const peakIdx = equitySeries.reduce((best, p, i) => p.balance > equitySeries[best].balance ? i : best, 0);
+          const peakPoint = equitySeries[peakIdx];
+          const lastPoint = equitySeries[equitySeries.length - 1];
+          // min balance for performance zone
+          const minBalance = Math.min(...equitySeries.map(p => p.balance));
+          const zeroLine = Math.min(0, minBalance);
 
-            {/* Drawdown bar mini — redesigned */}
-            <div className="mt-5 rounded-xl border border-red-500/15 bg-red-500/5 p-3">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-semibold text-red-300/80 flex items-center gap-1.5">
-                  <TrendingDown className="w-3 h-3" /> Drawdown Timeline
-                </p>
-                <span className="text-[11px] font-mono text-red-300">Max {formatNumber(riskMetrics.maxDrawdown, 1)}%</span>
-              </div>
-              <ResponsiveContainer width="100%" height={80}>
-                <BarChart data={equitySeries} margin={{ top: 0, right: 8, left: 0, bottom: 0 }}>
+          return (
+            <div>
+              <ResponsiveContainer width="100%" height={320}>
+                <AreaChart data={equitySeries} margin={{ top: 16, right: 12, left: 0, bottom: 0 }}>
                   <defs>
-                    <linearGradient id="ddBarFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#f87171" stopOpacity={0.9} />
-                      <stop offset="100%" stopColor="#ef4444" stopOpacity={0.4} />
+                    {/* 3-layer gradient depth */}
+                    <linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%"   stopColor="#22c55e" stopOpacity={0.55} />
+                      <stop offset="40%"  stopColor="#22c55e" stopOpacity={0.18} />
+                      <stop offset="85%"  stopColor="#16a34a" stopOpacity={0.04} />
+                      <stop offset="100%" stopColor="#22c55e" stopOpacity={0} />
                     </linearGradient>
+                    <linearGradient id="equityGlowFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%"   stopColor="#4ade80" stopOpacity={0.25} />
+                      <stop offset="100%" stopColor="#4ade80" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="ddAreaFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%"   stopColor="#ef4444" stopOpacity={0.55} />
+                      <stop offset="100%" stopColor="#ef4444" stopOpacity={0.04} />
+                    </linearGradient>
+                    {/* Glow filter for equity line */}
+                    <filter id="lineGlow" x="-20%" y="-100%" width="140%" height="300%">
+                      <feGaussianBlur stdDeviation="3" result="blur" />
+                      <feMerge>
+                        <feMergeNode in="blur" />
+                        <feMergeNode in="SourceGraphic" />
+                      </feMerge>
+                    </filter>
+                    <filter id="dotGlow" x="-100%" y="-100%" width="300%" height="300%">
+                      <feGaussianBlur stdDeviation="4" result="blur" />
+                      <feMerge>
+                        <feMergeNode in="blur" />
+                        <feMergeNode in="SourceGraphic" />
+                      </feMerge>
+                    </filter>
                   </defs>
-                  <XAxis dataKey="date" stroke="rgba(161,161,170,0.2)" tick={{ fill: '#52525b', fontSize: 9 }} axisLine={false} tickLine={false} />
-                  <YAxis hide />
+
+                  <CartesianGrid stroke="rgba(255,255,255,0.04)" strokeDasharray="4 6" vertical={false} />
+
+                  <XAxis dataKey="date" stroke="rgba(161,161,170,0.25)" tick={{ fill: '#52525b', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis yAxisId="left" stroke="rgba(161,161,170,0.25)" tick={{ fill: '#52525b', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${currencySymbol}${Math.round(v)}`} width={62} />
+                  <YAxis yAxisId="right" orientation="right" stroke="rgba(161,161,170,0.25)" tick={{ fill: '#52525b', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${Math.round(v)}%`} width={36} />
+
+                  {/* Performance zone: profit region subtle green tint */}
+                  {equitySeries[0] && (
+                    <ReferenceArea
+                      yAxisId="left"
+                      y1={Math.max(0, zeroLine)}
+                      y2={riskMetrics.peakBalance}
+                      fill="rgba(34,197,94,0.025)"
+                      ifOverflow="visible"
+                    />
+                  )}
+
+                  {/* Glassmorphism custom tooltip */}
                   <Tooltip
-                    contentStyle={{ backgroundColor: '#0f172a', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '8px', color: '#fff', fontSize: 11 }}
-                    formatter={(v) => [`${formatNumber(v, 2)}%`, 'Drawdown']}
-                    cursor={{ fill: 'rgba(239,68,68,0.08)' }}
+                    cursor={{ stroke: 'rgba(148,163,184,0.25)', strokeWidth: 1, strokeDasharray: '4 3' }}
+                    content={({ active, payload, label }) => {
+                      if (!active || !payload?.length) return null;
+                      const eq = payload.find(p => p.name === 'Equity');
+                      const dd = payload.find(p => p.name === 'Drawdown %');
+                      const pnl = eq?.payload?.trade_pnl ?? 0;
+                      return (
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.94, y: 4 }}
+                          animate={{ opacity: 1, scale: 1, y: 0 }}
+                          transition={{ duration: 0.12 }}
+                          style={{
+                            background: 'rgba(10,15,30,0.88)',
+                            border: '1px solid rgba(34,197,94,0.28)',
+                            borderRadius: 12,
+                            padding: '10px 14px',
+                            backdropFilter: 'blur(16px)',
+                            boxShadow: '0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(34,197,94,0.08)',
+                            minWidth: 150,
+                            fontSize: 12,
+                          }}
+                        >
+                          <p style={{ color: '#94a3b8', marginBottom: 6, fontSize: 11 }}>{label}</p>
+                          {eq && (
+                            <p style={{ color: '#4ade80', fontWeight: 700, fontSize: 14, fontFamily: 'monospace' }}>
+                              {formatCurrency(eq.value, currency)}
+                            </p>
+                          )}
+                          {pnl !== 0 && (
+                            <p style={{ color: pnl > 0 ? '#86efac' : '#fca5a5', fontSize: 11, marginTop: 3 }}>
+                              {pnl > 0 ? '+' : ''}{formatCurrency(pnl, currency)} trade PnL
+                            </p>
+                          )}
+                          {dd && dd.value > 0 && (
+                            <p style={{ color: '#f87171', fontSize: 11, marginTop: 2 }}>
+                              DD: {formatNumber(dd.value, 2)}%
+                            </p>
+                          )}
+                        </motion.div>
+                      );
+                    }}
                   />
-                  <Bar dataKey="drawdown" fill="url(#ddBarFill)" radius={[3, 3, 0, 0]} maxBarSize={20} />
-                </BarChart>
+
+                  {/* Drawdown area — behind */}
+                  <Area yAxisId="right" type="monotone" dataKey="drawdown" stroke="#ef4444" strokeWidth={1.2} strokeDasharray="4 3" fill="url(#ddAreaFill)" name="Drawdown %" isAnimationActive animationDuration={1100} dot={false} />
+
+                  {/* Glow layer — wider blurred duplicate */}
+                  <Area yAxisId="left" type="monotone" dataKey="balance" stroke="#4ade80" strokeWidth={6} fill="url(#equityGlowFill)" name="_glow" dot={false} isAnimationActive={false} opacity={0.18} style={{ filter: 'blur(4px)' }} legendType="none" tooltipType="none" />
+
+                  {/* Main equity line */}
+                  <Area
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="balance"
+                    stroke="#22c55e"
+                    strokeWidth={2.5}
+                    fill="url(#equityFill)"
+                    name="Equity"
+                    isAnimationActive
+                    animationDuration={1500}
+                    animationEasing="ease-out"
+                    style={{ filter: 'url(#lineGlow)' }}
+                    dot={(dotProps) => {
+                      const { cx, cy, index, payload } = dotProps;
+                      const isLast = index === equitySeries.length - 1;
+                      const isPeak = payload.date === peakPoint?.date && payload.balance === peakPoint?.balance;
+                      const pnl = payload.trade_pnl ?? 0;
+
+                      if (isLast) {
+                        // Live pulse endpoint
+                        return (
+                          <g key={`dot-last-${index}`} style={{ filter: 'url(#dotGlow)' }}>
+                            <circle cx={cx} cy={cy} r={11} fill="#22c55e" opacity={0.15}>
+                              <animate attributeName="r" values="8;16;8" dur="2.2s" repeatCount="indefinite" />
+                              <animate attributeName="opacity" values="0.2;0;0.2" dur="2.2s" repeatCount="indefinite" />
+                            </circle>
+                            <circle cx={cx} cy={cy} r={5} fill="#22c55e" opacity={0.6}>
+                              <animate attributeName="r" values="4;7;4" dur="2.2s" repeatCount="indefinite" />
+                              <animate attributeName="opacity" values="0.6;0.2;0.6" dur="2.2s" repeatCount="indefinite" />
+                            </circle>
+                            <circle cx={cx} cy={cy} r={3.5} fill="#86efac" />
+                          </g>
+                        );
+                      }
+
+                      if (isPeak) {
+                        // Peak animation marker
+                        return (
+                          <g key={`dot-peak-${index}`}>
+                            <circle cx={cx} cy={cy} r={6} fill="none" stroke="#fbbf24" strokeWidth={1.5} opacity={0.7} />
+                            <circle cx={cx} cy={cy} r={3} fill="#fbbf24" />
+                            <text x={cx} y={cy - 12} textAnchor="middle" fill="#fbbf24" fontSize={9} fontWeight="600">PEAK</text>
+                          </g>
+                        );
+                      }
+
+                      // Trade markers — only show on days with trades
+                      if (pnl > 0) {
+                        return <circle key={`dot-win-${index}`} cx={cx} cy={cy} r={3} fill="#22c55e" stroke="#86efac" strokeWidth={1} opacity={0.85} />;
+                      }
+                      if (pnl < 0) {
+                        return <circle key={`dot-loss-${index}`} cx={cx} cy={cy} r={3} fill="#ef4444" stroke="#fca5a5" strokeWidth={1} opacity={0.85} />;
+                      }
+                      return null;
+                    }}
+                    activeDot={{ r: 5, fill: '#4ade80', stroke: '#fff', strokeWidth: 1.5 }}
+                  />
+                </AreaChart>
               </ResponsiveContainer>
+
+              {/* Legend */}
+              <div className="flex flex-wrap items-center gap-4 mt-3 px-1 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-0.5 bg-emerald-400 rounded" /><span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" /> Equity</span>
+                <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-0.5 border-t border-dashed border-red-400" /> Drawdown</span>
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /> Win trade</span>
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Loss trade</span>
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-yellow-400 inline-block" /> Peak</span>
+                <span className="flex items-center gap-1.5">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+                  </span>
+                  Live
+                </span>
+              </div>
+
+              {/* Drawdown bar mini */}
+              <div className="mt-4 rounded-xl border border-red-500/15 bg-red-500/5 p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-red-300/80 flex items-center gap-1.5"><TrendingDown className="w-3 h-3" /> Drawdown Timeline</p>
+                  <span className="text-[11px] font-mono text-red-300">Max {formatNumber(riskMetrics.maxDrawdown, 1)}%</span>
+                </div>
+                <ResponsiveContainer width="100%" height={72}>
+                  <BarChart data={equitySeries} margin={{ top: 0, right: 8, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="ddBarFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#f87171" stopOpacity={0.9} />
+                        <stop offset="100%" stopColor="#ef4444" stopOpacity={0.35} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="date" stroke="rgba(161,161,170,0.2)" tick={{ fill: '#52525b', fontSize: 9 }} axisLine={false} tickLine={false} />
+                    <YAxis hide />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: '#0f172a', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '8px', color: '#fff', fontSize: 11 }}
+                      formatter={(v) => [`${formatNumber(v, 2)}%`, 'Drawdown']}
+                      cursor={{ fill: 'rgba(239,68,68,0.08)' }}
+                    />
+                    <Bar dataKey="drawdown" fill="url(#ddBarFill)" radius={[3, 3, 0, 0]} maxBarSize={18} isAnimationActive animationDuration={1000} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
-          </div>
-        ) : (
+          );
+        })() : (
           <div className="h-64 flex flex-col items-center justify-center gap-3 text-muted-foreground">
             <TrendingUp className="w-10 h-10 opacity-20" />
             <p>No balance data yet. Start closing trades to build your equity curve.</p>
