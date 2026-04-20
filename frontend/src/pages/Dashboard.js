@@ -43,6 +43,14 @@ import {
 
 const API_URL = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
+const playSound = (src = '/sounds/tick.mp3', volume = 0.18) => {
+  try {
+    const audio = new Audio(src);
+    audio.volume = volume;
+    audio.play().catch(() => {});
+  } catch {}
+};
+
 const AnimatedNumber = ({ value, decimals = 0, prefix = '', suffix = '', className = '' }) => {
   const motionValue = useMotionValue(0);
   const spring = useSpring(motionValue, { stiffness: 88, damping: 20, mass: 0.6 });
@@ -60,6 +68,17 @@ const AnimatedNumber = ({ value, decimals = 0, prefix = '', suffix = '', classNa
   return <span className={className}>{prefix}{formatNumber(display, decimals)}{suffix}</span>;
 };
 
+const DashboardRefreshContext = React.createContext(false);
+
+const Shimmer = () => (
+  <motion.div
+    initial={{ x: '-100%' }}
+    animate={{ x: '100%' }}
+    transition={{ duration: 0.8, ease: 'easeInOut' }}
+    className="absolute inset-0 z-10 pointer-events-none bg-gradient-to-r from-transparent via-white/10 to-transparent"
+  />
+);
+
 const cardHover = {
   whileHover: {
     y: -3,
@@ -68,19 +87,23 @@ const cardHover = {
   },
 };
 
-const DashboardCard = ({ title, borderClass = 'border-white/10', className = '', children }) => (
-  <motion.div
-    initial={{ opacity: 0, y: 14 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.28 }}
-    {...cardHover}
-    className={`glass-card p-4 border ${borderClass} ${className} transition-transform duration-200 shadow-[0_8px_16px_rgba(0,0,0,0.18)]`}
-    style={{ backfaceVisibility: 'hidden' }}
-  >
-    <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">{title}</p>
-    {children}
-  </motion.div>
-);
+const DashboardCard = ({ title, borderClass = 'border-white/10', className = '', children }) => {
+  const isRefreshing = React.useContext(DashboardRefreshContext);
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.28 }}
+      {...cardHover}
+      className={`glass-card p-4 border ${borderClass} ${className} relative overflow-hidden transition-transform duration-200 shadow-[0_8px_16px_rgba(0,0,0,0.18)]`}
+      style={{ backfaceVisibility: 'hidden' }}
+    >
+      {isRefreshing && <Shimmer />}
+      <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">{title}</p>
+      {children}
+    </motion.div>
+  );
+};
 
 const getGaugeColor = (value) => {
   if (value < 50) return '#ef4444';
@@ -157,6 +180,69 @@ const RadialGauge = ({ value, label, weeklyDelta, accentClass }) => {
         </p>
       </div>
     </div>
+  );
+};
+
+const CalendarCell = ({ cell, currency }) => {
+  const [hovered, setHovered] = useState(false);
+  const isStrongProfit = cell.pnl > 100;
+  const isStrongLoss = cell.pnl < -100;
+  return (
+    <motion.div
+      className={`h-[104px] rounded-xl p-2 border relative overflow-visible flex flex-col justify-start cursor-default ${
+        cell.pnl > 0
+          ? 'border-emerald-500/40 bg-emerald-900/30'
+          : cell.pnl < 0
+            ? 'border-red-500/40 bg-red-900/30'
+            : 'border-white/10 bg-slate-900/50'
+      }`}
+      whileHover={{ scale: 1.08 }}
+      transition={{ type: 'spring', stiffness: 200, damping: 18 }}
+      onHoverStart={() => setHovered(true)}
+      onHoverEnd={() => setHovered(false)}
+    >
+      {(isStrongProfit || isStrongLoss) && (
+        <motion.div
+          className="absolute inset-0 rounded-xl pointer-events-none"
+          animate={{
+            boxShadow: isStrongProfit
+              ? ['inset 0 0 0px rgba(0,255,100,0)', 'inset 0 0 14px rgba(0,255,100,0.45)', 'inset 0 0 0px rgba(0,255,100,0)']
+              : ['inset 0 0 0px rgba(255,50,50,0)', 'inset 0 0 12px rgba(255,50,50,0.45)', 'inset 0 0 0px rgba(255,50,50,0)'],
+          }}
+          transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
+        />
+      )}
+      <p className="text-sm text-slate-300">{cell.day}</p>
+      {cell.trades > 0 ? (
+        <div className="mt-2 min-h-[38px]">
+          <p className="text-xs text-slate-200">{cell.trades} trades</p>
+          <p className={`text-sm font-mono font-bold ${cell.pnl >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+            {formatCurrency(cell.pnl, currency)}
+          </p>
+        </div>
+      ) : (
+        <div className="mt-2 min-h-[38px]" />
+      )}
+      <AnimatePresence>
+        {hovered && cell.trades > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 6, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 6, scale: 0.95 }}
+            transition={{ duration: 0.15 }}
+            className="absolute bottom-[108%] left-1/2 -translate-x-1/2 z-50 w-40 rounded-lg border border-white/15 bg-slate-900/95 p-2.5 text-xs shadow-xl pointer-events-none"
+          >
+            <p className="text-slate-300 font-semibold border-b border-white/10 pb-1 mb-1.5">
+              {new Date(cell.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+            </p>
+            <p className="text-slate-400">Trades: <span className="text-white font-mono">{cell.trades}</span></p>
+            <p className={`font-mono font-bold mt-1 ${cell.pnl >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+              {cell.pnl >= 0 ? '+' : ''}{formatCurrency(cell.pnl, currency)}
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 };
 
@@ -275,25 +361,7 @@ const TradingCalendar = ({ year, month, dailyData, onMonthChange, currency = 'US
                   {week.map((cell, idx) => (
                     <td key={`d-${idx}`} className="p-1 align-top">
                       {cell ? (
-                        <div className={`h-[104px] rounded-xl p-2 border transition-colors flex flex-col justify-start ${
-                          cell.pnl > 0
-                            ? 'border-emerald-500/40 bg-emerald-900/30'
-                            : cell.pnl < 0
-                              ? 'border-red-500/40 bg-red-900/30'
-                              : 'border-white/10 bg-slate-900/50'
-                        }`}>
-                          <p className="text-sm text-slate-300">{cell.day}</p>
-                          {cell.trades > 0 ? (
-                            <div className="mt-2 min-h-[38px]">
-                              <p className="text-xs text-slate-200">{cell.trades} trades</p>
-                              <p className={`text-sm font-mono font-bold ${cell.pnl >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
-                                {formatCurrency(cell.pnl, currency)}
-                              </p>
-                            </div>
-                          ) : (
-                            <div className="mt-2 min-h-[38px]" />
-                          )}
-                        </div>
+                        <CalendarCell cell={cell} currency={currency} />
                       ) : (
                         <div className="h-[104px] rounded-xl bg-slate-900/35 border border-white/5" />
                       )}
@@ -525,6 +593,7 @@ export default function Dashboard() {
     const nextPnl = Number(summary.total_pnl || 0);
     if (prevTotalPnl.current !== null && nextPnl !== prevTotalPnl.current) {
       setPnlFlash(nextPnl > prevTotalPnl.current ? 'up' : 'down');
+      if (nextPnl > prevTotalPnl.current) playSound();
       const timer = setTimeout(() => setPnlFlash(null), 520);
       prevTotalPnl.current = nextPnl;
       return () => clearTimeout(timer);
@@ -538,6 +607,7 @@ export default function Dashboard() {
     const curr = Number(summary.current_win_streak_trades || 0);
     if (curr > prevStreak.current) {
       setStreakGlow(true);
+      playSound();
       const timer = setTimeout(() => setStreakGlow(false), 800);
       prevStreak.current = curr;
       return () => clearTimeout(timer);
@@ -605,7 +675,29 @@ export default function Dashboard() {
   }
 
   return (
+    <DashboardRefreshContext.Provider value={refreshing || periodTransition}>
     <div className="space-y-6 relative overflow-hidden" data-testid="dashboard-page">
+      <style>{`
+        .gradient-flow-green {
+          background: linear-gradient(90deg, #10b981, #34d399, #10b981);
+          background-size: 200% 100%;
+          animation: gradientFlow 4s linear infinite;
+        }
+        .gradient-flow-red {
+          background: linear-gradient(90deg, #ef4444, #f87171, #ef4444);
+          background-size: 200% 100%;
+          animation: gradientFlow 4s linear infinite;
+        }
+        .gradient-flow-orange {
+          background: linear-gradient(90deg, #f97316, #fbbf24, #f97316);
+          background-size: 200% 100%;
+          animation: gradientFlow 4s linear infinite;
+        }
+        @keyframes gradientFlow {
+          0% { background-position: 0% 50%; }
+          100% { background-position: 200% 50%; }
+        }
+      `}</style>
       <div className="pointer-events-none absolute inset-0 -z-10">
         <motion.div
           className="absolute -top-24 -left-16 h-72 w-72 rounded-full bg-cyan-500/10 blur-3xl"
@@ -716,7 +808,7 @@ export default function Dashboard() {
                   initial={{ width: 0 }}
                   animate={{ width: `${Math.min(100, (Number(summary?.avg_win || 0) / Math.max(1, Number(summary?.avg_win || 0) + Number(summary?.avg_loss || 0))) * 100)}%` }}
                   transition={{ duration: 1.05, ease: 'easeOut' }}
-                  className="h-full bg-gradient-to-r from-blue-500 to-emerald-400"
+                  className="h-full gradient-flow-green"
                 />
               </div>
             </div>
@@ -730,7 +822,7 @@ export default function Dashboard() {
                   initial={{ width: 0 }}
                   animate={{ width: `${Math.min(100, (Number(summary?.avg_loss || 0) / Math.max(1, Number(summary?.avg_win || 0) + Number(summary?.avg_loss || 0))) * 100)}%` }}
                   transition={{ duration: 1.05, ease: 'easeOut' }}
-                  className="h-full bg-gradient-to-r from-red-500 to-orange-400"
+                  className="h-full gradient-flow-red"
                 />
               </div>
             </div>
@@ -804,7 +896,7 @@ export default function Dashboard() {
                 initial={{ width: 0 }}
                 animate={{ width: `${Math.min(100, ((summary?.current_win_streak_trades || 0) / streakGoal) * 100)}%` }}
                 transition={{ duration: 1.1, ease: 'easeOut' }}
-                className="h-full bg-gradient-to-r from-orange-500 to-amber-300"
+                className="h-full gradient-flow-orange"
               />
             </div>
             <p className="text-[11px] text-muted-foreground">Goal: {streakGoal} trades</p>
@@ -1002,7 +1094,7 @@ export default function Dashboard() {
             <RadarChart data={radarData}>
               <PolarGrid stroke="rgba(255,255,255,0.2)" />
               <PolarAngleAxis dataKey="metric" tick={{ fill: '#d4d4d8', fontSize: 12 }} />
-              <Radar dataKey="value" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.35} />
+              <Radar dataKey="value" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.35} isAnimationActive animationDuration={900} animationEasing="ease-out" />
               <Tooltip
                 contentStyle={{ backgroundColor: '#121212', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' }}
                 formatter={(v) => [`${v}/100`, 'Score']}
@@ -1058,5 +1150,6 @@ export default function Dashboard() {
         </motion.div>
       </AnimatePresence>
     </div>
+    </DashboardRefreshContext.Provider>
   );
 }
