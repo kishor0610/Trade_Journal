@@ -146,14 +146,14 @@ const Leaderboard = () => {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-heading font-bold flex items-center gap-3">
-          <Trophy className="w-8 h-8 text-yellow-400" />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <h1 className="text-xl md:text-3xl font-heading font-bold flex items-center gap-3">
+          <Trophy className="w-7 h-7 md:w-8 md:h-8 text-yellow-400" />
           🏆 Leaderboard
         </h1>
         
         {/* Time Filter */}
-        <div className="flex gap-2 bg-card/50 p-1 rounded-lg border border-white/10">
+        <div className="flex flex-wrap gap-1 sm:gap-2 bg-card/50 p-1 rounded-lg border border-white/10">
           {['24 Hours', '7 Days', '30 Days', 'All'].map((filter) => (
             <button
               key={filter}
@@ -232,7 +232,7 @@ const Leaderboard = () => {
           />
           
           <div className="relative glass-card p-6 rounded-3xl backdrop-blur-xl shadow-2xl">
-            <div className="flex items-end justify-center gap-4">
+            <div className="flex items-end justify-center gap-2 md:gap-4">
               {topThree.map((leader, index) => {
                 const actualRank = leader.rank;
                 const styles = getPodiumStyles(actualRank);
@@ -384,7 +384,7 @@ const Leaderboard = () => {
                     
                     {/* Podium with 3D effect */}
                     <motion.div
-                      className={`w-44 ${styles.height} bg-gradient-to-b ${styles.bgGradient} border-2 ${styles.borderColor} rounded-t-3xl flex flex-col items-center justify-center relative overflow-hidden`}
+                      className={`w-24 sm:w-32 md:w-44 ${styles.height} bg-gradient-to-b ${styles.bgGradient} border-2 ${styles.borderColor} rounded-t-3xl flex flex-col items-center justify-center relative overflow-hidden`}
                       style={{
                         boxShadow: `0 0 40px ${styles.glowColor}, inset 0 -20px 40px rgba(0,0,0,0.3)`
                       }}
@@ -433,6 +433,7 @@ const Leaderboard = () => {
           transition={{ duration: 0.4, delay: 0.35, ease: "easeOut" }}
           className="glass-card rounded-2xl overflow-hidden"
         >
+          <div className="overflow-x-auto">
           <div className="max-h-[400px] overflow-y-auto custom-scrollbar"
             style={{
               scrollbarWidth: 'thin',
@@ -442,11 +443,11 @@ const Leaderboard = () => {
           <table className="w-full">
             <thead className="bg-gradient-to-r from-purple-500/20 via-pink-500/20 to-blue-500/20 border-b border-white/10">
               <tr>
-                <th className="px-6 py-4 text-left text-sm font-bold text-white/90 tracking-wider">RANK</th>
-                <th className="px-6 py-4 text-left text-sm font-bold text-white/90 tracking-wider">TRADER</th>
-                <th className="px-6 py-4 text-right text-sm font-bold text-white/90 tracking-wider">REALIZED P&L</th>
-                <th className="px-6 py-4 text-right text-sm font-bold text-white/90 tracking-wider">WIN RATE</th>
-                <th className="px-6 py-4 text-right text-sm font-bold text-white/90 tracking-wider">XP</th>
+                <th className="px-3 md:px-6 py-3 md:py-4 text-left text-xs md:text-sm font-bold text-white/90 tracking-wider">RANK</th>
+                <th className="px-3 md:px-6 py-3 md:py-4 text-left text-xs md:text-sm font-bold text-white/90 tracking-wider">TRADER</th>
+                <th className="px-3 md:px-6 py-3 md:py-4 text-right text-xs md:text-sm font-bold text-white/90 tracking-wider">P&L</th>
+                <th className="px-3 md:px-6 py-3 md:py-4 text-right text-xs md:text-sm font-bold text-white/90 tracking-wider">WIN%</th>
+                <th className="px-3 md:px-6 py-3 md:py-4 text-right text-xs md:text-sm font-bold text-white/90 tracking-wider">XP</th>
               </tr>
             </thead>
             <tbody>
@@ -601,6 +602,7 @@ const Leaderboard = () => {
               )}
             </tbody>
           </table>
+          </div>
           </div>
         </motion.div>
       )}

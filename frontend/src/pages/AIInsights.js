@@ -164,7 +164,7 @@ const WinLossVisual = ({ summary, charts, currency = 'USD' }) => {
         <Zap className="w-5 h-5 text-amber-400" />
         <h3 className="font-heading font-bold text-white">Win / Loss Breakdown</h3>
       </div>
-      <div className="flex items-center gap-6">
+      <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
         {/* Mini donut */}
         <div className="relative w-24 h-24 flex-shrink-0">
           <svg viewBox="0 0 36 36" className="w-24 h-24 -rotate-90">

@@ -162,7 +162,7 @@ const ShareTradeDialog = ({ trade, isOpen, onClose, currency = 'USD' }) => {
           {/* Trade Share Card */}
           <div ref={shareImageRef} className="relative rounded-2xl overflow-hidden" style={{
             background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #1e40af 100%)',
-            padding: '32px',
+            padding: 'clamp(16px, 4vw, 32px)',
           }}>
             {/* Background Pattern */}
             <div className="absolute inset-0 opacity-10">
@@ -208,7 +208,7 @@ const ShareTradeDialog = ({ trade, isOpen, onClose, currency = 'USD' }) => {
               {/* Profit */}
               <div className="text-center py-4">
                 <div className="text-white/80 text-sm mb-2">PROFIT</div>
-                <div className="text-5xl font-bold text-white">
+                <div className="text-3xl md:text-5xl font-bold text-white">
                   {isProfitable ? '' : '-'}{currencySymbol}{Math.abs(trade.pnl || 0).toFixed(2)}
                 </div>
               </div>
@@ -502,7 +502,7 @@ const TradeForm = ({ trade, onSubmit, onClose, currency = 'USD' }) => {
         
         {expandedSections.basic && (
           <div className="space-y-4 pl-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Instrument</Label>
                 <Select value={formData.instrument} onValueChange={(v) => setFormData({ ...formData, instrument: v })}>
@@ -537,7 +537,7 @@ const TradeForm = ({ trade, onSubmit, onClose, currency = 'USD' }) => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Entry Price</Label>
                 <Input
@@ -564,7 +564,7 @@ const TradeForm = ({ trade, onSubmit, onClose, currency = 'USD' }) => {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>Lot Size</Label>
                 <Input
@@ -603,7 +603,7 @@ const TradeForm = ({ trade, onSubmit, onClose, currency = 'USD' }) => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Entry Date</Label>
                 <Input
@@ -626,7 +626,7 @@ const TradeForm = ({ trade, onSubmit, onClose, currency = 'USD' }) => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Risk / Reward</Label>
                 <Select value={formData.risk_reward?.toString() || ''} onValueChange={(v) => setFormData({ ...formData, risk_reward: v ? parseInt(v) : null })}>

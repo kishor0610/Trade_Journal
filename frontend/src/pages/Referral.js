@@ -127,7 +127,7 @@ const Referral = () => {
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Header */}
         <div>
-          <h1 className="text-4xl md:text-5xl font-bold mb-2 bg-gradient-to-r from-accent via-purple-500 to-pink-500 bg-clip-text text-transparent">
+          <h1 className="text-2xl md:text-4xl lg:text-5xl font-bold mb-2 bg-gradient-to-r from-accent via-purple-500 to-pink-500 bg-clip-text text-transparent">
             Refer & Earn
           </h1>
           <p className="text-muted-foreground text-lg">

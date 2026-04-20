@@ -237,10 +237,12 @@ const Layout = ({ children }) => {
       </main>
 
       {/* Mobile Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-20 bg-card/80 backdrop-blur-xl border-t border-white/5 z-50 flex items-center justify-around px-2 safe-area-inset-bottom">
-        {navItems.map((item) => (
-          <MobileNavItem key={item.path} {...item} />
-        ))}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-card/80 backdrop-blur-xl border-t border-white/5 z-50 overflow-x-auto safe-area-inset-bottom">
+        <div className="flex items-center justify-around min-w-max w-full h-full px-1">
+          {navItems.map((item) => (
+            <MobileNavItem key={item.path} {...item} />
+          ))}
+        </div>
       </nav>
 
       {/* Toast Container */}

@@ -782,7 +782,7 @@ export default function Dashboard() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <div className="flex items-center gap-1 bg-secondary/50 rounded-xl p-1 border border-white/10">
+          <div className="flex items-center gap-1 bg-secondary/50 rounded-xl p-1 border border-white/10 overflow-x-auto max-w-full">
             {TIME_PERIODS.map((period) => (
               <motion.button
                 key={period.value}
