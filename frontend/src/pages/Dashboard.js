@@ -905,59 +905,211 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <DashboardCard title="Win Streak" borderClass="border-orange-500/30">
-          <div className="space-y-2">
-            <div className="flex gap-1">
-              {Array.from({ length: 10 }).map((_, i) => (
-                <Flame
-                  key={`fl-${i}`}
-                  className={`w-4 h-4 ${i < Math.min(10, Number(summary?.current_win_streak_trades || 0)) ? 'text-orange-400' : 'text-white/20'} ${i === 0 && Number(summary?.current_win_streak_trades || 0) > 0 ? 'animate-pulse' : ''}`}
-                />
-              ))}
-            </div>
-            <p className="text-sm">Current streak: <span className={`font-mono font-bold text-orange-300 ${streakGlow ? 'drop-shadow-[0_0_8px_rgba(251,146,60,0.9)]' : ''}`}>{summary?.current_win_streak_trades || 0}</span></p>
-            <p className="text-xs text-muted-foreground">Best streak: <span className="font-mono text-orange-200">{summary?.win_streak_trades || 0}</span></p>
-            <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${Math.min(100, ((summary?.current_win_streak_trades || 0) / streakGoal) * 100)}%` }}
-                transition={{ duration: 1.1, ease: 'easeOut' }}
-                className="h-full gradient-flow-orange"
-              />
-            </div>
-            <p className="text-[11px] text-muted-foreground">Goal: {streakGoal} trades</p>
-          </div>
+          {(() => {
+            const current = Number(summary?.current_win_streak_trades || 0);
+            const best = Number(summary?.win_streak_trades || 0);
+            const winRate = Number(summary?.win_rate || 0);
+            const avgRR = Number(summary?.avg_win_loss_ratio || 0);
+            const wins = Number(summary?.winning_trades || 0);
+            const total = Number(summary?.total_trades || 0);
+
+            // Build last-10 trade sequence from balance history
+            const recentPnls = equitySeries.slice(-10).map(p => p.trade_pnl ?? 0);
+            const momentum = current >= 5 ? 'Strong 🔥' : current >= 2 ? 'Building 📈' : current === 1 ? 'Started' : 'Weak ⚠️';
+            const momentumColor = current >= 5 ? 'text-orange-300' : current >= 2 ? 'text-emerald-300' : current === 1 ? 'text-yellow-300' : 'text-red-300';
+
+            return (
+              <div className="space-y-2.5">
+                {/* Trade sequence — last 10 */}
+                <div>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Last 10 trades</p>
+                  <div className="flex gap-1">
+                    {Array.from({ length: 10 }).map((_, i) => {
+                      const pnl = recentPnls[i] ?? null;
+                      const isWin = pnl === null ? null : pnl > 0;
+                      return (
+                        <motion.div
+                          key={`seq-${i}`}
+                          initial={{ scale: 0.7, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          transition={{ delay: i * 0.04, duration: 0.2 }}
+                          title={pnl !== null ? `${pnl >= 0 ? '+' : ''}${formatCurrency(pnl, currency)}` : 'No data'}
+                          className={`h-5 w-5 rounded flex items-center justify-center text-[9px] font-bold ${
+                            isWin === true ? 'bg-emerald-500/30 border border-emerald-500/50 text-emerald-300' :
+                            isWin === false ? 'bg-red-500/30 border border-red-500/50 text-red-300' :
+                            'bg-white/5 border border-white/10 text-slate-600'
+                          }`}
+                        >
+                          {isWin === true ? 'W' : isWin === false ? 'L' : '·'}
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Inline stats row */}
+                <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
+                  <span className="text-slate-500">Current</span>
+                  <span className={`font-mono font-bold ${streakGlow ? 'text-orange-300 drop-shadow-[0_0_6px_rgba(251,146,60,0.9)]' : 'text-orange-300'}`}>{current} trades</span>
+                  <span className="text-slate-500">Best</span>
+                  <span className="font-mono text-orange-200">{best} trades</span>
+                  <span className="text-slate-500">Win Rate</span>
+                  <span className={`font-mono ${winRate >= 60 ? 'text-emerald-300' : winRate >= 45 ? 'text-yellow-300' : 'text-red-300'}`}>{formatNumber(winRate, 1)}%</span>
+                  <span className="text-slate-500">Avg RR</span>
+                  <span className={`font-mono ${avgRR >= 1 ? 'text-blue-300' : 'text-red-300'}`}>{formatNumber(avgRR, 2)}</span>
+                </div>
+
+                {/* Momentum insight */}
+                <div className="flex items-center gap-1.5 rounded-lg bg-white/4 border border-white/8 px-2.5 py-1.5">
+                  <span className="text-[10px] text-slate-500 uppercase tracking-wide">Momentum</span>
+                  <span className={`text-xs font-semibold ${momentumColor} ml-auto`}>{momentum}</span>
+                </div>
+
+                {/* Progress bar */}
+                <div>
+                  <div className="flex justify-between text-[10px] text-slate-500 mb-1">
+                    <span>Goal progress</span>
+                    <span className="font-mono text-orange-300/70">{current} / {streakGoal}</span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-white/8 overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${Math.min(100, (current / streakGoal) * 100)}%` }}
+                      transition={{ duration: 1.1, ease: 'easeOut' }}
+                      className="h-full gradient-flow-orange"
+                    />
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </DashboardCard>
 
         <DashboardCard title="Total P&L" borderClass="border-emerald-500/30">
-          <motion.div
-            className={`space-y-2 rounded-lg p-1 ${pnlFlash === 'up' ? 'bg-emerald-500/10' : pnlFlash === 'down' ? 'bg-red-500/10' : ''}`}
-            animate={pnlFlash ? { scale: [1, 1.02, 1] } : { scale: 1 }}
-            transition={{ duration: 0.45, ease: 'easeOut' }}
-          >
-            <div className="flex items-center gap-2">
-              <AnimatedNumber
-                value={summary?.total_pnl || 0}
-                decimals={2}
-                prefix={currencySymbol}
-                className={`text-3xl font-mono font-bold ${(summary?.total_pnl || 0) >= 0 ? 'text-emerald-300' : 'text-red-300'}`}
-              />
-              {(summary?.total_pnl || 0) >= 0 ? <TrendingUp className="w-4 h-4 text-emerald-400" /> : <TrendingDown className="w-4 h-4 text-red-400" />}
-            </div>
-            <p className={`text-xs ${pnlMonthChangePct >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
-              {pnlMonthChangePct >= 0 ? 'Up' : 'Down'} {formatNumber(Math.abs(pnlMonthChangePct), 2)}% this month
-            </p>
-            <ResponsiveContainer width="100%" height={48}>
-              <AreaChart data={equitySeries.slice(-20)}>
-                <defs>
-                  <linearGradient id="pnlMini" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.45} />
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <Area type="monotone" dataKey="balance" stroke="#10b981" strokeWidth={2} fill="url(#pnlMini)" isAnimationActive animationDuration={1000} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </motion.div>
+          {(() => {
+            const totalPnl = Number(summary?.total_pnl || 0);
+            const profitFactor = riskMetrics.profitFactor;
+            const expectancy = riskMetrics.expectancy;
+            const winRate = Number(summary?.win_rate || 0);
+            const tradingDays = Number(summary?.trading_days || 0);
+            const winningDays = Number(summary?.winning_days || 0);
+            const consistency = tradingDays > 0 ? (winningDays / tradingDays) * 100 : 0;
+
+            // Derive today / week PnL from equitySeries
+            const today = new Date().toISOString().slice(0, 10);
+            const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+            const todayPnl = equitySeries.filter(p => (p.date || '').length > 4 && equitySeries.find(x => x)).reduce((acc, p) => {
+              return p.date && p.date.replace(/\//g, '-').slice(0, 10) === today.slice(5) ? acc + (p.trade_pnl || 0) : acc;
+            }, 0);
+            const weekPnl = equitySeries.filter(p => {
+              const d = p.date?.replace(/\//g, '-');
+              return d >= weekAgo.slice(5);
+            }).reduce((acc, p) => acc + (p.trade_pnl || 0), 0);
+            const lastTrade = [...equitySeries].reverse().find(p => p.trade_pnl && p.trade_pnl !== 0);
+
+            return (
+              <motion.div
+                className={`space-y-2.5 rounded-lg ${pnlFlash === 'up' ? 'bg-emerald-500/8' : pnlFlash === 'down' ? 'bg-red-500/8' : ''}`}
+                animate={pnlFlash ? { scale: [1, 1.015, 1] } : { scale: 1 }}
+                transition={{ duration: 0.4 }}
+              >
+                {/* Main number */}
+                <div className="flex items-center gap-2 leading-none">
+                  <AnimatedNumber
+                    value={totalPnl}
+                    decimals={2}
+                    prefix={currencySymbol}
+                    className={`text-2xl font-mono font-black ${totalPnl >= 0 ? 'text-emerald-300' : 'text-red-300'}`}
+                  />
+                  {totalPnl >= 0 ? <TrendingUp className="w-4 h-4 text-emerald-400" /> : <TrendingDown className="w-4 h-4 text-red-400" />}
+                  <span className={`text-xs font-mono ml-auto ${pnlMonthChangePct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {pnlMonthChangePct >= 0 ? '+' : ''}{formatNumber(pnlMonthChangePct, 1)}%
+                  </span>
+                </div>
+
+                {/* Time breakdown row */}
+                <div className="grid grid-cols-3 divide-x divide-white/8 text-center rounded-lg bg-white/4 border border-white/8 overflow-hidden">
+                  {[
+                    { label: 'Today', val: todayPnl },
+                    { label: 'Week', val: weekPnl },
+                    { label: 'Period', val: totalPnl },
+                  ].map(({ label, val }) => (
+                    <div key={label} className="px-2 py-1.5">
+                      <p className="text-[9px] text-slate-500 uppercase tracking-wide">{label}</p>
+                      <p className={`text-xs font-mono font-bold ${val >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                        {val >= 0 ? '+' : ''}{formatCurrency(val, currency)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Mini chart with endpoint dot */}
+                <div className="relative">
+                  <ResponsiveContainer width="100%" height={44}>
+                    <AreaChart data={equitySeries.slice(-20)} margin={{ top: 2, right: 2, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="pnlMini2" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#10b981" stopOpacity={0.5} />
+                          <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <Area
+                        type="monotone"
+                        dataKey="balance"
+                        stroke="#10b981"
+                        strokeWidth={2}
+                        fill="url(#pnlMini2)"
+                        isAnimationActive
+                        animationDuration={1000}
+                        dot={(props) => {
+                          const { cx, cy, index } = props;
+                          const isLast = index === equitySeries.slice(-20).length - 1;
+                          if (!isLast || cx == null) return null;
+                          return (
+                            <g key="mini-live">
+                              <circle cx={cx} cy={cy} r={8} fill="#10b981" opacity={0}>
+                                <animate attributeName="r" values="5;12;5" dur="2s" repeatCount="indefinite" />
+                                <animate attributeName="opacity" values="0.3;0;0.3" dur="2s" repeatCount="indefinite" />
+                              </circle>
+                              <circle cx={cx} cy={cy} r={3} fill="#34d399" />
+                            </g>
+                          );
+                        }}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Last trade + metrics */}
+                <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
+                  <span className="text-slate-500">Last trade</span>
+                  <span className={`font-mono font-bold ${(lastTrade?.trade_pnl ?? 0) >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                    {lastTrade ? `${(lastTrade.trade_pnl ?? 0) >= 0 ? '+' : ''}${formatCurrency(lastTrade.trade_pnl ?? 0, currency)} ${(lastTrade.trade_pnl ?? 0) >= 0 ? '↑' : '↓'}` : '—'}
+                  </span>
+                  <span className="text-slate-500">Profit Factor</span>
+                  <span className={`font-mono ${profitFactor >= 1.5 ? 'text-emerald-300' : 'text-red-300'}`}>{formatNumber(profitFactor, 2)}</span>
+                  <span className="text-slate-500">Expectancy</span>
+                  <span className={`font-mono ${expectancy >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>{expectancy >= 0 ? '+' : ''}{formatCurrency(expectancy, currency)}</span>
+                </div>
+
+                {/* Consistency bar */}
+                <div>
+                  <div className="flex justify-between text-[10px] mb-1">
+                    <span className="text-slate-500 uppercase tracking-wide">Day Consistency</span>
+                    <span className="font-mono text-emerald-300/70">{formatNumber(consistency, 0)}%</span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-white/8 overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${Math.min(100, consistency)}%` }}
+                      transition={{ duration: 1.2, ease: 'easeOut' }}
+                      className="h-full gradient-flow-green"
+                    />
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })()}
         </DashboardCard>
 
         <DashboardCard title="Behavioral Bias" borderClass="border-blue-500/25" className="md:col-span-2 xl:col-span-2">
