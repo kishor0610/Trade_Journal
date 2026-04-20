@@ -1197,7 +1197,7 @@ export default function Dashboard() {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="glass-card p-5 border border-emerald-500/20 relative overflow-hidden"
+        className="bg-card/60 backdrop-blur-xl shadow-lg rounded-xl p-5 border border-emerald-500/20 relative overflow-hidden"
       >
         {/* Ambient bg glows */}
         <div className="absolute -top-16 -left-16 w-64 h-64 rounded-full bg-emerald-500/6 blur-3xl pointer-events-none" />
