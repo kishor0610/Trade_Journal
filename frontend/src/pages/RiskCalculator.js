@@ -188,7 +188,8 @@ function RiskCalculator() {
                 <select
                   value={instrument.value}
                   onChange={e => setInstrument(INSTRUMENTS.find(i => i.value === e.target.value))}
-                  className="w-full px-3 py-2.5 rounded-xl bg-white/4 border border-white/8 text-white text-sm font-semibold appearance-none cursor-pointer focus:outline-none focus:border-white/20 hover:border-white/15 transition-colors"
+                  style={{ colorScheme: 'dark', backgroundColor: '#0d1117' }}
+                  className="w-full px-3 py-2.5 rounded-xl border border-white/8 text-white text-sm font-semibold appearance-none cursor-pointer focus:outline-none focus:border-white/20 hover:border-white/15 transition-colors"
                 >
                   {INSTRUMENTS.map(i => <option key={i.value} value={i.value}>{i.label}</option>)}
                 </select>
@@ -206,7 +207,8 @@ function RiskCalculator() {
                 <span className="text-sm font-black font-mono text-white">${formatNumber(balance, 0)}</span>
               </div>
               <input type="number" value={balance} onChange={e => setBalance(Number(e.target.value))}
-                className="w-full px-3 py-2.5 rounded-xl bg-white/4 border border-white/8 text-white text-sm font-mono focus:outline-none focus:border-white/20 hover:border-white/15 transition-colors"
+                style={{ colorScheme: 'dark', backgroundColor: '#0d1117' }}
+                className="w-full px-3 py-2.5 rounded-xl border border-white/8 text-white text-sm font-mono focus:outline-none focus:border-white/20 hover:border-white/15 transition-colors"
               />
             </div>
 
@@ -280,13 +282,15 @@ function RiskCalculator() {
                 <div>
                   <label className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold">Entry</label>
                   <input type="number" value={entry} step={instrument.pip * 10} onChange={e => setEntry(Number(e.target.value))}
-                    className="w-full mt-1.5 px-3 py-2 rounded-xl bg-blue-500/5 border border-blue-500/20 text-blue-200 text-sm font-mono font-bold focus:outline-none focus:border-blue-500/40 hover:border-blue-500/30 transition-colors"
+                    style={{ colorScheme: 'dark', backgroundColor: 'rgba(59,130,246,0.06)' }}
+                    className="w-full mt-1.5 px-3 py-2 rounded-xl border border-blue-500/20 text-blue-200 text-sm font-mono font-bold focus:outline-none focus:border-blue-500/40 hover:border-blue-500/30 transition-colors"
                   />
                 </div>
                 <div>
                   <label className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold">Stop Loss</label>
                   <input type="number" value={stop} step={instrument.pip * 10} onChange={e => setStop(Number(e.target.value))}
-                    className="w-full mt-1.5 px-3 py-2 rounded-xl bg-rose-500/5 border border-rose-500/20 text-rose-200 text-sm font-mono font-bold focus:outline-none focus:border-rose-500/40 hover:border-rose-500/30 transition-colors"
+                    style={{ colorScheme: 'dark', backgroundColor: 'rgba(239,68,68,0.06)' }}
+                    className="w-full mt-1.5 px-3 py-2 rounded-xl border border-rose-500/20 text-rose-200 text-sm font-mono font-bold focus:outline-none focus:border-rose-500/40 hover:border-rose-500/30 transition-colors"
                   />
                   <p className="text-[10px] text-rose-400/70 mt-1 font-mono">{formatNumber(stopPips, 1)} pips</p>
                 </div>
@@ -302,7 +306,8 @@ function RiskCalculator() {
                   {showTP && (
                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
                       <input type="number" value={take} step={instrument.pip * 10} onChange={e => setTake(Number(e.target.value))}
-                        className="w-full px-3 py-2 rounded-xl bg-emerald-500/5 border border-emerald-500/20 text-emerald-200 text-sm font-mono font-bold focus:outline-none focus:border-emerald-500/40 hover:border-emerald-500/30 transition-colors"
+                        style={{ colorScheme: 'dark', backgroundColor: 'rgba(16,185,129,0.06)' }}
+                        className="w-full px-3 py-2 rounded-xl border border-emerald-500/20 text-emerald-200 text-sm font-mono font-bold focus:outline-none focus:border-emerald-500/40 hover:border-emerald-500/30 transition-colors"
                       />
                       <p className="text-[10px] text-emerald-400/70 mt-1 font-mono">{formatNumber(takePips, 1)} pips</p>
                     </motion.div>
