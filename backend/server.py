@@ -1643,7 +1643,22 @@ async def update_trade(trade_id: str, trade_data: TradeUpdate, current_user: dic
     if 'position' in update_dict:
         update_dict['position'] = normalize_position_value(update_dict.get('position'))
     if update_dict:
+        # Always include commission/swap even if zero
+        for zero_field in ['commission', 'swap']:
+            if zero_field in trade_data.model_dump():
+                update_dict[zero_field] = trade_data.model_dump()[zero_field]
         await db.trades.update_one({"id": trade_id}, {"$set": update_dict})
+    
+    # Recalculate PnL with updated commission/swap/prices
+    updated = await db.trades.find_one({"id": trade_id}, {"_id": 0})
+    recalculated = calculate_trade_pnl(dict(updated))
+    pnl_update = {}
+    if recalculated.get('pnl') is not None:
+        pnl_update['pnl'] = recalculated['pnl']
+    if recalculated.get('pnl_percentage') is not None:
+        pnl_update['pnl_percentage'] = recalculated['pnl_percentage']
+    if pnl_update:
+        await db.trades.update_one({"id": trade_id}, {"$set": pnl_update})
     
     updated = await db.trades.find_one({"id": trade_id}, {"_id": 0})
     return TradeResponse(**sanitize_trade_for_response(updated))

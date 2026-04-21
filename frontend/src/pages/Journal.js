@@ -644,10 +644,7 @@ const TradeForm = ({ trade, onSubmit, onClose, currency = 'USD' }) => {
               </div>
 
               <div className="space-y-2">
-                <Label className="flex items-center gap-1">
-                  Commission
-                  <span className="text-[10px] text-muted-foreground font-normal">(deducted from P&L)</span>
-                </Label>
+                <Label>Commission</Label>
                 <Input
                   type="number"
                   step="0.01"
