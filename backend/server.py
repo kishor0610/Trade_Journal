@@ -396,6 +396,8 @@ class TradeUpdate(BaseModel):
     status: Optional[str] = None
     stop_loss: Optional[float] = None
     take_profit: Optional[float] = None
+    commission: Optional[float] = None
+    swap: Optional[float] = None
     currency: Optional[str] = None
     # Trading journal fields
     pre_trade_analysis: Optional[str] = None
@@ -1639,14 +1641,17 @@ async def update_trade(trade_id: str, trade_data: TradeUpdate, current_user: dic
     if not existing:
         raise HTTPException(status_code=404, detail="Trade not found")
     
-    update_dict = {k: v for k, v in trade_data.model_dump().items() if v is not None}
+    # Build update dict — use exclude_unset=False so zero values (commission=0) are included
+    raw = trade_data.model_dump()
+    update_dict = {k: v for k, v in raw.items() if v is not None}
+    # Explicitly preserve commission and swap even when zero
+    if raw.get('commission') is not None:
+        update_dict['commission'] = raw['commission']
+    if raw.get('swap') is not None:
+        update_dict['swap'] = raw['swap']
     if 'position' in update_dict:
         update_dict['position'] = normalize_position_value(update_dict.get('position'))
     if update_dict:
-        # Always include commission/swap even if zero
-        for zero_field in ['commission', 'swap']:
-            if zero_field in trade_data.model_dump():
-                update_dict[zero_field] = trade_data.model_dump()[zero_field]
         await db.trades.update_one({"id": trade_id}, {"$set": update_dict})
     
     # Recalculate PnL with updated commission/swap/prices
