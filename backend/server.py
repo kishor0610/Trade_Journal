@@ -1656,7 +1656,7 @@ async def update_trade(trade_id: str, trade_data: TradeUpdate, current_user: dic
     
     # Recalculate PnL with updated commission/swap/prices
     updated = await db.trades.find_one({"id": trade_id}, {"_id": 0})
-    recalculated = calculate_trade_pnl(dict(updated))
+    recalculated = calculate_pnl(dict(updated))
     pnl_update = {}
     if recalculated.get('pnl') is not None:
         pnl_update['pnl'] = recalculated['pnl']
