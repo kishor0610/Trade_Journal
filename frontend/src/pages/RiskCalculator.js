@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo, useCallback } from 'react';
+﻿import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatNumber } from '../lib/utils';
 import withSubscriptionLock from '../hoc/withSubscriptionLock';
@@ -89,11 +89,22 @@ function RiskCalculator() {
   const [showTP,     setShowTP]     = useState(true);
   const [showAdv,    setShowAdv]    = useState(false);
   const [leverage,   setLeverage]   = useState(30);
-  const [presetRisk, setPresetRisk] = useState(null);
-  const [copied,     setCopied]     = useState(false);
+  const [presetRisk,    setPresetRisk]    = useState(null);
+  const [copied,        setCopied]        = useState(false);
+  const [sliderHovered, setSliderHovered] = useState(false);
+  const sliderRef = useRef(null);
+
+  // SL direction validation
+  const stopValid = useMemo(() => {
+    if (!entry || !stop) return true;
+    return direction === 'long' ? stop < entry : stop > entry;
+  }, [direction, entry, stop]);
 
   const pipValue  = getPipValuePerLot(instrument);
-  const stopPips  = useMemo(() => parseFloat(entry) && parseFloat(stop) ? Math.abs(entry - stop) / instrument.pip : 0, [entry, stop, instrument]);
+  const stopPips  = useMemo(() => {
+    if (!stopValid || !parseFloat(entry) || !parseFloat(stop)) return 0;
+    return Math.abs(entry - stop) / instrument.pip;
+  }, [entry, stop, instrument, stopValid]);
   const takePips  = useMemo(() => showTP && take && entry ? Math.abs(take - entry) / instrument.pip : 0, [take, entry, instrument, showTP]);
   const riskAmt   = lots * stopPips * pipValue;
   const riskPct   = balance > 0 ? (riskAmt / balance) * 100 : 0;
@@ -238,15 +249,27 @@ function RiskCalculator() {
                 </div>
               </div>
               {/* Slider track */}
-              <div className="relative py-2">
-                <div className="h-2.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
+              <div className="relative py-3"
+                onMouseEnter={() => setSliderHovered(true)}
+                onMouseLeave={() => setSliderHovered(false)}
+              >
+                <div ref={sliderRef} className="h-2.5 rounded-full overflow-visible relative" style={{ background: 'rgba(255,255,255,0.05)' }}>
                   <motion.div
                     animate={{ width: `${Math.min(100, (lots / 2) * 100)}%` }}
                     transition={{ duration: 0.08 }}
                     className={`h-full rounded-full bg-gradient-to-r ${
                       riskPct > 2 ? 'from-yellow-400 to-red-500' : riskPct > 1 ? 'from-emerald-400 to-yellow-400' : 'from-cyan-500 to-emerald-400'
-                    }`}
-                  />
+                    } relative`}
+                  >
+                    {/* Hover thumb circle */}
+                    <motion.div
+                      initial={false}
+                      animate={{ opacity: sliderHovered ? 1 : 0, scale: sliderHovered ? 1 : 0.4 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 w-5 h-5 rounded-full border-2 border-white shadow-lg pointer-events-none"
+                      style={{ backgroundColor: riskPct > 2 ? '#ef4444' : riskPct > 1 ? '#eab308' : '#06b6d4', boxShadow: '0 0 10px rgba(6,182,212,0.6)' }}
+                    />
+                  </motion.div>
                 </div>
                 <input type="range" min={0.01} max={2} step={0.01} value={lots}
                   onChange={e => { setLots(Number(e.target.value)); setPresetRisk(null); }}
@@ -289,10 +312,21 @@ function RiskCalculator() {
                 <div>
                   <label className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold">Stop Loss</label>
                   <input type="number" value={stop} step={instrument.pip * 10} onChange={e => setStop(Number(e.target.value))}
-                    style={{ colorScheme: 'dark', backgroundColor: 'rgba(239,68,68,0.06)' }}
-                    className="w-full mt-1.5 px-3 py-2 rounded-xl border border-rose-500/20 text-rose-200 text-sm font-mono font-bold focus:outline-none focus:border-rose-500/40 hover:border-rose-500/30 transition-colors"
+                    style={{ colorScheme: 'dark', backgroundColor: stopValid ? 'rgba(239,68,68,0.06)' : 'rgba(239,68,68,0.15)' }}
+                    className={`w-full mt-1.5 px-3 py-2 rounded-xl border text-sm font-mono font-bold focus:outline-none transition-colors ${
+                      stopValid
+                        ? 'border-rose-500/20 text-rose-200 focus:border-rose-500/40 hover:border-rose-500/30'
+                        : 'border-red-500/70 text-red-300 focus:border-red-500'
+                    }`}
                   />
-                  <p className="text-[10px] text-rose-400/70 mt-1 font-mono">{formatNumber(stopPips, 1)} pips</p>
+                  {!stopValid ? (
+                    <p className="text-[10px] text-red-400 mt-1 font-semibold flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" />
+                      {direction === 'long' ? 'SL must be below entry' : 'SL must be above entry'}
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-rose-400/70 mt-1 font-mono">{formatNumber(stopPips, 1)} pips</p>
+                  )}
                 </div>
               </div>
               <div>
