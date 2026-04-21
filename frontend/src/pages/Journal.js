@@ -642,6 +642,22 @@ const TradeForm = ({ trade, onSubmit, onClose, currency = 'USD' }) => {
                   </SelectContent>
                 </Select>
               </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1">
+                  Commission
+                  <span className="text-[10px] text-muted-foreground font-normal">(deducted from P&L)</span>
+                </Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.commission}
+                  onChange={(e) => setFormData({ ...formData, commission: e.target.value })}
+                  className="bg-secondary border-white/10 font-mono"
+                  placeholder="0.00"
+                />
+              </div>
             </div>
           </div>
         )}
