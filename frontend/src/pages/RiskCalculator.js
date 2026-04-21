@@ -248,13 +248,13 @@ function RiskCalculator() {
                   <span className="text-sm text-cyan-600 font-bold">lots</span>
                 </div>
               </div>
-              {/* Slider track */}
-              <div className="relative py-3"
+              {/* Slider */}
+              <div className="my-3" style={{ position: 'relative', height: '10px' }}
                 onMouseEnter={() => setSliderHovered(true)}
                 onMouseLeave={() => setSliderHovered(false)}
               >
                 {/* Track */}
-                <div className="h-2.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
+                <div className="absolute inset-0 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
                   <motion.div
                     animate={{ width: `${Math.min(100, (lots / 2) * 100)}%` }}
                     transition={{ duration: 0.08 }}
@@ -263,22 +263,29 @@ function RiskCalculator() {
                     }`}
                   />
                 </div>
-                {/* Thumb circle — sibling, centered on track */}
+                {/* Thumb circle — centered on the 10px tall track */}
                 <motion.div
                   initial={false}
                   animate={{ opacity: sliderHovered ? 1 : 0, scale: sliderHovered ? 1 : 0.3 }}
                   transition={{ duration: 0.15 }}
-                  className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-5 h-5 rounded-full border-2 border-white pointer-events-none z-10"
                   style={{
+                    position: 'absolute',
                     left: `${Math.min(100, (lots / 2) * 100)}%`,
+                    top: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    width: 20, height: 20,
+                    borderRadius: '50%',
+                    border: '2px solid white',
+                    pointerEvents: 'none',
+                    zIndex: 10,
                     backgroundColor: riskPct > 2 ? '#ef4444' : riskPct > 1 ? '#eab308' : '#06b6d4',
                     boxShadow: `0 0 12px ${riskPct > 2 ? 'rgba(239,68,68,0.8)' : riskPct > 1 ? 'rgba(234,179,8,0.8)' : 'rgba(6,182,212,0.8)'}`,
                   }}
                 />
+                {/* Invisible range input */}
                 <input type="range" min={0.01} max={2} step={0.01} value={lots}
                   onChange={e => { setLots(Number(e.target.value)); setPresetRisk(null); }}
-                  className="absolute inset-0 w-full opacity-0 cursor-pointer"
-                  style={{ height: '100%' }}
+                  style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', margin: 0 }}
                 />
               </div>
               <div className="flex justify-between text-[10px] text-slate-600 mt-0.5">
