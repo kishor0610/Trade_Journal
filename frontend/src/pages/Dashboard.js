@@ -646,7 +646,9 @@ export default function Dashboard() {
     const rr = Math.min(100, Number(summary?.avg_win_loss_ratio || 0) * 40);
     const riskControl = Math.max(0, 100 - riskMetrics.maxDrawdown * 2);
     const consistency = Math.min(100, Number(summary?.daily_win_rate || 0));
-    const discipline = Math.min(100, 30 + Number(summary?.win_streak_days || 0) * 10);
+    const streakDays = Number(summary?.win_streak_days || 0);
+    const hasTrades = Number(summary?.total_trades || 0) > 0;
+    const discipline = hasTrades ? Math.min(100, 40 + streakDays * 12) : 0;
     return [
       { metric: 'Risk Control', value: Math.round(riskControl) },
       { metric: 'Discipline', value: Math.round(discipline) },

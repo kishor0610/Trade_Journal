@@ -441,7 +441,7 @@ const TradeForm = ({ trade, onSubmit, onClose, currency = 'USD' }) => {
         swap: formData.swap ? parseFloat(formData.swap) : 0,
         exit_date: formData.exit_date || null,
         rating: formData.rating ? parseInt(formData.rating) : null,
-        risk_reward: formData.risk_reward ? parseInt(formData.risk_reward) : null
+        risk_reward: formData.risk_reward ? parseFloat(formData.risk_reward) : null
       };
       
       await onSubmit(payload);
@@ -629,13 +629,15 @@ const TradeForm = ({ trade, onSubmit, onClose, currency = 'USD' }) => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Risk / Reward</Label>
-                <Select value={formData.risk_reward?.toString() || ''} onValueChange={(v) => setFormData({ ...formData, risk_reward: v ? parseInt(v) : null })}>
+                <Select value={formData.risk_reward?.toString() || ''} onValueChange={(v) => setFormData({ ...formData, risk_reward: v ? parseFloat(v) : null })}>
                   <SelectTrigger className="bg-secondary border-white/10">
                     <SelectValue placeholder="Select R:R" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="1.5">1:1.5</SelectItem>
                     <SelectItem value="1">1:1</SelectItem>
                     <SelectItem value="2">1:2</SelectItem>
+                    <SelectItem value="2.5">1:2.5</SelectItem>
                     <SelectItem value="3">1:3</SelectItem>
                     <SelectItem value="4">1:4</SelectItem>
                     <SelectItem value="5">1:5</SelectItem>

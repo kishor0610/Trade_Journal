@@ -374,7 +374,7 @@ class TradeCreate(BaseModel):
     lessons: Optional[str] = ""
     tags: Optional[str] = ""
     rating: Optional[int] = None
-    risk_reward: Optional[int] = None
+    risk_reward: Optional[float] = None
     # Execution checklist
     check_htf: Optional[bool] = False
     check_risk: Optional[bool] = False
@@ -406,7 +406,7 @@ class TradeUpdate(BaseModel):
     lessons: Optional[str] = None
     tags: Optional[str] = None
     rating: Optional[int] = None
-    risk_reward: Optional[int] = None
+    risk_reward: Optional[float] = None
     # Execution checklist
     check_htf: Optional[bool] = None
     check_risk: Optional[bool] = None
@@ -446,7 +446,7 @@ class TradeResponse(BaseModel):
     lessons: str = ""
     tags: str = ""
     rating: Optional[int] = None
-    risk_reward: Optional[int] = None
+    risk_reward: Optional[float] = None
     # Execution checklist
     check_htf: bool = False
     check_risk: bool = False
@@ -1798,6 +1798,21 @@ async def get_analytics_summary(
     avg_win = total_wins / winning_trades if winning_trades > 0 else 0
     avg_loss = total_losses / losing_trades if losing_trades > 0 else 0
     avg_win_loss_ratio = avg_win / avg_loss if avg_loss > 0 else 0
+    if avg_loss == 0 and winning_trades > 0:
+        # If there are no losing trades yet, fall back to planned R:R from journal entries.
+        rr_inputs = []
+        for trade in trades:
+            rr_raw = trade.get('risk_reward')
+            if rr_raw is None:
+                continue
+            try:
+                rr_value = float(rr_raw)
+            except (TypeError, ValueError):
+                continue
+            if rr_value > 0:
+                rr_inputs.append(rr_value)
+        if rr_inputs:
+            avg_win_loss_ratio = sum(rr_inputs) / len(rr_inputs)
     
     open_trades = await db.trades.count_documents({"user_id": current_user['id'], "status": "open"})
     
