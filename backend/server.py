@@ -2177,8 +2177,8 @@ async def get_market_candles(
     market_symbol_candidates = symbol_map.get(clean_symbol, [symbol, clean_symbol])
 
     yahoo_symbol_map = {
-        "XAUUSD": "GC=F",
-        "XAGUSD": "SI=F",
+        "XAUUSD": "XAUUSD=X",
+        "XAGUSD": "XAGUSD=X",
         "EURUSD": "EURUSD=X",
         "GBPUSD": "GBPUSD=X",
         "USDJPY": "JPY=X",
