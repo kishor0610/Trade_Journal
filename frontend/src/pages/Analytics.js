@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
 import {
@@ -6,9 +6,6 @@ import {
   AlertTriangle,
   BrainCircuit,
   Filter,
-  Pause,
-  Play,
-  SkipForward,
   Target,
   TrendingDown,
   TrendingUp,
@@ -28,19 +25,12 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { createChart, CrosshairMode } from 'lightweight-charts';
 import withSubscriptionLock from '../hoc/withSubscriptionLock';
 import { formatCurrency } from '../lib/utils';
 
 const API_URL = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const INTERVAL_SECONDS = {
-  '1m': 60,
-  '5m': 300,
-  '15m': 900,
-  '1h': 3600,
-};
 
 function parseTimestamp(value) {
   if (!value) return null;
@@ -117,26 +107,6 @@ function getActualRR(trade) {
   return risk > 0 ? reward / risk : null;
 }
 
-function normalizeMarketSymbol(instrument) {
-  const clean = String(instrument || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-  const alias = {
-    BTCUSD: 'BTCUSDT',
-    ETHUSD: 'ETHUSDT',
-    BNBUSD: 'BNBUSDT',
-    SOLUSD: 'SOLUSDT',
-    XAUUSD: 'XAUUSD',
-    XAGUSD: 'XAGUSD',
-    EURUSD: 'EURUSD',
-    GBPUSD: 'GBPUSD',
-    USDJPY: 'USDJPY',
-    AUDUSD: 'AUDUSD',
-    NAS100: 'NAS100',
-    US30: 'US30',
-    SPX500: 'SPX500',
-  };
-  return alias[clean] || clean || 'BTCUSDT';
-}
-
 function IntelligenceCard({ title, children, className = '' }) {
   return (
     <div className={`rounded-2xl border border-[#27272A] bg-[#121212] shadow-[0_4px_24px_rgba(0,0,0,0.4)] ${className}`}>
@@ -148,157 +118,12 @@ function IntelligenceCard({ title, children, className = '' }) {
   );
 }
 
-function ReplayChart({ candles, entryTs, exitTs, entryPrice, exitPrice, playbackIndex }) {
-  const containerRef = useRef(null);
-  const chartRef = useRef(null);
-  const seriesRef = useRef(null);
-  const entryLineRef = useRef(null);
-  const exitLineRef = useRef(null);
-
-  useEffect(() => {
-    if (!containerRef.current || chartRef.current) return;
-    const chart = createChart(containerRef.current, {
-      height: 330,
-      layout: {
-        background: { color: '#0A0A0A' },
-        textColor: '#A1A1AA',
-      },
-      grid: {
-        vertLines: { color: 'rgba(39,39,42,0.8)' },
-        horzLines: { color: 'rgba(39,39,42,0.8)' },
-      },
-      crosshair: {
-        mode: CrosshairMode.Normal,
-      },
-      rightPriceScale: {
-        borderColor: '#27272A',
-      },
-      timeScale: {
-        borderColor: '#27272A',
-        timeVisible: true,
-      },
-    });
-    const series = chart.addCandlestickSeries({
-      upColor: '#10B981',
-      downColor: '#EF4444',
-      borderUpColor: '#10B981',
-      borderDownColor: '#EF4444',
-      wickUpColor: '#10B981',
-      wickDownColor: '#EF4444',
-    });
-
-    chartRef.current = chart;
-    seriesRef.current = series;
-
-    const resizeObserver = new ResizeObserver(() => {
-      const width = containerRef.current?.clientWidth || 800;
-      chart.applyOptions({ width });
-    });
-    resizeObserver.observe(containerRef.current);
-
-    return () => {
-      resizeObserver.disconnect();
-      chart.remove();
-      chartRef.current = null;
-      seriesRef.current = null;
-      entryLineRef.current = null;
-      exitLineRef.current = null;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!seriesRef.current || !chartRef.current) return;
-    const sliceEnd = Math.max(1, Math.min(playbackIndex, candles.length));
-    const visible = candles.slice(0, sliceEnd);
-    seriesRef.current.setData(visible);
-
-    // --- Remove old price lines ---
-    if (entryLineRef.current) {
-      try { seriesRef.current.removePriceLine(entryLineRef.current); } catch (_) {}
-      entryLineRef.current = null;
-    }
-    if (exitLineRef.current) {
-      try { seriesRef.current.removePriceLine(exitLineRef.current); } catch (_) {}
-      exitLineRef.current = null;
-    }
-
-    // --- Add exact price lines (always visible at the correct price) ---
-    if (entryPrice && Number.isFinite(entryPrice)) {
-      entryLineRef.current = seriesRef.current.createPriceLine({
-        price: entryPrice,
-        color: '#10B981',
-        lineWidth: 2,
-        lineStyle: 0, // Solid
-        axisLabelVisible: true,
-        title: `Entry ${entryPrice}`,
-      });
-    }
-    if (exitPrice && Number.isFinite(exitPrice)) {
-      exitLineRef.current = seriesRef.current.createPriceLine({
-        price: exitPrice,
-        color: '#EF4444',
-        lineWidth: 2,
-        lineStyle: 0, // Solid
-        axisLabelVisible: true,
-        title: `Exit ${exitPrice}`,
-      });
-    }
-
-    // --- Snap markers to nearest candle timestamp ---
-    const findNearestCandleTime = (targetSec) => {
-      if (!targetSec || !visible.length) return null;
-      let closest = null;
-      let minDiff = Infinity;
-      for (const c of visible) {
-        const diff = Math.abs(c.time - targetSec);
-        if (diff < minDiff) { minDiff = diff; closest = c.time; }
-      }
-      return closest;
-    };
-
-    const entrySec = entryTs ? Math.floor(entryTs / 1000) : null;
-    const exitSec = exitTs ? Math.floor(exitTs / 1000) : null;
-    const markers = [];
-
-    const entrySnapped = findNearestCandleTime(entrySec);
-    if (entrySnapped) {
-      markers.push({
-        time: entrySnapped,
-        position: 'belowBar',
-        color: '#10B981',
-        shape: 'arrowUp',
-        text: `Entry @ ${entryPrice ?? ''}`,
-      });
-    }
-    const exitSnapped = findNearestCandleTime(exitSec);
-    if (exitSnapped && exitSnapped !== entrySnapped) {
-      markers.push({
-        time: exitSnapped,
-        position: 'aboveBar',
-        color: '#EF4444',
-        shape: 'arrowDown',
-        text: `Exit @ ${exitPrice ?? ''}`,
-      });
-    }
-
-    seriesRef.current.setMarkers(markers);
-    chartRef.current.timeScale().fitContent();
-  }, [candles, playbackIndex, entryTs, exitTs, entryPrice, exitPrice]);
-
-  return <div ref={containerRef} className="w-full rounded-xl overflow-hidden border border-[#27272A]" />;
-}
-
 function Analytics() {
   const [trades, setTrades] = useState([]);
   const [currency, setCurrency] = useState('USD');
   const [loading, setLoading] = useState(true);
-  const [replayLoading, setReplayLoading] = useState(false);
-  const [replayCandles, setReplayCandles] = useState([]);
-  const [selectedTradeId, setSelectedTradeId] = useState('');
-  const [playbackIndex, setPlaybackIndex] = useState(70);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [speed, setSpeed] = useState(2);
-  const [interval, setIntervalValue] = useState('5m');
+  const [pulseWindow, setPulseWindow] = useState(60);
+  const [selectedPulseTradeId, setSelectedPulseTradeId] = useState('');
 
   const [filters, setFilters] = useState({
     startDate: '',
@@ -317,9 +142,6 @@ function Analytics() {
         ]);
         const rows = Array.isArray(tradesRes.data) ? tradesRes.data : [];
         setTrades(rows);
-        if (rows.length) {
-          setSelectedTradeId(rows[0].id);
-        }
         const summaryCurrency = summaryRes?.data?.currency;
         const tradeCurrency = rows.find((t) => t?.currency)?.currency;
         setCurrency(summaryCurrency || tradeCurrency || 'USD');
@@ -355,116 +177,6 @@ function Analytics() {
       return true;
     });
   }, [trades, filters]);
-
-  const selectedTrade = useMemo(() => {
-    return filteredTrades.find((t) => t.id === selectedTradeId) || filteredTrades[0] || null;
-  }, [filteredTrades, selectedTradeId]);
-
-  useEffect(() => {
-    if (!selectedTrade && filteredTrades.length) {
-      setSelectedTradeId(filteredTrades[0].id);
-    }
-  }, [selectedTrade, filteredTrades]);
-
-  const fetchReplay = useCallback(async () => {
-    if (!selectedTrade) {
-      setReplayCandles([]);
-      return;
-    }
-
-    const entryTs = parseTimestamp(selectedTrade.entry_date);
-    const exitTs = parseTimestamp(selectedTrade.exit_date) || entryTs;
-    if (!entryTs) {
-      setReplayCandles([]);
-      return;
-    }
-
-    const entrySec = Math.floor(entryTs / 1000);
-    const exitSec = Math.floor((exitTs || entryTs) / 1000);
-    const intervalSec = INTERVAL_SECONDS[interval] || 300;
-    const tradeDurationSec = Math.max(intervalSec, exitSec - entrySec);
-
-    // Keep replay focused around the trade to avoid unrelated future candles.
-    const preBars = 36;
-    const postBars = 18;
-    const dynamicBars = Math.ceil(tradeDurationSec / intervalSec);
-    const from = Math.max(0, entrySec - preBars * intervalSec);
-    const to = exitSec + postBars * intervalSec;
-    const limit = Math.min(900, preBars + postBars + dynamicBars + 30);
-
-    setReplayLoading(true);
-    try {
-      const symbol = normalizeMarketSymbol(selectedTrade.instrument);
-      const response = await axios.get(`${API_URL}/market/candles`, {
-        params: {
-          symbol,
-          interval,
-          provider: 'twelve',
-          from,
-          to,
-          limit,
-        },
-      });
-
-      const rows = Array.isArray(response.data) ? response.data : [];
-      const normalized = rows
-        .map((c) => ({
-          time: Math.floor(Number(c.time) / 1000),
-          open: Number(c.open),
-          high: Number(c.high),
-          low: Number(c.low),
-          close: Number(c.close),
-        }))
-        .filter((c) => [c.time, c.open, c.high, c.low, c.close].every(Number.isFinite))
-        .sort((a, b) => a.time - b.time);
-
-      const findNearestIndex = (targetSec) => {
-        if (!normalized.length || !targetSec) return 0;
-        let idx = 0;
-        let best = Infinity;
-        for (let i = 0; i < normalized.length; i += 1) {
-          const diff = Math.abs(normalized[i].time - targetSec);
-          if (diff < best) {
-            best = diff;
-            idx = i;
-          }
-        }
-        return idx;
-      };
-
-      setReplayCandles(normalized);
-      // Start replay just before entry candle so playback is consistent trade-to-trade.
-      const entryIndex = findNearestIndex(entrySec);
-      const startIndex = Math.max(1, entryIndex - Math.min(12, preBars));
-      setPlaybackIndex(startIndex);
-      setIsPlaying(false);
-    } catch (error) {
-      console.error('Replay candles fetch failed:', error);
-      setReplayCandles([]);
-    } finally {
-      setReplayLoading(false);
-    }
-  }, [selectedTrade, interval]);
-
-  useEffect(() => {
-    fetchReplay();
-  }, [fetchReplay]);
-
-  useEffect(() => {
-    if (!isPlaying) return undefined;
-    const delay = speed === 1 ? 850 : speed === 2 ? 450 : 220;
-    const timer = setInterval(() => {
-      setPlaybackIndex((prev) => {
-        const next = prev + 1;
-        if (next >= replayCandles.length) {
-          setIsPlaying(false);
-          return replayCandles.length;
-        }
-        return next;
-      });
-    }, delay);
-    return () => clearInterval(timer);
-  }, [isPlaying, speed, replayCandles.length]);
 
   const totals = useMemo(() => {
     const pnl = filteredTrades.map(getTradePnl);
@@ -623,7 +335,87 @@ function Analytics() {
     return bins;
   }, [filteredTrades]);
 
-  const replayProgress = replayCandles.length ? Math.round((playbackIndex / replayCandles.length) * 100) : 0;
+  const pulseTrades = useMemo(() => {
+    return filteredTrades
+      .slice()
+      .sort((a, b) => String(a.exit_date || a.entry_date).localeCompare(String(b.exit_date || b.entry_date)))
+      .slice(-pulseWindow)
+      .map((trade, index) => {
+        const pnl = getTradePnl(trade);
+        const tsRaw = trade.exit_date || trade.entry_date;
+        const ts = parseTimestamp(tsRaw);
+        return {
+          id: String(trade.id),
+          sequence: index + 1,
+          pnl,
+          dateLabel: ts ? new Date(ts).toISOString().slice(0, 16).replace('T', ' ') : 'Unknown',
+          instrument: trade.instrument || 'N/A',
+          direction: String(trade.position || 'N/A').toUpperCase(),
+          session: getTradeSession(trade),
+          strategy: getStrategyLabel(trade),
+          magnitude: Math.min(1, Math.abs(pnl) / Math.max(1, Math.abs(totals.avgLoss || 0), Math.abs(totals.avgWin || 0))),
+        };
+      });
+  }, [filteredTrades, pulseWindow, totals.avgLoss, totals.avgWin]);
+
+  useEffect(() => {
+    if (!pulseTrades.length) {
+      setSelectedPulseTradeId('');
+      return;
+    }
+    if (!pulseTrades.some((trade) => trade.id === selectedPulseTradeId)) {
+      setSelectedPulseTradeId(pulseTrades[pulseTrades.length - 1].id);
+    }
+  }, [pulseTrades, selectedPulseTradeId]);
+
+  const selectedPulseTrade = useMemo(() => {
+    return pulseTrades.find((trade) => trade.id === selectedPulseTradeId) || null;
+  }, [pulseTrades, selectedPulseTradeId]);
+
+  const pulseStats = useMemo(() => {
+    if (!pulseTrades.length) {
+      return {
+        winStreak: 0,
+        lossStreak: 0,
+        momentumScore: 0,
+      };
+    }
+
+    let longestWin = 0;
+    let longestLoss = 0;
+    let runWin = 0;
+    let runLoss = 0;
+    let weightedPnL = 0;
+
+    pulseTrades.forEach((trade, idx) => {
+      const pnl = trade.pnl;
+      const recencyWeight = (idx + 1) / pulseTrades.length;
+      weightedPnL += pnl * recencyWeight;
+
+      if (pnl > 0) {
+        runWin += 1;
+        runLoss = 0;
+      } else if (pnl < 0) {
+        runLoss += 1;
+        runWin = 0;
+      } else {
+        runWin = 0;
+        runLoss = 0;
+      }
+
+      longestWin = Math.max(longestWin, runWin);
+      longestLoss = Math.max(longestLoss, runLoss);
+    });
+
+    const baseline = Math.max(1, Math.abs(totals.avgLoss || 0), Math.abs(totals.avgWin || 0));
+    const normalizedMomentum = Math.max(-100, Math.min(100, (weightedPnL / (pulseTrades.length * baseline)) * 100));
+
+    return {
+      winStreak: longestWin,
+      lossStreak: longestLoss,
+      momentumScore: normalizedMomentum,
+    };
+  }, [pulseTrades, totals.avgLoss, totals.avgWin]);
 
   if (loading) {
     return (
@@ -640,7 +432,7 @@ function Analytics() {
           <div>
             <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white">Behavioral Intelligence Analytics</h1>
             <p className="text-[#A1A1AA] text-sm mt-1">
-              Replay every trade, detect behavior drift, and surface setup-level edge.
+              Decode trade behavior patterns, detect drift, and surface setup-level edge.
             </p>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
@@ -773,110 +565,119 @@ function Analytics() {
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2 space-y-6">
-          <IntelligenceCard title="Trade Replay Engine">
-            {selectedTrade ? (
+          <IntelligenceCard title="Outcome Pulse Matrix">
+            {pulseTrades.length ? (
               <>
                 <div className="flex flex-col md:flex-row md:items-center gap-3 mb-4">
-                  <select
-                    value={selectedTradeId}
-                    onChange={(e) => setSelectedTradeId(e.target.value)}
-                    className="rounded-lg border border-[#27272A] bg-[#0A0A0A] px-3 py-2 text-sm text-white"
-                  >
-                    {filteredTrades.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.instrument} - {String(t.entry_date || '').slice(0, 16)}
-                      </option>
-                    ))}
-                  </select>
+                  <label className="text-xs text-[#A1A1AA] min-w-[170px]">
+                    Matrix Window: <span className="text-white font-semibold">{pulseWindow} trades</span>
+                    <input
+                      type="range"
+                      min={24}
+                      max={120}
+                      step={12}
+                      value={pulseWindow}
+                      onChange={(e) => setPulseWindow(Number(e.target.value))}
+                      className="mt-2 w-full accent-[#10B981]"
+                    />
+                  </label>
 
-                  <select
-                    value={interval}
-                    onChange={(e) => setIntervalValue(e.target.value)}
-                    className="rounded-lg border border-[#27272A] bg-[#0A0A0A] px-3 py-2 text-sm text-white"
-                  >
-                    {['1m', '5m', '15m', '1h'].map((v) => (
-                      <option key={v} value={v}>{v} Replay</option>
-                    ))}
-                  </select>
-
-                  <div className="ml-auto flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setIsPlaying((prev) => !prev)}
-                      disabled={!replayCandles.length}
-                      className="h-9 w-9 inline-flex items-center justify-center rounded-lg border border-[#10B981]/40 bg-[#10B981]/10 text-[#10B981] disabled:opacity-50"
-                    >
-                      {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPlaybackIndex((v) => Math.min(replayCandles.length, v + 1))}
-                      disabled={!replayCandles.length}
-                      className="h-9 w-9 inline-flex items-center justify-center rounded-lg border border-[#10B981]/40 bg-[#10B981]/10 text-[#10B981] disabled:opacity-50"
-                    >
-                      <SkipForward className="w-4 h-4" />
-                    </button>
-                    <select
-                      value={speed}
-                      onChange={(e) => setSpeed(Number(e.target.value))}
-                      className="h-9 rounded-lg border border-[#27272A] bg-[#0A0A0A] px-2 text-sm text-white"
-                    >
-                      <option value={1}>1x</option>
-                      <option value={2}>2x</option>
-                      <option value={3}>4x</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="mb-3">
-                  <div className="h-1.5 rounded-full bg-[#27272A] overflow-hidden">
-                    <div className="h-full bg-[#10B981]" style={{ width: `${replayProgress}%` }} />
-                  </div>
-                  <p className="text-xs text-[#A1A1AA] mt-1">Replay progress: {replayProgress}%</p>
-                </div>
-
-                {replayLoading ? (
-                  <div className="h-[330px] flex items-center justify-center text-[#A1A1AA]">Loading replay candles...</div>
-                ) : replayCandles.length ? (
-                  <ReplayChart
-                    candles={replayCandles}
-                    entryTs={parseTimestamp(selectedTrade.entry_date)}
-                    exitTs={parseTimestamp(selectedTrade.exit_date)}
-                    entryPrice={Number(selectedTrade.entry_price) || null}
-                    exitPrice={Number(selectedTrade.exit_price) || null}
-                    playbackIndex={playbackIndex}
-                  />
-                ) : (
-                  <div className="h-[330px] flex items-center justify-center text-[#A1A1AA]">No candle data available for this trade window.</div>
-                )}
-
-                {/* Trade details from journal */}
-                {selectedTrade && (
-                  <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                    <div className="rounded-lg bg-[#10B981]/10 border border-[#10B981]/30 px-3 py-2">
-                      <p className="text-[#A1A1AA] mb-0.5">Entry Price</p>
-                      <p className="font-mono font-bold text-[#10B981] text-sm">{selectedTrade.entry_price ?? '—'}</p>
-                      <p className="text-[#A1A1AA] mt-0.5">{String(selectedTrade.entry_date || '').slice(0, 16).replace('T', ' ')} UTC</p>
+                  <div className="md:ml-auto grid grid-cols-3 gap-2 text-xs">
+                    <div className="rounded-lg border border-[#10B981]/35 bg-[#10B981]/10 px-2.5 py-2">
+                      <p className="text-[#A1A1AA]">Best Win Streak</p>
+                      <p className="text-[#10B981] font-semibold mt-0.5">{pulseStats.winStreak}</p>
                     </div>
-                    <div className="rounded-lg bg-[#EF4444]/10 border border-[#EF4444]/30 px-3 py-2">
-                      <p className="text-[#A1A1AA] mb-0.5">Exit Price</p>
-                      <p className="font-mono font-bold text-[#EF4444] text-sm">{selectedTrade.exit_price ?? '—'}</p>
-                      <p className="text-[#A1A1AA] mt-0.5">{String(selectedTrade.exit_date || '').slice(0, 16).replace('T', ' ')} UTC</p>
+                    <div className="rounded-lg border border-[#EF4444]/35 bg-[#EF4444]/10 px-2.5 py-2">
+                      <p className="text-[#A1A1AA]">Worst Loss Streak</p>
+                      <p className="text-[#EF4444] font-semibold mt-0.5">{pulseStats.lossStreak}</p>
                     </div>
-                    <div className="rounded-lg bg-[#27272A] border border-[#27272A] px-3 py-2">
-                      <p className="text-[#A1A1AA] mb-0.5">Direction</p>
-                      <p className={`font-semibold text-sm ${String(selectedTrade.position || '').toLowerCase().includes('sell') || String(selectedTrade.position || '').toLowerCase().includes('short') ? 'text-[#EF4444]' : 'text-[#10B981]'}`}>
-                        {String(selectedTrade.position || '').toUpperCase()}
-                      </p>
-                    </div>
-                    <div className="rounded-lg bg-[#27272A] border border-[#27272A] px-3 py-2">
-                      <p className="text-[#A1A1AA] mb-0.5">P&L</p>
-                      <p className={`font-mono font-bold text-sm ${(selectedTrade.pnl ?? 0) >= 0 ? 'text-[#10B981]' : 'text-[#EF4444]'}`}>
-                        {formatCurrency(selectedTrade.pnl ?? 0, currency)}
+                    <div className="rounded-lg border border-[#27272A] bg-[#0A0A0A] px-2.5 py-2">
+                      <p className="text-[#A1A1AA]">Momentum</p>
+                      <p className={`font-semibold mt-0.5 ${pulseStats.momentumScore >= 0 ? 'text-[#10B981]' : 'text-[#EF4444]'}`}>
+                        {pulseStats.momentumScore.toFixed(0)}
                       </p>
                     </div>
                   </div>
-                )}
+                </div>
+
+                <div className="rounded-xl border border-[#27272A] bg-[#0A0A0A] p-3">
+                  <div className="grid grid-cols-8 sm:grid-cols-10 lg:grid-cols-12 gap-2">
+                    {pulseTrades.map((trade) => {
+                      const isSelected = trade.id === selectedPulseTradeId;
+                      const intensity = 0.3 + trade.magnitude * 0.7;
+                      const glow = trade.pnl >= 0
+                        ? `rgba(16,185,129,${Math.min(0.45, intensity)})`
+                        : trade.pnl < 0
+                          ? `rgba(239,68,68,${Math.min(0.45, intensity)})`
+                          : 'rgba(161,161,170,0.25)';
+
+                      return (
+                        <button
+                          key={`${trade.id}-${trade.sequence}`}
+                          type="button"
+                          title={`${trade.instrument} | ${trade.dateLabel} | ${formatCurrency(trade.pnl, currency)}`}
+                          onClick={() => setSelectedPulseTradeId(trade.id)}
+                          className={`h-7 rounded-md border transition-all ${
+                            isSelected
+                              ? 'border-white scale-105'
+                              : trade.pnl >= 0
+                                ? 'border-[#10B981]/40 hover:border-[#10B981]'
+                                : trade.pnl < 0
+                                  ? 'border-[#EF4444]/40 hover:border-[#EF4444]'
+                                  : 'border-[#52525B] hover:border-[#A1A1AA]'
+                          }`}
+                          style={{
+                            background:
+                              trade.pnl >= 0
+                                ? `linear-gradient(135deg, rgba(16,185,129,${0.18 + trade.magnitude * 0.5}), rgba(16,185,129,0.06))`
+                                : trade.pnl < 0
+                                  ? `linear-gradient(135deg, rgba(239,68,68,${0.18 + trade.magnitude * 0.5}), rgba(239,68,68,0.06))`
+                                  : 'linear-gradient(135deg, rgba(82,82,91,0.35), rgba(82,82,91,0.12))',
+                            boxShadow: isSelected ? `0 0 0 1px #FFFFFF inset, 0 0 12px ${glow}` : `0 0 8px ${glow}`,
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-3 text-[11px] text-[#A1A1AA]">
+                    <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#10B981]" /> Win</span>
+                    <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#EF4444]" /> Loss</span>
+                    <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#52525B]" /> Flat</span>
+                  </div>
+                </div>
+
+                {selectedPulseTrade ? (
+                  <div className="mt-4 rounded-xl border border-[#27272A] bg-[#111113] p-3.5 grid grid-cols-2 md:grid-cols-5 gap-3 text-xs">
+                    <div>
+                      <p className="text-[#A1A1AA]">Instrument</p>
+                      <p className="text-white font-semibold mt-1">{selectedPulseTrade.instrument}</p>
+                    </div>
+                    <div>
+                      <p className="text-[#A1A1AA]">Date</p>
+                      <p className="text-white font-semibold mt-1">{selectedPulseTrade.dateLabel} UTC</p>
+                    </div>
+                    <div>
+                      <p className="text-[#A1A1AA]">Direction</p>
+                      <p className={`font-semibold mt-1 ${selectedPulseTrade.direction.includes('SELL') || selectedPulseTrade.direction.includes('SHORT') ? 'text-[#EF4444]' : 'text-[#10B981]'}`}>
+                        {selectedPulseTrade.direction}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[#A1A1AA]">Session</p>
+                      <p className="text-white font-semibold mt-1">{selectedPulseTrade.session}</p>
+                    </div>
+                    <div>
+                      <p className="text-[#A1A1AA]">Outcome</p>
+                      <p className={`font-mono font-bold mt-1 ${(selectedPulseTrade.pnl ?? 0) >= 0 ? 'text-[#10B981]' : 'text-[#EF4444]'}`}>
+                        {formatCurrency(selectedPulseTrade.pnl, currency)}
+                      </p>
+                    </div>
+                    <div className="col-span-2 md:col-span-5">
+                      <p className="text-[#A1A1AA]">Setup Tag</p>
+                      <p className="text-[#D4D4D8] mt-1">{selectedPulseTrade.strategy}</p>
+                    </div>
+                  </div>
+                ) : null}
               </>
             ) : (
               <div className="h-[240px] flex items-center justify-center text-[#A1A1AA]">No trades for current filters.</div>
