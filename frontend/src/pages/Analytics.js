@@ -35,6 +35,12 @@ import { formatCurrency } from '../lib/utils';
 const API_URL = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const INTERVAL_SECONDS = {
+  '1m': 60,
+  '5m': 300,
+  '15m': 900,
+  '1h': 3600,
+};
 
 function parseTimestamp(value) {
   if (!value) return null;
@@ -373,8 +379,18 @@ function Analytics() {
       return;
     }
 
-    const from = Math.floor((entryTs - 6 * 60 * 60 * 1000) / 1000);
-    const to = Math.floor(((exitTs || entryTs) + 6 * 60 * 60 * 1000) / 1000);
+    const entrySec = Math.floor(entryTs / 1000);
+    const exitSec = Math.floor((exitTs || entryTs) / 1000);
+    const intervalSec = INTERVAL_SECONDS[interval] || 300;
+    const tradeDurationSec = Math.max(intervalSec, exitSec - entrySec);
+
+    // Keep replay focused around the trade to avoid unrelated future candles.
+    const preBars = 36;
+    const postBars = 18;
+    const dynamicBars = Math.ceil(tradeDurationSec / intervalSec);
+    const from = Math.max(0, entrySec - preBars * intervalSec);
+    const to = exitSec + postBars * intervalSec;
+    const limit = Math.min(900, preBars + postBars + dynamicBars + 30);
 
     setReplayLoading(true);
     try {
@@ -383,9 +399,10 @@ function Analytics() {
         params: {
           symbol,
           interval,
+          provider: 'twelve',
           from,
           to,
-          limit: 700,
+          limit,
         },
       });
 
@@ -398,10 +415,28 @@ function Analytics() {
           low: Number(c.low),
           close: Number(c.close),
         }))
-        .filter((c) => [c.time, c.open, c.high, c.low, c.close].every(Number.isFinite));
+        .filter((c) => [c.time, c.open, c.high, c.low, c.close].every(Number.isFinite))
+        .sort((a, b) => a.time - b.time);
+
+      const findNearestIndex = (targetSec) => {
+        if (!normalized.length || !targetSec) return 0;
+        let idx = 0;
+        let best = Infinity;
+        for (let i = 0; i < normalized.length; i += 1) {
+          const diff = Math.abs(normalized[i].time - targetSec);
+          if (diff < best) {
+            best = diff;
+            idx = i;
+          }
+        }
+        return idx;
+      };
 
       setReplayCandles(normalized);
-      setPlaybackIndex(Math.min(90, Math.max(40, normalized.length)));
+      // Start replay just before entry candle so playback is consistent trade-to-trade.
+      const entryIndex = findNearestIndex(entrySec);
+      const startIndex = Math.max(1, entryIndex - Math.min(12, preBars));
+      setPlaybackIndex(startIndex);
       setIsPlaying(false);
     } catch (error) {
       console.error('Replay candles fetch failed:', error);
@@ -639,7 +674,8 @@ function Analytics() {
               type="date"
               value={filters.startDate}
               onChange={(e) => setFilters((prev) => ({ ...prev, startDate: e.target.value }))}
-              className="mt-1 w-full rounded-lg border border-[#27272A] bg-[#0A0A0A] px-2.5 py-2 text-white"
+              className="analytics-date-input mt-1 w-full rounded-lg border border-[#27272A] bg-[#0A0A0A] px-2.5 py-2 text-white"
+              style={{ colorScheme: 'dark' }}
             />
           </label>
           <label className="text-xs text-[#A1A1AA]">
@@ -648,7 +684,8 @@ function Analytics() {
               type="date"
               value={filters.endDate}
               onChange={(e) => setFilters((prev) => ({ ...prev, endDate: e.target.value }))}
-              className="mt-1 w-full rounded-lg border border-[#27272A] bg-[#0A0A0A] px-2.5 py-2 text-white"
+              className="analytics-date-input mt-1 w-full rounded-lg border border-[#27272A] bg-[#0A0A0A] px-2.5 py-2 text-white"
+              style={{ colorScheme: 'dark' }}
             />
           </label>
           <label className="text-xs text-[#A1A1AA]">

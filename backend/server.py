@@ -2095,6 +2095,7 @@ async def get_market_candles(
     limit: int = Query(default=500, ge=50, le=1000),
     from_ts: Optional[int] = Query(default=None, alias="from", ge=0),
     to_ts: Optional[int] = Query(default=None, alias="to", ge=0),
+    provider: str = Query(default="auto", regex="^(auto|twelve|yahoo|binance)$"),
 ):
     """Fetch OHLCV candles from Twelve Data with Yahoo/Binance fallbacks."""
     interval_map = {
@@ -2392,8 +2393,21 @@ async def get_market_candles(
         return candles[-limit:]
 
     try:
+        # Explicit provider mode for deterministic replay data source.
+        if provider == "twelve":
+            return await fetch_from_twelve_data()
+
+        if provider == "yahoo":
+            return await fetch_from_yahoo()
+
+        if provider == "binance":
+            return await fetch_from_binance()
+
         return await fetch_from_twelve_data()
     except HTTPException as twelve_error:
+        if provider != "auto":
+            raise
+
         crypto_symbols = {"BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"}
         provider_errors = [f"twelve:{twelve_error.detail}"]
 
